@@ -1,0 +1,13 @@
+langgraph
+google-genai
+nba_api
+pandas>=2.2,<3
+numpy>=1.26,<3
+pyarrow
+sentence-transformers
+rank-bm25
+torch
+scikit-learn>=1.4
+streamlit>=1.32,<2
+pytest
+python-dotenv
