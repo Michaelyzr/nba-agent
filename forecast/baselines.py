@@ -136,6 +136,9 @@ def load_source(source: str):
 
 
 def main():
+    # Import from the package so pickles record forecast.baselines, not __main__, and load anywhere.
+    from forecast.baselines import GBMForecaster, RollingAverage
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=["synthetic", "frozen"], default="synthetic")
     ap.add_argument("--split", default=None, help="first test date (default: last 30%% of games)")
