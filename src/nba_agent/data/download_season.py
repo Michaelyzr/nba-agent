@@ -14,7 +14,7 @@ import urllib.request
 
 import pandas as pd
 
-from tables import DATA, EVAL, FILES, INFO, NEWS, SEASON, SEASON_DIR
+from nba_agent.data.tables import DATA, EVAL, FILES, INFO, NEWS, SEASON, SEASON_DIR
 
 CACHE = DATA / "cache" / "advanced_v3"
 MOVEMENT_URL = "https://stats.nba.com/js/data/playermovement/NBA_Player_Movement.json"

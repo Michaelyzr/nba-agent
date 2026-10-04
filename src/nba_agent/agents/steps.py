@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 from langgraph.types import interrupt
 
-import checks
-import llm
-import models
-from tables import MAX_TRIES, SEASON, SKILLS, all_tables, load, player_name, team_name
+from nba_agent.agents import llm
+from nba_agent.data.tables import MAX_TRIES, SEASON, SKILLS, all_tables, load, player_name, team_name
+from nba_agent.forecast import models
+from nba_agent.policy import checks
 
 SKILL_FILES = {"trade_split": "trade.md", "rate": "rate.md", "team_window": "team.md",
                "signing": "signing.md", "context": "context.md"}

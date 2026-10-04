@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nba-agent"
+version = "0.1.0"
+description = "Auditable NBA late-news impact intelligence agent"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "google-genai",
+  "langgraph",
+  "nba_api",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "pyarrow",
+  "python-dotenv",
+  "rank-bm25",
+  "scikit-learn>=1.4",
+  "sentence-transformers",
+  "streamlit>=1.32,<2",
+  "torch",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+nba-agent = "nba_agent.agents.graph:main"
+nba-agent-download = "nba_agent.data.download_season:main"
+nba-agent-evaluate = "nba_agent.evaluation.evaluate:main"
+nba-agent-export = "nba_agent.evaluation.export_csv:main"
+nba-agent-sample = "nba_agent.data.sample:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nba_agent = ["skills/*.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+

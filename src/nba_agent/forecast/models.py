@@ -10,7 +10,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from tables import MODELS
+from nba_agent.data.tables import MODELS
 
 SIGNING_FEATURES = ["MPG", "PPG", "TS", "USG", "GP", "AGE", "PRIOR_PAY", "HAS_PRIOR"]
 

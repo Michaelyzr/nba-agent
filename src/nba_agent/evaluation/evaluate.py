@@ -11,9 +11,9 @@ import math
 import pandas as pd
 from sklearn.metrics import f1_score
 
-import models
-from graph import start
-from tables import EVAL, MODELS
+from nba_agent.agents.graph import start
+from nba_agent.data.tables import EVAL, MODELS
+from nba_agent.forecast import models
 
 VALUE_KEYS = {"ts_pct": ("before_ts", "after_ts"), "net_rating": ("before_net", "after_net")}
 

@@ -9,9 +9,9 @@ import torch
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 
-from checks import signing_features
-from models import SIGNING_FEATURES, build_mlp
-from tables import MODELS, load
+from nba_agent.data.tables import MODELS, load
+from nba_agent.forecast.models import SIGNING_FEATURES, build_mlp
+from nba_agent.policy.checks import signing_features
 
 HIDDEN, EPOCHS, LR, Y_SCALE = 32, 3000, 1e-2, 1e7
 

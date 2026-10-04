@@ -4,13 +4,14 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "data"
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DATA = PROJECT_ROOT / "data"
 INFO = DATA / "info"
 NEWS = DATA / "news"
 EVAL = DATA / "eval"
-MODELS = ROOT / "models"
-SKILLS = ROOT / "skills"
+MODELS = PROJECT_ROOT / "models"
+SKILLS = PACKAGE_ROOT / "skills"
 
 SEASON = "2025-26"
 SEASON_DIR = DATA / "seasons" / SEASON

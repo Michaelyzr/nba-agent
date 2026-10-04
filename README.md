@@ -119,23 +119,29 @@ minutes, orders over channel limits, missing cited reason, retail "lock" or
 "guaranteed" copy, parlays, live sends without risk clearance or retail
 confirm, and rules the gate did not approve.
 
-### Target repository layout
+### Repository layout
 
-New code goes into these folders. The prototype files at the top level stay
-until their replacements work. `models/` is reserved for trained artifacts and
-is git-ignored, so model code lives in `forecast/`.
+Application code lives in the installable `nba_agent` package. Generated data,
+trained artifacts and run outputs stay at the repository root and remain
+git-ignored. New target-system modules should be added inside the matching
+package instead of creating more top-level Python files.
 
 ```text
-data_sources/   nba_stats.py, news.py, kalshi.py, polymarket.py   Data and replay
-replay.py       chronological day loop, fills, settlement          Data and replay
-forecast/       baselines.py, play.py, gru.py, win.py, api.py      Models
-agents/         llm.py, forecaster.py, trader.py, reviewer.py, graph.py   Agents
-policy/         risk.py, gate.py, checks.py                        Agents
-rules/          notebook.json                                      written by the gate
-evaluation/     scorer.py, ablations.py, labels/                   Evaluation and product
-app.py          Streamlit demo                                     Evaluation and product
-tests/          leakage, risk and planted-failure tests            everyone
-data/sample/    a few committed replay days for graders            Data and replay
+src/nba_agent/
+  agents/       graph, nodes, LLM wrapper, forecaster and reviewer
+  data/         table access, downloaders and sample-data builders
+  domain/       typed shared contracts
+  evaluation/   metrics, exports and ablations
+  forecast/     baselines, trained models and forecast API
+  policy/       validation, leakage checks, risk and rule gate
+  replay/       chronological replay, fills and settlement
+  rules/        versioned, gate-approved rule notebook
+  skills/       prompt and calculation instructions
+  ui/           Streamlit demo
+tests/          unit, leakage, risk and end-to-end tests
+data/sample/    small committed replay fixtures
+models/         generated model artifacts (git-ignored)
+runs/           generated replay outputs (git-ignored)
 ```
 
 ## 3. Team, roles and work packages
@@ -373,14 +379,14 @@ the LangGraph patterns in `graph.py` (A6), the check-and-retry design in
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -e ".[dev]"
 
-python make_sample_data.py
-python train_signing.py
+nba-agent-sample
+python -m nba_agent.forecast.train_signing
 
 # Optional cross-encoder fine-tunes; each downloads a base model
-python train_ranker.py
-python train_support.py
+python -m nba_agent.forecast.train_ranker
+python -m nba_agent.forecast.train_support
 
 cp .env.example .env
 ```
@@ -390,27 +396,26 @@ Without `GEMINI_API_KEY`, the chat steps use offline rules and templates.
 ### Run
 
 ```bash
-python graph.py "Did <player>'s true shooting change after he was traded this season?"
-python graph.py --plant playoffs "<same question>"
-streamlit run app.py
-python evaluate.py
+nba-agent "Did <player>'s true shooting change after he was traded this season?"
+nba-agent --plant playoffs "<same question>"
+streamlit run src/nba_agent/ui/app.py
+nba-agent-evaluate
 pytest -q
-python export_csv.py
+nba-agent-export
 ```
 
 Supported questions and player names are generated in `data/eval/questions.json`.
 
-| File | Current role |
+| Package | Current role |
 | --- | --- |
-| `graph.py` | Single-agent LangGraph state, routing, retries and clarification |
-| `steps.py` | Clarify, plan, rank, generate and run code, predict, check and write nodes |
-| `checks.py` | Checks for season, team, rate basis, game count, statistics, citations and quotations |
-| `models.py` | BM25 and cross-encoder retrieval, support check, signing network |
-| `llm.py` | Gemini wrapper with offline fallbacks |
-| `skills/*.md` | Question-specific table and calculation instructions |
-| `download_season.py` | Resumable `nba_api` season download; not yet validated end to end |
-| `make_sample_data.py` | Synthetic data, labels and evaluation questions |
-| `train_*.py`, `evaluate.py` | Prototype models, baselines and metrics |
+| `nba_agent.agents` | Single-agent LangGraph state, routing, retries, LLM access and prototype nodes |
+| `nba_agent.data` | Cached table access, `nba_api` download and synthetic sample builder |
+| `nba_agent.forecast` | Prototype ranker, support model, signing network and training utilities |
+| `nba_agent.policy` | Deterministic checks for statistics, citations and quotations |
+| `nba_agent.evaluation` | Prototype held-out evaluation and CSV exports |
+| `nba_agent.skills` | Question-specific table and calculation instructions |
+| `nba_agent.ui` | Streamlit prototype |
+| `nba_agent.domain`, `nba_agent.replay` | Reserved boundaries for the target typed contracts and replay engine |
 
 `--plant` faults (first attempt only): `playoffs`, `wrong_team`, `no_count`,
 `rate_mix`, `invented_quote`, `wrong_paragraph`, `no_error`, `note_number`.

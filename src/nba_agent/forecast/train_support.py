@@ -7,8 +7,8 @@ import argparse
 
 import pandas as pd
 
-from tables import EVAL, MODELS
-from train_ranker import fit
+from nba_agent.data.tables import EVAL, MODELS
+from nba_agent.forecast.train_ranker import fit
 
 
 def main():
