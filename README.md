@@ -7,11 +7,12 @@ code-enforced guardrails tailored by user type.
 
 **Deadline:** code, demo, backup recording and report by **Saturday 10 October 2026**.
 
-> **Project status (4 Oct):** this repository contains the earlier
-> single-agent cited-stat prototype only. The replay, the three agents, the
-> forecast models, the risk layer and the rule gate described below are the
-> proposal's target and are not built yet. Do not present planned components
-> as results.
+> **Project status (4 Oct):** the data downloaders (`data_sources/`) and the
+> replay engine (`replay.py`) are written and unit-tested, and have been
+> checked against live Kalshi, Polymarket and NBA injury-report data; the full
+> season has not been frozen yet. The three agents, the forecast models, the
+> risk layer and the rule gate are not built yet; the rest of the code is the
+> earlier single-agent prototype. Do not present planned components as results.
 
 ## Contents
 
@@ -157,7 +158,7 @@ keep one owner per package for the contribution statement.
 | --- | --- | --- | --- | --- |
 | D1 | Freeze NBA stats 2022–23 to 2025–26 from `nba_api` (smoke-test `download_season.py --limit 5` first) | Parquet tables in `data/frozen/` load with the schemas in section 5 | Wu Yaqi | Mon 5 Oct |
 | D2 | Late-news table with publish times from NBA injury-report PDFs; inactive list as fallback, stamped 30 minutes before tip | Every row has `published_at`, source and URL | Wu Yaqi | Mon 5 Oct |
-| D3 | Kalshi 1-minute price history for game-winner and player-points markets; Polymarket as backup. **Check today how far back prop history goes** | Price table covers the test period; prop coverage dates written in this README | Wang Yisong | depth check Sun 4 Oct; data Mon 5 Oct |
+| D3 | Kalshi 1-minute price history for game-winner and player-points markets; Polymarket as backup. Depth checked 4 Oct: game winner (`KXNBAGAME`) covers the whole 2025–26 season, 2,898 markets from October; player points (`KXNBAPTS`) start 19 Nov 2025, 23,562 markets, so props cover the full February–April test period | Price table covers the test period | Wang Yisong | data Mon 5 Oct |
 | D4 | `replay.py`: day-by-day loop, as-of filtering, fill at ask plus fees, size capped by recorded volume, settlement | A plain baseline model trades a full month and settles | Wang Yisong | Mon 5 Oct |
 | D5 | Leakage test: no input with a timestamp after the decision time | Test in `tests/` fails on a planted future row | Wu Yaqi | Tue 6 Oct |
 | D6 | Commit a few small replay days to `data/sample/` so graders can run the demo without downloads | Demo runs from a fresh clone | Wang Yisong | Thu 8 Oct |
@@ -225,11 +226,16 @@ record carries a timestamp, and nothing may read data published after it.
 
 | Table | Key columns |
 | --- | --- |
-| `games` | `game_id`, `date`, `tip_time`, `home_team_id`, `away_team_id`, `home_pts`, `away_pts` |
+| `games` | `game_id`, `date` (Eastern), `tip_time`, `final_at` (tip + 3 h; box score visible from then), `home_team_id`, `away_team_id`, `home_team`, `away_team` (tricodes), `home_pts`, `away_pts` |
 | `player_games` | `game_id`, `player_id`, `team_id`, `min`, `pts`, `fga`, `fta`, `usage`, `started` |
+| `players` | `player_id`, `player_name` |
 | `news` | `news_id`, `published_at`, `game_id`, `player_id`, `status`, `source`, `url`, `text` |
-| `prices` | `venue`, `market_ticker`, `game_id`, `player_id` (props), `line`, `ts`, `bid`, `ask`, `volume` |
-| `settlements` | `market_ticker`, `settled_at`, `outcome` |
+| `markets` | `venue`, `market_ticker`, `kind` (`game` or `pts`), `game_id`, `team` (yes side), `player_id` and `line` (props), `title` |
+| `prices` | `venue`, `market_ticker`, `ts` (end of the 1-minute candle), `bid`, `ask`, `volume` |
+| `settlements` | `market_ticker`, `settled_at`, `outcome` (1 if yes) |
+
+The schemas are also in `data_sources/__init__.py` (`SCHEMAS`); `write_table`
+refuses a table that is missing a column. All times are UTC.
 
 **Models → Agents and Evaluation** (returned by `forecast/api.py`)
 
@@ -357,6 +363,46 @@ statement; LLM usage statement.
   group chat and update this README in the same pull request.
 - Record any AI tools you used in your pull request description. The report's
   LLM usage statement is assembled from those notes.
+
+### Building the frozen data and running the replay
+
+Run from the repo root, in this order (each step caches its downloads under
+`data/raw/`, so rerun to resume):
+
+```bash
+python -m data_sources.nba_stats --seasons 2025-26 --limit 5   # smoke test first
+python -m data_sources.nba_stats                               # 2022-23 to 2025-26
+python -m data_sources.news --start 2025-10-21 --end 2026-04-12
+python -m data_sources.kalshi depth                            # coverage by month
+python -m data_sources.kalshi download --start 2025-10-21 --end 2026-04-12
+python replay.py --start 2026-02-01 --end 2026-02-28 --policy record --name feb-record
+```
+
+`replay.py --policy record` is a smoke-test baseline (team win rates to date)
+until `forecast/api.py` exists. Results go to `runs/<name>/` (git-ignored).
+
+Known issues: stats.nba.com often times out from Hong Kong networks and
+cloud machines; try another network or a VPN, and keep the cache. If the
+schedule call fails, `nba_stats` takes tip-off times from the injury reports
+(run `news` first, then rerun `nba_stats`). On a python.org install of Python
+on macOS, run `Install Certificates.command` once if HTTPS calls fail.
+
+### Testing
+
+Tests live in `tests/` (new code) and `test_checks.py` (prototype). They use
+small hand-made tables, need no network and no API key, and run in seconds:
+
+```bash
+python make_sample_data.py && python train_signing.py   # once, for the prototype tests
+pytest -q                                              # everything
+pytest -q tests/test_replay.py                         # one file
+pytest -q -k future                                    # tests whose name matches (the leakage tests)
+```
+
+GitHub runs the same commands on every pull request
+(`.github/workflows/tests.yml`); the result shows as a check on the PR.
+Add a test with every package: a planted failure that the code must catch is
+worth more than a test that only runs the happy path.
 
 ## 10. Current prototype
 
