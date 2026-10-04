@@ -1,6 +1,6 @@
 """M1 baselines: rolling average (M1a) and quantile gradient boosting (M1b).
 
-    python -m forecast.baselines --source synthetic            # prototype data, train before split, test after
+    python -m forecast.baselines --source synthetic            # synthetic season, train before split, test after
     python -m forecast.baselines --source frozen --split 2026-02-01
 
 Both predict points and minutes for a player who plays, as quantiles, so they

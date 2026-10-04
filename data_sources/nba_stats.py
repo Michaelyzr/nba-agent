@@ -83,11 +83,18 @@ def build_games(team_logs: pd.DataFrame, tips: pd.DataFrame) -> pd.DataFrame:
 
 
 def advanced_extra(game_ids) -> pd.DataFrame:
-    """Usage and starter flag from advanced box scores, sharing download_season.py's cache."""
-    from download_season import CACHE as ADV_CACHE, advanced
+    """Usage and starter flag from advanced box scores. Games that keep failing are skipped; rerun to fill them."""
+    from nba_api.stats.endpoints import boxscoreadvancedv3
 
-    advanced(list(game_ids))
-    parts = [pd.read_parquet(p) for g in game_ids if (p := ADV_CACHE / f"{g}_players.parquet").exists()]
+    parts = []
+    for i, gid in enumerate(game_ids):
+        try:
+            parts.append(_cached(CACHE / "advanced" / f"{gid}.parquet",
+                                 lambda: boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=gid, timeout=30).get_data_frames()[0]))
+        except RuntimeError as exc:
+            print(f"  skipped: {exc}")
+        if (i + 1) % 50 == 0:
+            print(f"  advanced box scores: {i + 1}/{len(game_ids)}")
     if not parts:
         return pd.DataFrame(columns=["game_id", "player_id", "usage", "started"])
     adv = pd.concat(parts, ignore_index=True)

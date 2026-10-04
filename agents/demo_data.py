@@ -1,4 +1,4 @@
-"""Synthetic news, markets, prices and settlements on top of the prototype season, for running the agent loop.
+"""Synthetic news, markets, prices and settlements on top of the synthetic season, for running the agent loop.
 
 The market prices a game from win rates plus noise, and reacts to injury news
 MARKET_LAG after it is published. Agents that act on news before the price

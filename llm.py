@@ -1,4 +1,4 @@
-"""Chat-model access. Gemini when a key is set; otherwise steps.py uses its offline rules."""
+"""Chat-model access. Gemini when a key is set; otherwise the agent uses its offline rules."""
 import json
 import os
 import re

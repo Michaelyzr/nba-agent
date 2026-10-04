@@ -12,9 +12,8 @@ code-enforced guardrails tailored by user type.
 > agent loop (`agents/graph.py`) are written and unit-tested. Downloads have
 > been checked against live Kalshi, Polymarket and NBA injury-report data; the
 > full season has not been frozen yet. Forecasts in the loop still use a
-> placeholder win model until `forecast/api.py` exists. The rest of the code
-> is the earlier single-agent Q&A prototype. Do not present synthetic-market
-> P&L as results.
+> placeholder win model until `forecast/api.py` exists. Do not present
+> P&L from the synthetic season as results.
 
 ## Contents
 
@@ -27,7 +26,6 @@ code-enforced guardrails tailored by user type.
 7. [Demo script](#7-demo-script)
 8. [Safety, risks and grading](#8-safety-risks-and-grading)
 9. [How we work in this repo](#9-how-we-work-in-this-repo)
-10. [Current prototype](#10-current-prototype)
 
 ## 1. Product and objectives
 
@@ -149,14 +147,14 @@ confirm, and rules the gate did not approve.
 
 ### Target repository layout
 
-New code goes into these folders. The prototype files at the top level stay
-until their replacements work. `models/` is reserved for trained artifacts and
+New code goes into these folders. `models/` is reserved for trained artifacts and
 is git-ignored, so model code lives in `forecast/`.
 
 ```text
 data_sources/   nba_stats.py, news.py, kalshi.py, polymarket.py   Data and replay
 replay.py       chronological day loop, fills, settlement          Data and replay
 forecast/       baselines.py, play.py, gru.py, win.py, api.py      Models
+                (dev_data.py: synthetic season until D1 lands)
 agents/         graph.py, notebook.py, demo_data.py                Agents (loop)
                 (planned: forecaster.py, trader.py, reviewer.py)
 llm.py          multi-supplier chat wrapper                        Agents
@@ -185,7 +183,7 @@ keep one owner per package for the contribution statement.
 
 | ID | Work | Done when | Suggested owner | Due |
 | --- | --- | --- | --- | --- |
-| D1 | Freeze NBA stats 2022–23 to 2025–26 from `nba_api` (smoke-test `download_season.py --limit 5` first) | Parquet tables in `data/frozen/` load with the schemas in section 5 | Wu Yaqi | Mon 5 Oct |
+| D1 | Freeze NBA stats 2022–23 to 2025–26 from `nba_api` (smoke-test `python -m data_sources.nba_stats --seasons 2025-26 --limit 5` first) | Parquet tables in `data/frozen/` load with the schemas in section 5 | Wu Yaqi | Mon 5 Oct |
 | D2 | Late-news table with publish times from NBA injury-report PDFs; inactive list as fallback, stamped 30 minutes before tip | Every row has `published_at`, source and URL | Wu Yaqi | Mon 5 Oct |
 | D3 | Kalshi 1-minute price history for game-winner and player-points markets; Polymarket as backup. Depth checked 4 Oct: game winner (`KXNBAGAME`) covers the whole 2025–26 season, 2,898 markets from October; player points (`KXNBAPTS`) start 19 Nov 2025, 23,562 markets, so props cover the full February–April test period | Price table covers the test period | Wang Yisong | data Mon 5 Oct |
 | D4 | `replay.py`: day-by-day loop, as-of filtering, fill at ask plus fees, size capped by recorded volume, settlement | A plain baseline model trades a full month and settles | Wang Yisong | Mon 5 Oct |
@@ -206,7 +204,7 @@ keep one owner per package for the contribution statement.
 
 | ID | Work | Done when | Suggested owner | Due |
 | --- | --- | --- | --- | --- |
-| A1 | Multi-supplier LLM wrapper (extend the prototype `llm.py`) that logs supplier and model version per call | All agents call one wrapper | Yang Qianlang | Mon 5 Oct |
+| A1 | Multi-supplier LLM wrapper (extend `llm.py`) that logs supplier and model version per call | All agents call one wrapper | Yang Qianlang | Mon 5 Oct |
 | A2 | Forecaster: tools over frozen data, applies notebook rules, calls M5, writes the three channel briefs | Brief cites news and stats; numbers come only from M5 | Yang Qianlang | Tue 6 Oct |
 | A3 | Grader/trader and `policy/risk.py` | Over-cap, post-tip, parlay and unconfirmed retail orders are blocked | Li Lanqiao | Tue 6 Oct |
 | A4 | Reviewer, `policy/gate.py` and the rule notebook | A proposed rule is accepted or rejected by back-test on earlier days only | Fu Yuxuan | Tue 6 Oct |
@@ -393,6 +391,17 @@ statement; LLM usage statement.
 - Record any AI tools you used in your pull request description. The report's
   LLM usage statement is assembled from those notes.
 
+### Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env            # add GEMINI_API_KEY for the LLM steps (optional)
+```
+
+Without `GEMINI_API_KEY`, the agent's LLM steps use offline rules.
+
 ### Building the frozen data and running the replay
 
 Run from the repo root, in this order (each step caches its downloads under
@@ -449,11 +458,10 @@ python -m agents.graph --plant lock_wording --start 2026-02-01 --end 2026-02-03 
 
 ### Testing
 
-Tests live in `tests/` (new code) and `test_checks.py` (prototype). They use
-small hand-made tables, need no network and no API key, and run in seconds:
+Tests live in `tests/`. They use small hand-made tables, need no network and
+no API key, and run in seconds:
 
 ```bash
-python make_sample_data.py && python train_signing.py   # once, for the prototype tests
 pytest -q                                              # everything
 pytest -q tests/test_replay.py                         # one file
 pytest -q -k future                                    # tests whose name matches (the leakage tests)
@@ -463,65 +471,3 @@ GitHub runs the same commands on every pull request
 (`.github/workflows/tests.yml`); the result shows as a check on the PR.
 Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.
-
-## 10. Current prototype
-
-The existing code is one LangGraph agent that answers cited questions over
-synthetic NBA-shaped data (real team names, made-up players, stats, contracts
-and news). Every number cites saved games, every quotation cites a saved
-paragraph, and a signing estimate is labelled as a prediction with its
-held-out error. Parts worth reusing for the target build: `llm.py` (A1),
-the LangGraph patterns in `graph.py` (A6), the check-and-retry design in
-`checks.py` (A5), and `download_season.py` (D1).
-
-### Setup
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-python make_sample_data.py
-python train_signing.py
-
-# Optional cross-encoder fine-tunes; each downloads a base model
-python train_ranker.py
-python train_support.py
-
-cp .env.example .env
-```
-
-Without `GEMINI_API_KEY`, the chat steps use offline rules and templates.
-
-### Run
-
-```bash
-python graph.py "Did <player>'s true shooting change after he was traded this season?"
-python graph.py --plant playoffs "<same question>"
-streamlit run app.py
-python evaluate.py
-pytest -q
-python export_csv.py
-```
-
-Supported questions and player names are generated in `data/eval/questions.json`.
-
-| File | Current role |
-| --- | --- |
-| `graph.py` | Single-agent LangGraph state, routing, retries and clarification |
-| `steps.py` | Clarify, plan, rank, generate and run code, predict, check and write nodes |
-| `checks.py` | Checks for season, team, rate basis, game count, statistics, citations and quotations |
-| `models.py` | BM25 and cross-encoder retrieval, support check, signing network |
-| `llm.py` | Gemini wrapper with offline fallbacks |
-| `skills/*.md` | Question-specific table and calculation instructions |
-| `download_season.py` | Resumable `nba_api` season download; not yet validated end to end |
-| `make_sample_data.py` | Synthetic data, labels and evaluation questions |
-| `train_*.py`, `evaluate.py` | Prototype models, baselines and metrics |
-
-`--plant` faults (first attempt only): `playoffs`, `wrong_team`, `no_count`,
-`rate_mix`, `invented_quote`, `wrong_paragraph`, `no_error`, `note_number`.
-
-**Prototype limits:** generated code runs through `exec`, which is fine for a
-local demo but unsafe for a public service; `nba_api` has no contracts, news or
-market prices; prototype labels come from templates and do not replace the
-chronological held-out evaluation above.
