@@ -4,6 +4,8 @@ nba_api
 pandas>=2.2,<3
 numpy>=1.26,<3
 pyarrow
+requests
+pdfplumber
 sentence-transformers
 rank-bm25
 torch

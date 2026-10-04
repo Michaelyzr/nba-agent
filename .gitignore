@@ -7,4 +7,7 @@ data/seasons/
 data/info/
 data/news/
 data/eval/
+data/frozen/
+data/raw/
+runs/
 models/
