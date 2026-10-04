@@ -40,9 +40,8 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-nba_agent = ["skills/*.md"]
+nba_agent = ["rules/*.json", "rules/*.md", "skills/*.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-
