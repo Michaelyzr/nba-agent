@@ -7,12 +7,13 @@ code-enforced guardrails tailored by user type.
 
 **Deadline:** code, demo, backup recording and report by **Saturday 10 October 2026**.
 
-> **Project status (4 Oct):** the data downloaders (`data_sources/`) and the
-> replay engine (`replay.py`) are written and unit-tested, and have been
-> checked against live Kalshi, Polymarket and NBA injury-report data; the full
-> season has not been frozen yet. The three agents, the forecast models, the
-> risk layer and the rule gate are not built yet; the rest of the code is the
-> earlier single-agent prototype. Do not present planned components as results.
+> **Project status (4 Oct):** the data downloaders (`data_sources/`), the
+> replay engine (`replay.py`), M1 baselines (`forecast/baselines.py`) and the
+> agent loop (`agents/graph.py`) are written and unit-tested. Downloads have
+> been checked against live Kalshi, Polymarket and NBA injury-report data; the
+> full season has not been frozen yet. Forecasts in the loop still use a
+> placeholder win model until `forecast/api.py` exists. Do not present
+> P&L from the synthetic season as results.
 
 ## Contents
 
@@ -25,7 +26,6 @@ code-enforced guardrails tailored by user type.
 7. [Demo script](#7-demo-script)
 8. [Safety, risks and grading](#8-safety-risks-and-grading)
 9. [How we work in this repo](#9-how-we-work-in-this-repo)
-10. [Current prototype](#10-current-prototype)
 
 ## 1. Product and objectives
 
@@ -63,41 +63,66 @@ baseline on the same inputs.
 
 ## 2. System design
 
-```text
-News + NBA stats (as of decision time)
-            |
-            v
-   Forecaster (LLM agent) ----- calls forecast models
-            |
-            v
-   Grader / trader (LLM agent)
-            |
-            v
-   Risk limits (code) --> paper or live fill
-            |
-            v
-      Game settles
-            |
-            v
-   Reviewer (LLM agent): cause of each loss, proposed rule
-            |
-            v
-   Gate (code): back-test on earlier days only
-      | helps                | does not help
-      v                      v
-   Rule notebook          rejected, reason logged
-      |
-      +--> read by the forecaster and the trader on later days
+The trading agent is one LangGraph (`agents/graph.py`) with two phases.
+**Decide** runs at every news item in the six hours before tip-off, and once
+an hour before tip. **Review** runs after each replay day. Replay hands the
+graph an as-of view: only news, finished games and quotes published by that
+moment. Implemented in `agents/graph.py`, `agents/notebook.py`, `llm.py` and
+`replay.py`.
+
+Blue = LLM judgment; green = forecast numbers; grey = code; yellow = what the
+user sees or what is logged. Dotted lines are gate-approved rules feeding the
+next night's decisions.
+
+```mermaid
+flowchart TD
+    A["New injury report or news item<br/>(or 1 h before tip-off)"] --> B["Trigger + as-of view<br/>only data published so far"]
+
+    B --> C["News investigator agent<br/>What does the news mean?<br/>Which players and markets are affected?"]
+    N[("Rule notebook<br/>gate-approved rules")] -.-> C
+    C --> D["Forecast models via forecast()<br/>play chance · minutes · points · win %<br/>before vs after the news"]
+
+    D --> E["Market analyst agent<br/>Model vs market price<br/>How far has the price already moved?"]
+    N -.-> E
+    E --> F{"Gap left<br/>after fees?"}
+    F -- No --> G["Brief: already priced in,<br/>no action"]
+    F -- Yes --> H["Brief + proposed order<br/>with cited reason"]
+
+    G --> I{"Checks pass?<br/>citations before decision,<br/>numbers match models,<br/>no lock wording"}
+    H --> I
+    I -- "No (one retry)" --> C
+    I -- Yes --> J{"Risk limits pass?<br/>caps · before tip-off ·<br/>channel · no parlays"}
+    J -- No --> K["Order blocked, reason logged<br/>(brief still delivered)"]
+    J -- Yes --> L["User sees brief<br/>and confirms order"]
+
+    L --> M["Game settles<br/>profit, closing-line value, calibration"]
+    K --> M
+    M --> O["Reviewer agent<br/>Why did we lose or miss?<br/>Propose a rule"]
+    O --> P{"Gate: does the rule help<br/>on earlier days only?"}
+    P -- Yes --> N
+    P -- No --> Q["Rule rejected, reason logged"]
+
+    classDef llm fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef code fill:#f1f5f9,stroke:#475569,color:#0f172a
+    classDef dl fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef out fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    class C,E,O llm
+    class B,I,J,M,P,F code
+    class D dl
+    class G,H,K,L,Q out
 ```
 
-| Part | Type | Job |
-| --- | --- | --- |
-| Forecaster | LLM agent | Read late news, query NBA stats, apply notebook rules, call the models, write channel-specific briefs |
-| Market grader / trader | LLM agent | Compare model probability with market price; propose a paper or live trade with a cited reason |
-| Reviewer | LLM agent | After settlement, label each failed or missed trade: news misread, minutes shared wrong, model wrong, or market already priced it; propose a rule |
-| Risk limits | Code | Caps per trade, game and day; drawdown kill switch; no post-tip orders; ask-plus-fees fills; liquidity caps; retail confirm and cool-downs; no parlays; team and media cannot order |
-| Gate | Code | Back-test each proposed rule on earlier days only; keep it if calibration or closing-line value improves by a set threshold; can freeze live trading |
-| Replay and scorer | Code | Chronological replay on recorded prices; calibration, P&L, drawdown, closing-line value; flag policy breaches |
+| Diagram box | Graph node | Type | Job |
+| --- | --- | --- | --- |
+| News investigator (Forecaster in the work packages) | `investigate` | LLM | Read late news, apply notebook rules, name who is out and which markets are affected |
+| Forecast models | `forecast` | Code / DL | `forecast()` before vs after the news: play chance, minutes, points, win % (placeholder win model until M5) |
+| Market analyst (Grader / trader) | `analyse` → `propose` / `no_action` | LLM + code | Code computes the gap after fees; the LLM may drop a trade and explain, never add one |
+| Checks | `checks` | Code | Citations must predate the decision; numbers must match the models; no “lock” wording; one retry then block |
+| Risk limits | `risk` | Code | Caps, no post-tip orders, channel permissions; team and media cannot order; no parlays |
+| Confirm / blocked | `confirm` / `blocked` → `deliver` | Code | Brief always delivered; replay auto-confirms; live demo waits on the user |
+| Reviewer | `review` | LLM | After settlement, blame the loss or miss and propose a machine-checkable rule |
+| Gate + notebook | `gate` → `save_rule` / `reject_rule` | Code | Back-test on earlier days only; only the gate sets a rule active |
+| Replay and scorer | `replay.py` | Code | Decision times, fills at ask plus fees, P&L, closing-line value |
 
 The agent that writes a rule never approves it. Risk limits are code, so an
 agent cannot override them. All three agents call chat models through one
@@ -120,29 +145,25 @@ minutes, orders over channel limits, missing cited reason, retail "lock" or
 "guaranteed" copy, parlays, live sends without risk clearance or retail
 confirm, and rules the gate did not approve.
 
-### Repository layout
+### Target repository layout
 
-Application code lives in the installable `nba_agent` package. Generated data,
-trained artifacts and run outputs stay at the repository root and remain
-git-ignored. New target-system modules should be added inside the matching
-package instead of creating more top-level Python files.
+New code goes into these folders. `models/` is reserved for trained artifacts and
+is git-ignored, so model code lives in `forecast/`.
 
 ```text
-src/nba_agent/
-  agents/       graph, nodes, LLM wrapper, forecaster and reviewer
-  data/         table access, downloaders and sample-data builders
-  domain/       typed shared contracts
-  evaluation/   metrics, exports and ablations
-  forecast/     baselines, trained models and forecast API
-  policy/       validation, leakage checks, risk and rule gate
-  replay/       chronological replay, fills and settlement
-  rules/        versioned, gate-approved rule notebook
-  skills/       prompt and calculation instructions
-  ui/           Streamlit demo
-tests/          unit, leakage, risk and end-to-end tests
-data/sample/    small committed replay fixtures
-models/         generated model artifacts (git-ignored)
-runs/           generated replay outputs (git-ignored)
+data_sources/   nba_stats.py, news.py, kalshi.py, polymarket.py   Data and replay
+replay.py       chronological day loop, fills, settlement          Data and replay
+forecast/       baselines.py, play.py, gru.py, win.py, api.py      Models
+                (dev_data.py: synthetic season until D1 lands)
+agents/         graph.py, notebook.py, demo_data.py                Agents (loop)
+                (planned: forecaster.py, trader.py, reviewer.py)
+llm.py          multi-supplier chat wrapper                        Agents
+policy/         risk.py, gate.py, checks.py                        Agents
+rules/          notebook.json                                      written by the gate
+evaluation/     scorer.py, ablations.py, labels/                   Evaluation and product
+app.py          Streamlit demo                                     Evaluation and product
+tests/          leakage, risk and planted-failure tests            everyone
+data/sample/    a few committed replay days for graders            Data and replay
 ```
 
 ## 3. Team, roles and work packages
@@ -162,7 +183,7 @@ keep one owner per package for the contribution statement.
 
 | ID | Work | Done when | Suggested owner | Due |
 | --- | --- | --- | --- | --- |
-| D1 | Freeze NBA stats 2022–23 to 2025–26 from `nba_api` (smoke-test `download_season.py --limit 5` first) | Parquet tables in `data/frozen/` load with the schemas in section 5 | Wu Yaqi | Mon 5 Oct |
+| D1 | Freeze NBA stats 2022–23 to 2025–26 from `nba_api` (smoke-test `python -m data_sources.nba_stats --seasons 2025-26 --limit 5` first) | Parquet tables in `data/frozen/` load with the schemas in section 5 | Wu Yaqi | Mon 5 Oct |
 | D2 | Late-news table with publish times from NBA injury-report PDFs; inactive list as fallback, stamped 30 minutes before tip | Every row has `published_at`, source and URL | Wu Yaqi | Mon 5 Oct |
 | D3 | Kalshi 1-minute price history for game-winner and player-points markets; Polymarket as backup. Depth checked 4 Oct: game winner (`KXNBAGAME`) covers the whole 2025–26 season, 2,898 markets from October; player points (`KXNBAPTS`) start 19 Nov 2025, 23,562 markets, so props cover the full February–April test period | Price table covers the test period | Wang Yisong | data Mon 5 Oct |
 | D4 | `replay.py`: day-by-day loop, as-of filtering, fill at ask plus fees, size capped by recorded volume, settlement | A plain baseline model trades a full month and settles | Wang Yisong | Mon 5 Oct |
@@ -183,7 +204,7 @@ keep one owner per package for the contribution statement.
 
 | ID | Work | Done when | Suggested owner | Due |
 | --- | --- | --- | --- | --- |
-| A1 | Multi-supplier LLM wrapper (extend the prototype `llm.py`) that logs supplier and model version per call | All agents call one wrapper | Yang Qianlang | Mon 5 Oct |
+| A1 | Multi-supplier LLM wrapper (extend `llm.py`) that logs supplier and model version per call | All agents call one wrapper | Yang Qianlang | Mon 5 Oct |
 | A2 | Forecaster: tools over frozen data, applies notebook rules, calls M5, writes the three channel briefs | Brief cites news and stats; numbers come only from M5 | Yang Qianlang | Tue 6 Oct |
 | A3 | Grader/trader and `policy/risk.py` | Over-cap, post-tip, parlay and unconfirmed retail orders are blocked | Li Lanqiao | Tue 6 Oct |
 | A4 | Reviewer, `policy/gate.py` and the rule notebook | A proposed rule is accepted or rejected by back-test on earlier days only | Fu Yuxuan | Tue 6 Oct |
@@ -370,6 +391,17 @@ statement; LLM usage statement.
 - Record any AI tools you used in your pull request description. The report's
   LLM usage statement is assembled from those notes.
 
+### Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env            # add GEMINI_API_KEY for the LLM steps (optional)
+```
+
+Without `GEMINI_API_KEY`, the agent's LLM steps use offline rules.
+
 ### Building the frozen data and running the replay
 
 Run from the repo root, in this order (each step caches its downloads under
@@ -393,13 +425,43 @@ schedule call fails, `nba_stats` takes tip-off times from the injury reports
 (run `news` first, then rerun `nba_stats`). On a python.org install of Python
 on macOS, run `Install Certificates.command` once if HTTPS calls fail.
 
-### Testing
+### Running the agent loop
 
-Tests live in `tests/` (new code) and `test_checks.py` (prototype). They use
-small hand-made tables, need no network and no API key, and run in seconds:
+`agents/graph.py` is the section 2 loop as one LangGraph with two phases.
+At every replay decision time it runs trigger → news investigator → forecast
+→ market analyst → checks (one retry) → risk → confirm or blocked. After each
+replay day it runs settle → reviewer → gate → rule notebook.
 
 ```bash
-python make_sample_data.py && python train_signing.py   # once, for the prototype tests
+python -m agents.graph --draw                                       # Mermaid of the compiled graph
+python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1             # synthetic markets
+python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1 --no-learn  # ablation
+python -m agents.graph --source frozen --start 2026-02-01 --end 2026-02-28 --llm       # real data, Gemini
+python -m agents.graph --plant lock_wording --start 2026-02-01 --end 2026-02-03         # show a blocked order
+```
+
+- **LLM steps.** The news investigator, market analyst and reviewer use Gemini
+  through `llm.py` when `--llm` is set and a key is in `.env`. Without one, they
+  fall back to offline rules, so the loop runs with no network. An LLM can drop
+  a candidate trade but never add one. Every number comes from code.
+- **Forecasts.** `record_forecaster` (win rates, log5, minus the usual minutes
+  of players ruled out) is a placeholder. Pass `forecast/api.py` as `forecaster=`
+  once M5 exists.
+- **Rules.** The gate back-tests a proposed rule on up to 14 earlier days with
+  and without it, and keeps it if mean closing-line value improves by 0.005
+  over at least 3 changed trades. Expired rules can be renewed.
+- **Synthetic data.** `agents/demo_data.py` invents markets whose prices react
+  10 minutes after injury news. It exists to develop the loop. Its P&L means
+  nothing, so never report it.
+- **Output.** `runs/<name>/` gets `decisions.parquet`, `fills.parquet`,
+  `notebook.json` and `trace.jsonl` (every step of every decision).
+
+### Testing
+
+Tests live in `tests/`. They use small hand-made tables, need no network and
+no API key, and run in seconds:
+
+```bash
 pytest -q                                              # everything
 pytest -q tests/test_replay.py                         # one file
 pytest -q -k future                                    # tests whose name matches (the leakage tests)
@@ -409,64 +471,3 @@ GitHub runs the same commands on every pull request
 (`.github/workflows/tests.yml`); the result shows as a check on the PR.
 Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.
-
-## 10. Current prototype
-
-The existing code is one LangGraph agent that answers cited questions over
-synthetic NBA-shaped data (real team names, made-up players, stats, contracts
-and news). Every number cites saved games, every quotation cites a saved
-paragraph, and a signing estimate is labelled as a prediction with its
-held-out error. Parts worth reusing for the target build: `llm.py` (A1),
-the LangGraph patterns in `graph.py` (A6), the check-and-retry design in
-`checks.py` (A5), and `download_season.py` (D1).
-
-### Setup
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-
-nba-agent-sample
-python -m nba_agent.forecast.train_signing
-
-# Optional cross-encoder fine-tunes; each downloads a base model
-python -m nba_agent.forecast.train_ranker
-python -m nba_agent.forecast.train_support
-
-cp .env.example .env
-```
-
-Without `GEMINI_API_KEY`, the chat steps use offline rules and templates.
-
-### Run
-
-```bash
-nba-agent "Did <player>'s true shooting change after he was traded this season?"
-nba-agent --plant playoffs "<same question>"
-streamlit run src/nba_agent/ui/app.py
-nba-agent-evaluate
-pytest -q
-nba-agent-export
-```
-
-Supported questions and player names are generated in `data/eval/questions.json`.
-
-| Package | Current role |
-| --- | --- |
-| `nba_agent.agents` | Single-agent LangGraph state, routing, retries, LLM access and prototype nodes |
-| `nba_agent.data` | Cached table access, `nba_api` download and synthetic sample builder |
-| `nba_agent.forecast` | Prototype ranker, support model, signing network and training utilities |
-| `nba_agent.policy` | Deterministic checks for statistics, citations and quotations |
-| `nba_agent.evaluation` | Prototype held-out evaluation and CSV exports |
-| `nba_agent.skills` | Question-specific table and calculation instructions |
-| `nba_agent.ui` | Streamlit prototype |
-| `nba_agent.domain`, `nba_agent.replay` | Reserved boundaries for the target typed contracts and replay engine |
-
-`--plant` faults (first attempt only): `playoffs`, `wrong_team`, `no_count`,
-`rate_mix`, `invented_quote`, `wrong_paragraph`, `no_error`, `note_number`.
-
-**Prototype limits:** generated code runs through `exec`, which is fine for a
-local demo but unsafe for a public service; `nba_api` has no contracts, news or
-market prices; prototype labels come from templates and do not replace the
-chronological held-out evaluation above.

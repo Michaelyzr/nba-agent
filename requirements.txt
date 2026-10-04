@@ -6,8 +6,6 @@ numpy>=1.26,<3
 pyarrow
 requests
 pdfplumber
-sentence-transformers
-rank-bm25
 torch
 scikit-learn>=1.4
 streamlit>=1.32,<2
