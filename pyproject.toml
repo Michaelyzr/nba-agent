@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nba-agent"
+version = "0.1.0"
+description = "Market-graded NBA late-news impact agent"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "google-genai",
+  "langgraph",
+  "nba_api",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "pdfplumber",
+  "pyarrow",
+  "python-dotenv",
+  "requests",
+  "scikit-learn>=1.4",
+  "streamlit>=1.32,<2",
+  "torch",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+nba-agent = "agents.graph:main"
+
+[tool.setuptools]
+py-modules = ["llm", "replay"]
+
+[tool.setuptools.packages.find]
+include = ["agents*", "data_sources*", "forecast*"]
