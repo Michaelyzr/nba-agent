@@ -387,6 +387,37 @@ schedule call fails, `nba_stats` takes tip-off times from the injury reports
 (run `news` first, then rerun `nba_stats`). On a python.org install of Python
 on macOS, run `Install Certificates.command` once if HTTPS calls fail.
 
+### Running the agent loop
+
+`agents/graph.py` is the section 2 loop as one LangGraph with two phases.
+At every replay decision time it runs trigger → news investigator → forecast
+→ market analyst → checks (one retry) → risk → confirm or blocked. After each
+replay day it runs settle → reviewer → gate → rule notebook.
+
+```bash
+python -m agents.graph --draw                                       # Mermaid of the compiled graph
+python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1             # synthetic markets
+python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1 --no-learn  # ablation
+python -m agents.graph --source frozen --start 2026-02-01 --end 2026-02-28 --llm       # real data, Gemini
+python -m agents.graph --plant lock_wording --start 2026-02-01 --end 2026-02-03         # show a blocked order
+```
+
+- **LLM steps.** The news investigator, market analyst and reviewer use Gemini
+  through `llm.py` when `--llm` is set and a key is in `.env`. Without one, they
+  fall back to offline rules, so the loop runs with no network. An LLM can drop
+  a candidate trade but never add one. Every number comes from code.
+- **Forecasts.** `record_forecaster` (win rates, log5, minus the usual minutes
+  of players ruled out) is a placeholder. Pass `forecast/api.py` as `forecaster=`
+  once M5 exists.
+- **Rules.** The gate back-tests a proposed rule on up to 14 earlier days with
+  and without it, and keeps it if mean closing-line value improves by 0.005
+  over at least 3 changed trades. Expired rules can be renewed.
+- **Synthetic data.** `agents/demo_data.py` invents markets whose prices react
+  10 minutes after injury news. It exists to develop the loop. Its P&L means
+  nothing, so never report it.
+- **Output.** `runs/<name>/` gets `decisions.parquet`, `fills.parquet`,
+  `notebook.json` and `trace.jsonl` (every step of every decision).
+
 ### Testing
 
 Tests live in `tests/` (new code) and `test_checks.py` (prototype). They use
