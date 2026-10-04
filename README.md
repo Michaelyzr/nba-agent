@@ -7,12 +7,14 @@ code-enforced guardrails tailored by user type.
 
 **Deadline:** code, demo, backup recording and report by **Saturday 10 October 2026**.
 
-> **Project status (4 Oct):** the data downloaders (`data_sources/`) and the
-> replay engine (`replay.py`) are written and unit-tested, and have been
-> checked against live Kalshi, Polymarket and NBA injury-report data; the full
-> season has not been frozen yet. The three agents, the forecast models, the
-> risk layer and the rule gate are not built yet; the rest of the code is the
-> earlier single-agent prototype. Do not present planned components as results.
+> **Project status (4 Oct):** the data downloaders (`data_sources/`), the
+> replay engine (`replay.py`), M1 baselines (`forecast/baselines.py`) and the
+> agent loop (`agents/graph.py`) are written and unit-tested. Downloads have
+> been checked against live Kalshi, Polymarket and NBA injury-report data; the
+> full season has not been frozen yet. Forecasts in the loop still use a
+> placeholder win model until `forecast/api.py` exists. The rest of the code
+> is the earlier single-agent Q&A prototype. Do not present synthetic-market
+> P&L as results.
 
 ## Contents
 
@@ -63,41 +65,66 @@ baseline on the same inputs.
 
 ## 2. System design
 
-```text
-News + NBA stats (as of decision time)
-            |
-            v
-   Forecaster (LLM agent) ----- calls forecast models
-            |
-            v
-   Grader / trader (LLM agent)
-            |
-            v
-   Risk limits (code) --> paper or live fill
-            |
-            v
-      Game settles
-            |
-            v
-   Reviewer (LLM agent): cause of each loss, proposed rule
-            |
-            v
-   Gate (code): back-test on earlier days only
-      | helps                | does not help
-      v                      v
-   Rule notebook          rejected, reason logged
-      |
-      +--> read by the forecaster and the trader on later days
+The trading agent is one LangGraph (`agents/graph.py`) with two phases.
+**Decide** runs at every news item in the six hours before tip-off, and once
+an hour before tip. **Review** runs after each replay day. Replay hands the
+graph an as-of view: only news, finished games and quotes published by that
+moment. Implemented in `agents/graph.py`, `agents/notebook.py`, `llm.py` and
+`replay.py`.
+
+Blue = LLM judgment; green = forecast numbers; grey = code; yellow = what the
+user sees or what is logged. Dotted lines are gate-approved rules feeding the
+next night's decisions.
+
+```mermaid
+flowchart TD
+    A["New injury report or news item<br/>(or 1 h before tip-off)"] --> B["Trigger + as-of view<br/>only data published so far"]
+
+    B --> C["News investigator agent<br/>What does the news mean?<br/>Which players and markets are affected?"]
+    N[("Rule notebook<br/>gate-approved rules")] -.-> C
+    C --> D["Forecast models via forecast()<br/>play chance · minutes · points · win %<br/>before vs after the news"]
+
+    D --> E["Market analyst agent<br/>Model vs market price<br/>How far has the price already moved?"]
+    N -.-> E
+    E --> F{"Gap left<br/>after fees?"}
+    F -- No --> G["Brief: already priced in,<br/>no action"]
+    F -- Yes --> H["Brief + proposed order<br/>with cited reason"]
+
+    G --> I{"Checks pass?<br/>citations before decision,<br/>numbers match models,<br/>no lock wording"}
+    H --> I
+    I -- "No (one retry)" --> C
+    I -- Yes --> J{"Risk limits pass?<br/>caps · before tip-off ·<br/>channel · no parlays"}
+    J -- No --> K["Order blocked, reason logged<br/>(brief still delivered)"]
+    J -- Yes --> L["User sees brief<br/>and confirms order"]
+
+    L --> M["Game settles<br/>profit, closing-line value, calibration"]
+    K --> M
+    M --> O["Reviewer agent<br/>Why did we lose or miss?<br/>Propose a rule"]
+    O --> P{"Gate: does the rule help<br/>on earlier days only?"}
+    P -- Yes --> N
+    P -- No --> Q["Rule rejected, reason logged"]
+
+    classDef llm fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef code fill:#f1f5f9,stroke:#475569,color:#0f172a
+    classDef dl fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef out fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    class C,E,O llm
+    class B,I,J,M,P,F code
+    class D dl
+    class G,H,K,L,Q out
 ```
 
-| Part | Type | Job |
-| --- | --- | --- |
-| Forecaster | LLM agent | Read late news, query NBA stats, apply notebook rules, call the models, write channel-specific briefs |
-| Market grader / trader | LLM agent | Compare model probability with market price; propose a paper or live trade with a cited reason |
-| Reviewer | LLM agent | After settlement, label each failed or missed trade: news misread, minutes shared wrong, model wrong, or market already priced it; propose a rule |
-| Risk limits | Code | Caps per trade, game and day; drawdown kill switch; no post-tip orders; ask-plus-fees fills; liquidity caps; retail confirm and cool-downs; no parlays; team and media cannot order |
-| Gate | Code | Back-test each proposed rule on earlier days only; keep it if calibration or closing-line value improves by a set threshold; can freeze live trading |
-| Replay and scorer | Code | Chronological replay on recorded prices; calibration, P&L, drawdown, closing-line value; flag policy breaches |
+| Diagram box | Graph node | Type | Job |
+| --- | --- | --- | --- |
+| News investigator (Forecaster in the work packages) | `investigate` | LLM | Read late news, apply notebook rules, name who is out and which markets are affected |
+| Forecast models | `forecast` | Code / DL | `forecast()` before vs after the news: play chance, minutes, points, win % (placeholder win model until M5) |
+| Market analyst (Grader / trader) | `analyse` → `propose` / `no_action` | LLM + code | Code computes the gap after fees; the LLM may drop a trade and explain, never add one |
+| Checks | `checks` | Code | Citations must predate the decision; numbers must match the models; no “lock” wording; one retry then block |
+| Risk limits | `risk` | Code | Caps, no post-tip orders, channel permissions; team and media cannot order; no parlays |
+| Confirm / blocked | `confirm` / `blocked` → `deliver` | Code | Brief always delivered; replay auto-confirms; live demo waits on the user |
+| Reviewer | `review` | LLM | After settlement, blame the loss or miss and propose a machine-checkable rule |
+| Gate + notebook | `gate` → `save_rule` / `reject_rule` | Code | Back-test on earlier days only; only the gate sets a rule active |
+| Replay and scorer | `replay.py` | Code | Decision times, fills at ask plus fees, P&L, closing-line value |
 
 The agent that writes a rule never approves it. Risk limits are code, so an
 agent cannot override them. All three agents call chat models through one
@@ -130,7 +157,9 @@ is git-ignored, so model code lives in `forecast/`.
 data_sources/   nba_stats.py, news.py, kalshi.py, polymarket.py   Data and replay
 replay.py       chronological day loop, fills, settlement          Data and replay
 forecast/       baselines.py, play.py, gru.py, win.py, api.py      Models
-agents/         llm.py, forecaster.py, trader.py, reviewer.py, graph.py   Agents
+agents/         graph.py, notebook.py, demo_data.py                Agents (loop)
+                (planned: forecaster.py, trader.py, reviewer.py)
+llm.py          multi-supplier chat wrapper                        Agents
 policy/         risk.py, gate.py, checks.py                        Agents
 rules/          notebook.json                                      written by the gate
 evaluation/     scorer.py, ablations.py, labels/                   Evaluation and product
