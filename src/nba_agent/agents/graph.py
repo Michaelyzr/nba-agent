@@ -12,8 +12,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-import steps
-from tables import MAX_TRIES
+from nba_agent.agents import steps
+from nba_agent.data.tables import MAX_TRIES
 
 
 class State(TypedDict, total=False):

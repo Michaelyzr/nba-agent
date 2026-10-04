@@ -8,7 +8,7 @@ import argparse
 import pandas as pd
 from sentence_transformers import CrossEncoder
 
-from tables import EVAL, MODELS
+from nba_agent.data.tables import EVAL, MODELS
 
 BASE = "cross-encoder/ms-marco-MiniLM-L6-v2"
 

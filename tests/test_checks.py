@@ -8,9 +8,9 @@ import pytest
 
 os.environ.setdefault("NBA_AGENT_OFFLINE", "1")
 
-import checks  # noqa: E402
-from graph import reply, start  # noqa: E402
-from tables import EVAL, MODELS, load  # noqa: E402
+from nba_agent.agents.graph import reply, start  # noqa: E402
+from nba_agent.data.tables import EVAL, MODELS, load  # noqa: E402
+from nba_agent.policy import checks  # noqa: E402
 
 QUESTIONS = json.loads((EVAL / "questions.json").read_text())
 

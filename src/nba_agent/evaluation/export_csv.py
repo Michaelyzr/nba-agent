@@ -1,7 +1,7 @@
 """Write every saved parquet file as a CSV in data/exports/ so it can be opened in Excel or Numbers."""
 import pandas as pd
 
-from tables import DATA, FILES
+from nba_agent.data.tables import DATA, FILES
 
 OUT = DATA / "exports"
 

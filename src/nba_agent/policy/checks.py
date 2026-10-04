@@ -9,7 +9,7 @@ import re
 
 import pandas as pd
 
-from tables import load
+from nba_agent.data.tables import load
 
 REL_TOL = 1e-4
 CAP_WORDS = re.compile(r"cap room|cap space|under the cap|salary cap|recommend", re.I)

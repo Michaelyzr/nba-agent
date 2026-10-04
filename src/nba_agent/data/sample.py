@@ -10,7 +10,7 @@ import random
 import numpy as np
 import pandas as pd
 
-from tables import EVAL, FILES, INFO, NEWS, SEASON_DIR
+from nba_agent.data.tables import EVAL, FILES, INFO, NEWS, SEASON_DIR
 
 RNG = np.random.default_rng(7606)
 random.seed(7606)
@@ -305,8 +305,8 @@ def build_eval(players, teams, trades, player_reg, adv_reg, team_reg, paragraphs
                 rank.append({"split": split, "query": query, "doc_id": r.RECAP_ID, "text": r.TEXT, "label": 0})
     pd.DataFrame(rank).to_csv(EVAL / "rank_labels.csv", index=False)
 
-    from checks import strip_for_numbers
-    from models import evidence_text
+    from nba_agent.forecast.models import evidence_text
+    from nba_agent.policy.checks import strip_for_numbers
 
     templates = [
         ("{name}'s true shooting was {a:.3f} over {g} games before the trade [W:before].", "ratio"),

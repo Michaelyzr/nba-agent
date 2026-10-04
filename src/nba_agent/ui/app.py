@@ -4,10 +4,9 @@ import json
 import pandas as pd
 import streamlit as st
 
-import llm
-import steps
-from graph import reply, start
-from tables import EVAL
+from nba_agent.agents import llm, steps
+from nba_agent.agents.graph import reply, start
+from nba_agent.data.tables import EVAL
 
 st.set_page_config(page_title="NBA analytics agent", layout="wide")
 st.title("NBA analytics agent (prototype)")
