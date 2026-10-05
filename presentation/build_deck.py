@@ -39,7 +39,7 @@ LIGHT = RGBColor(0xF1, 0xF5, 0xF9)
 TEXT = RGBColor(0x0F, 0x17, 0x2A)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
-FOOTER = "DASC7606C Group 12 · Can a consumer beat a sports prediction market?"
+FOOTER = "DASC7606C Group 12 · Betting markets are tilted against consumers"
 
 # Key numbers. Sources: README "Results" (R); evaluation/results/consumer_fairness.md (F);
 # m4_vs_market.csv (M); trade funnel / fairness_run_costs.csv (T); walkforward_summary.md,
@@ -66,6 +66,19 @@ K = {
     # M6 market-impact model (S)
     "m6_mae": "0.867", "zero_mae": "0.833", "m6_coef": "0.025", "m6_coef_pct": "2.5%",
     "m6_forced_n": "501", "m6_forced_pnl": "−$652",
+}
+
+# External published research (NOT our measurement); full references in presentation/README.md.
+# L = Wardle et al., Lancet Public Health Commission on gambling, Lancet Public Health 2024; 9: e950–94.
+# H = Hollenbeck, Larsen & Proserpio, "The Financial Consequences of Legalized Sports Gambling",
+#     SSRN 4903302 (2024, rev. 2025). B = Baker et al., "Gambling Away Stability", NBER WP 33108 (2024).
+EXT = {
+    "states": "38",              # H: US states legal after the 2018 Supreme Court ruling
+    "adults_pct": "46%",         # L: 46.2% of adults gambled in the past year (global estimate)
+    "disorder": "80M",           # L: ~80 million adults with gambling disorder or problematic gambling
+    "credit_online": "2.75",     # H: credit-score fall with online access (0.8 pts for any legal betting)
+    "bankrupt": "10%",           # H: bankruptcies ~10% higher with online access
+    "invest": "$0.99",           # B: $1 of online betting reduces net investment by $0.99
 }
 
 _fit_report: list[tuple[int, str, float, float]] = []
@@ -262,49 +275,97 @@ def build():
     rect(s, 0, 0, W, H, NAVY)
     rect(s, 0, 4.55, W, 0.08, ORANGE)
     textbox(s, 0.9, 1.1, W - 1.8, 2.0,
-            [("Can a consumer beat a sports prediction market?", {"bold": True})],
+            [("Betting markets are tilted against consumers", {"bold": True})],
             pt=44, color=WHITE, slide_no=1, label="title")
     textbox(s, 0.9, 3.1, W - 1.8, 1.3,
-            ["What a serious NBA trading agent taught us about structural unfairness, "
-             "and a product that protects and educates instead"],
-            pt=22, color=RGBColor(0xCB, 0xD5, 0xE1), slide_no=1, label="subtitle")
+            ["An AI agent that tests it on a full NBA season, and a product that teaches it"],
+            pt=24, color=RGBColor(0xCB, 0xD5, 0xE1), slide_no=1, label="subtitle")
     textbox(s, 0.9, 4.85, W - 1.8, 1.9,
             ["Market-Graded Learning for NBA Game-Impact Intelligence",
              "DASC7606C (COMP7606) · Group 12 · Track 2: Agentic Framework Design",
              "Presenter: Ngan Tsz Sui · Friday 9 October 2026"],
             pt=20, color=WHITE, slide_no=1, label="meta")
     s.notes_slide.notes_text_frame.text = (
-        "Good morning, we are Group 12. Many people believe that if they follow NBA injury news closely, they "
-        "can beat sports prediction markets. We took that belief seriously and built the best agent we could. "
-        "What we found is that the game is structurally tilted against the consumer, so our product protects "
-        "and educates rather than encourages betting.")
+        "Good morning, we are Group 12. Our project starts from a consumer problem: sports betting and prediction "
+        "markets are now everywhere, people want to understand them, the markets are structurally tilted against "
+        "them, and betting harms well-being. We built an AI agent to test how tilted the game is, and turned what "
+        "we learned into a product that educates and protects.")
 
-    # 2 Hook --------------------------------------------------------------
+    # 2 The problem -----------------------------------------------------------
     n = 2
-    s = new_slide(prs, "The belief: “I follow the news, so I can beat the market”", (
-        "Retail users see an injury headline and think the price is wrong. So we gave an agent every advantage "
-        "a careful consumer could have: public news, trained models, an LLM-capable agent loop, risk controls, "
-        "and rules it learns from its own mistakes, and we replayed a full season of real Kalshi prices. We then "
-        "tested the results with confidence intervals. The short answer: no edge, and not trading wins."), n)
-    textbox(s, MARGIN, TOP + 0.15, 6.7, 5.5, [
-        ("We built a serious agent to try:", {"bold": True, "color": NAVY, "heading": True}),
-        "Public news: ESPN inactive lists and box scores, 3 seasons",
-        "Learned models, including a neural net trained on the market's own moves",
-        "LangGraph agent loop, LLM-capable (Gemini), deterministic by default",
-        "Code risk limits and rules learned only through a backtest gate",
-        f"Graded against {K['games']} Kalshi games ({K['price_rows']} price rows), 2025-26",
-    ], pt=20, bullets=True, space=10, slide_no=n)
-    x0 = 7.6
-    rect(s, x0, TOP + 0.25, W - MARGIN - x0, 5.3, NAVY, shape=MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.05
-    textbox(s, x0 + 0.3, TOP + 0.45, W - MARGIN - x0 - 0.6, 4.9, [
-        ("What we found", {"bold": True, "color": RGBColor(0xFD, 0xBA, 0x74)}),
-        "Tested with confidence intervals: no edge. Never trading is the winner.",
-        "The reasons are structural: costs, speed and expertise.",
-        "So our product's job is to protect and educate consumers.",
-    ], pt=22, color=WHITE, space=16, slide_no=n, label="finding")
+    s = new_slide(prs, "The problem: three things consumers face", (
+        f"Three parts. First, consumers want to learn: since a 2018 US Supreme Court ruling, {EXT['states']} US "
+        f"states have legalised sports betting, and the Lancet Public Health Commission estimates {EXT['adults_pct']} "
+        f"of adults worldwide gambled in the past year, yet few users understand how prices, fees and spreads work. "
+        f"Second, the markets are structurally unfair, which is what we measured: about {K['cost_pct']} cost per trade, "
+        f"{K['disc_share']} of the price move before the public news, the market beats our model, and never trading "
+        f"wins. Third, external research shows betting harms well-being: the Commission estimates "
+        f"{EXT['disorder']} adults have gambling disorder or problem gambling; Hollenbeck, Larsen and Proserpio find "
+        f"legal online betting lowers credit scores by {EXT['credit_online']} points and raises bankruptcies by about "
+        f"{EXT['bankrupt']}; Baker and co-authors find each dollar of online betting cuts investment by about "
+        f"{EXT['invest']}. References: Wardle H. et al., The Lancet Public Health Commission on gambling, Lancet "
+        f"Public Health 2024; 9: e950–94. Hollenbeck B., Larsen P., Proserpio D., The Financial Consequences of "
+        f"Legalized Sports Gambling, SSRN 4903302, 2024, revised 2025. Baker S.R., Balthrop J., Johnson M.J., "
+        f"Kotter J.D., Pisciotta K., Gambling Away Stability: Sports Betting's Impact on Vulnerable Households, "
+        f"NBER Working Paper 33108, 2024."), n)
+    cw3 = (CW - 0.5) / 3
+    pillars = [
+        ("1  People want to learn", BLUE, [
+            f"Mainstream: legal in {EXT['states']} US states since 2018 ¹",
+            f"{EXT['adults_pct']} of adults worldwide gambled last year ²",
+            "Few understand prices, fees and spreads",
+        ]),
+        ("2  Markets are tilted", ORANGE, [
+            f"~{K['cost_pct']} cost on every trade",
+            f"{K['disc_share']} of the price move comes before the public news",
+            "The market beats our model; never trading wins",
+        ]),
+        ("3  Betting causes harm", RED, [
+            f"~{EXT['disorder']} adults with gambling disorder or problem gambling ²",
+            f"Online betting: credit scores −{EXT['credit_online']} pts, bankruptcies +~{EXT['bankrupt']} ¹",
+            f"$1 of online betting cuts investment ~{EXT['invest']} ³",
+        ]),
+    ]
+    for i, (head, col, lines) in enumerate(pillars):
+        card(s, MARGIN + i * (cw3 + 0.25), TOP + 0.15, cw3, 3.55, head, lines, col, pt=18, n=n)
+    textbox(s, MARGIN + cw3 + 0.25, TOP + 3.75, cw3, 0.45, [("Our measurements", {"italic": True})],
+            pt=14, color=ORANGE, align=PP_ALIGN.CENTER, slide_no=n, label="ours")
+    textbox(s, MARGIN + 2 * (cw3 + 0.25), TOP + 3.75, cw3, 0.45, [("External research", {"italic": True})],
+            pt=14, color=RED, align=PP_ALIGN.CENTER, slide_no=n, label="external")
+    callout(s, MARGIN, TOP + 4.35, CW, 0.7,
+            "Consumers need education and protection, not betting tips", pt=22, n=n)
+    textbox(s, MARGIN, 6.45, CW, 0.5, [
+        "¹ Hollenbeck, Larsen & Proserpio 2024 (SSRN)   ² Lancet Public Health Commission on gambling 2024   "
+        "³ Baker et al. 2024 (NBER WP 33108)"], pt=13, color=GREY, slide_no=n, label="refs")
 
-    # 3 What we built -----------------------------------------------------
+    # 3 Research question --------------------------------------------------------
     n = 3
+    s = new_slide(prs, "Research question", (
+        "So our research question: can a consumer, even one armed with an AI agent and public news, beat the "
+        "market? We built the strongest consumer we could: public news, trained models including a neural net "
+        "trained on the market's own moves, an LLM-capable agent loop, risk limits and rules learned through a "
+        "backtest gate, graded on a full season of real Kalshi prices. The answer, tested with confidence "
+        "intervals, is no: never trading wins. So the product's job is to educate and protect."), n)
+    callout(s, MARGIN, TOP + 0.15, CW, 1.15,
+            "Can a consumer, even one armed with an AI agent and public news, beat the market?", pt=28,
+            fill=RGBColor(0xDB, 0xEA, 0xFE), color=NAVY, n=n)
+    textbox(s, MARGIN, TOP + 1.55, 6.9, 4.2, [
+        ("We built the strongest consumer we could:", {"bold": True, "color": NAVY, "heading": True}),
+        "Public news: ESPN inactive lists and box scores, 3 seasons",
+        "Trained models, incl. a neural net trained on the market's own moves",
+        "LLM-capable LangGraph agent; code risk limits; gated rule learning",
+        f"Graded on {K['games']} Kalshi games ({K['price_rows']} price rows), 2025-26",
+    ], pt=19, bullets=True, space=8, slide_no=n)
+    x0 = 7.75
+    rect(s, x0, TOP + 1.6, W - MARGIN - x0, 3.0, NAVY, shape=MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.05
+    textbox(s, x0 + 0.3, TOP + 1.75, W - MARGIN - x0 - 0.6, 2.75, [
+        ("Answer: no", {"bold": True, "color": RGBColor(0xFD, 0xBA, 0x74)}),
+        "Tested with confidence intervals, never trading wins.",
+        "So the product educates and protects instead.",
+    ], pt=22, color=WHITE, space=14, slide_no=n, label="answer")
+
+    # 4 What we built -----------------------------------------------------
+    n = 4
     s = new_slide(prs, "What we built: a market-graded agent", (
         "Briefly, the system. Public data on the left; models trained once; a replay that walks the season day "
         "by day and only shows the agent what was public at that moment; then the agent and its outputs. "
@@ -315,8 +376,8 @@ def build():
         "Every simulated order pays the recorded ask plus the Kalshi fee, so we measure what a consumer would face"],
         pt=18, align=PP_ALIGN.CENTER, slide_no=n)
 
-    # 4 Evidence: costs and selectivity --------------------------------------
-    n = 4
+    # 5 Evidence: costs and selectivity --------------------------------------
+    n = 5
     s = new_slide(prs, "Evidence 1: costs set a hurdle before you start", (
         f"First, costs. One hour before tip a $20 order pays half the bid-ask spread plus the Kalshi fee. On "
         f"average that is {K['cost_c']} cents per contract, {K['cost_pct']} of the price, and {K['cost_cheap_pct']} "
@@ -334,8 +395,8 @@ def build():
         f"Only **{K['beat_close']}** beat or matched the close",
     ], pt=18, bullets=True, space=4, slide_no=n)
 
-    # 5 Evidence: information speed ----------------------------------------
-    n = 5
+    # 6 Evidence: information speed ----------------------------------------
+    n = 6
     s = new_slide(prs, "Evidence 2: the price moves before the news reaches you", (
         f"Second, speed. On the {K['disc_games']} test games where the inactive list changed our win model by at "
         f"least a point, the price had already moved {K['disc_before']} points in the news direction before the "
@@ -348,8 +409,8 @@ def build():
         "List stamped tip − 30 min: our proxy for when a retail user sees it",
     ], pt=18, bullets=True, space=4, slide_no=n)
 
-    # 6 Evidence: market beats models ---------------------------------------
-    n = 6
+    # 7 Evidence: market beats models ---------------------------------------
+    n = 7
     s = new_slide(prs, "Evidence 3: the market beats our model", (
         f"Third, expertise. On {K['m4_games']} test games our win model's Brier score one hour before tip is "
         f"{K['m4_brier']}, against {K['mkt_brier']} for the market at the same moment; lower is better. When they "
@@ -364,8 +425,8 @@ def build():
          {"pt": 16, "color": GREY}),
     ], pt=19, bullets=True, space=10, slide_no=n)
 
-    # 7 Evidence: M6 ---------------------------------------------------------
-    n = 7
+    # 8 Evidence: M6 ---------------------------------------------------------
+    n = 8
     s = new_slide(prs, "Evidence 4: even a market-trained neural net finds nothing", (
         f"Fourth, we trained M6, a neural network whose only job is to predict how the price moves between our "
         f"decision time and tip-off, using the market's own past reactions. It cannot beat the simplest guess, "
@@ -384,8 +445,8 @@ def build():
     callout(s, MARGIN, 6.42, CW, 0.5,
             "The price already contains the public information; the consumer is left paying costs", pt=18, n=n)
 
-    # 8 Evidence: walk-forward ----------------------------------------------
-    n = 8
+    # 9 Evidence: walk-forward ----------------------------------------------
+    n = 9
     s = new_slide(prs, "Evidence 5: tested with CIs, never trading wins", (
         f"Finally, the honest test. We re-ran the whole season walk-forward, retraining the win model every month, "
         f"with day-clustered bootstrap confidence intervals. Mean closing-line value is below zero for every setup, "
@@ -411,45 +472,10 @@ def build():
         f"{K['ho_raw']} with negative CLV (luck)",
     ], pt=18, bullets=True, space=4, slide_no=n)
 
-    # 9 Long shots -----------------------------------------------------------
-    n = 9
-    s = new_slide(prs, "Long shots: where the data is weaker", (
-        f"We also checked for long-shot bias. Honestly, our data does not clearly show it: prices are well "
-        f"calibrated, and only the cheapest bucket hints at it. What does show is that long shots lose more per "
-        f"dollar, {K['ls_roi']} against {K['fav_roi']} for heavy favourites, because costs are a bigger share of a "
-        f"cheap price."), n)
-    picture(s, "longshot_calibration.png", MARGIN, TOP, CW, 4.55)
-    textbox(s, MARGIN, 5.85, CW, 1.1, [
-        f"**Not clearly supported:** prices are calibrated; only 0–10¢ hints (1 win in {K['ls_n']} vs "
-        f"{K['ls_implied']} implied, z = {K['ls_z']})",
-        f"Buying at ask + fee: long shots ≤ 25¢ **{K['ls_roi']}**, heavy favourites ≥ 75¢ {K['fav_roi']}",
-    ], pt=18, bullets=True, space=4, slide_no=n)
-
-    # 10 Asymmetry context ---------------------------------------------------
+    # 10 Product as consumer protection -------------------------------------
     n = 10
-    s = new_slide(prs, "Context: who sits on the other side?", (
-        "Quick context, and this is general industry knowledge, not our measurement. Professional traders and "
-        "market makers usually have faster data, automated pricing and, on many venues, special fee or liquidity "
-        "programmes. A retail user reads public news and pays the full taker price. We are not saying anyone "
-        "breaks rules; it is consistent with the speed and cost results we measured."), n)
-    callout(s, MARGIN, TOP + 0.15, CW, 0.6,
-            "General industry knowledge: NOT measured in this project", pt=20,
-            fill=RGBColor(0xFE, 0xE2, 0xE2), color=RED, n=n)
-    card(s, MARGIN, TOP + 1.0, 5.95, 3.6, "Professionals / market makers", [
-        "Fast data feeds and automated pricing",
-        "Specialist models, staff and capital",
-        "On many venues, maker fee or liquidity programmes",
-    ], NAVY, pt=18, n=n)
-    card(s, MARGIN + 6.38, TOP + 1.0, CW - 6.38, 3.6, "Typical retail user", [
-        "Public news, often after the price has moved",
-        "Intuition and headlines, no model",
-        "Pays the spread and the taker fee",
-    ], ORANGE, pt=18, n=n)
-
-    # 11 Product as consumer protection -------------------------------------
-    n = 11
-    s = new_slide(prs, "Our product, reframed: protect the consumer first", (
-        f"So the product is built around protection. The agent passes by default: it declined about "
+    s = new_slide(prs, "Our product: educate and protect the consumer", (
+        f"So, back to the problem: the product educates and protects instead of encouraging bets. The agent passes by default: it declined about "
         f"{K['pass_share']} of decision points, and on the play-off holdout it did not trade at all. Retail briefs "
         f"show the bid and ask next to our estimate, and when there is no order they say why. The Coach shows the "
         f"full break-even after spread and fee. Risk limits and banned words are code the LLM cannot override; all "
@@ -464,8 +490,8 @@ def build():
         "**Learned rules:** skip ≤ 35¢; skip after a 2¢ move against",
     ], pt=18, bullets=True, space=8, slide_no=n)
 
-    # 12 Coach ---------------------------------------------------------------
-    n = 12
+    # 11 Coach ---------------------------------------------------------------
+    n = 11
     s = new_slide(prs, "Coach: teach why most bets don't clear costs", (
         "The Coach turns this evidence into lessons. At a chosen moment it explains the game using only what was "
         "public and shows the break-even after spread and fee. Lesson cards appear when relevant: price is a "
@@ -488,14 +514,16 @@ def build():
             "Educational, paper money only · only information public at that moment · no promise words",
             pt=18, n=n)
 
-    # 13 Honest scope ---------------------------------------------------------
-    n = 13
+    # 12 Honest scope ---------------------------------------------------------
+    n = 12
     s = new_slide(prs, "Honest scope: what “unfair” means here", (
         "To be precise: unfair here means structural disadvantages, namely costs, speed and expertise. It does not "
         "mean manipulation or fraud, and we make no accusation against Kalshi. One disclosure: we designed the "
         "market anchor and the reviewer after seeing the first February-to-April results, so that window is not a "
         "clean holdout. That is why the walk-forward season and the untouched play-off holdout are our headline "
-        "tests. Other caveats: one season, game-winner markets only, and a proxy news timestamp."), n)
+        "tests. Other caveats: one season, game-winner markets only, a proxy news timestamp, and long-shot bias "
+        "was not clearly supported in our data. The well-being numbers on the problem slide are published "
+        "research, not our measurement."), n)
     card(s, MARGIN, TOP + 0.15, 5.6, 5.55, "What we claim", [
         "Structural disadvantages: costs, speed, expertise",
         "**Not** manipulation or fraud",
@@ -507,11 +535,12 @@ def build():
         "holdout; walk-forward and play-off holdout are the honest checks",
         f"One season ({K['games']} games), game-winner markets only",
         "News stamped tip − 30 min (proxy; real reports come earlier)",
-        "Costs measured for a $20 order at tip − 60 min; long-shot test underpowered",
+        "Costs for a $20 order at tip − 60 min; long-shot bias not clearly supported",
+        "Well-being figures are published research, not ours",
     ], RED, pt=18, n=n)
 
-    # 14 Demo -----------------------------------------------------------------
-    n = 14
+    # 13 Demo -----------------------------------------------------------------
+    n = 13
     s = new_slide(prs, "Live demo: streamlit run app.py", (
         "Now the demo, focused on protection. On the replayed night, watch the agent see the news, compare its "
         "estimate with the bid and ask, and usually decline with a reason. In the Coach, I'll make a paper call "
@@ -527,18 +556,20 @@ def build():
     table(s, rows, MARGIN, TOP + 0.15, [2.6, CW - 2.6], row_h=0.66, pt=18)
     callout(s, MARGIN, 6.3, CW, 0.55, "Backup: recorded run of the same demo", pt=18, n=n)
 
-    # 15 Recommendations ------------------------------------------------------
-    n = 15
+    # 14 Recommendations ------------------------------------------------------
+    n = 14
     s = new_slide(prs, "Recommendations, next steps and Q&A", (
         "Our recommendations follow from the evidence. Before any order, show the all-in cost and the break-even "
         "probability, not just the price. Warn by default when news is likely already priced in. Put education, "
-        "like our Coach, in front of the first trade, with sensible default limits. For our own work: enforce a "
+        "like our Coach, in front of the first trade, with sensible default limits, and, as the Lancet "
+        "Commission argues, treat betting harm as a public-health issue. For our own work: enforce a "
         "daily-loss stop, use timestamped injury reports, and extend to player-prop markets. Thank you, we are "
         "happy to take questions."), n)
     card(s, MARGIN, TOP + 0.15, 6.4, 4.0, "For products and policy", [
         "Show the all-in cost and break-even before every order",
         "Default warning: “this news is likely priced in”",
         "Education before the first trade; default stake limits",
+        "Treat betting harm as a public-health issue (Lancet)",
     ], NAVY, pt=18, n=n)
     card(s, MARGIN + 6.7, TOP + 0.15, CW - 6.7, 4.0, "Our next steps", [
         "Show the full break-even in every retail brief",
