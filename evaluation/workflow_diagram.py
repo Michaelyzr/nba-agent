@@ -19,7 +19,7 @@ DECIDE, REVIEW, SAFETY, GOOD, BAD = "#e8eefc", "#fdf1e3", "#fde8e8", "#e3f5e6", 
 NODES = {
     "trigger": (1.5, 7.3, "new news or tip − 60 min", DECIDE),
     "investigate": (4.1, 7.3, "news + statuses as of now", DECIDE),
-    "forecast": (6.7, 7.3, "M2–M4: P(win), player lines", DECIDE),
+    "forecast": (6.7, 7.3, "M4 win model: P(win)\nbefore vs after the news", DECIDE),
     "analyse": (9.3, 7.3, "market anchor + news shift;\nmatch notebook rules", DECIDE),
     "propose": (11.9, 8.0, "order if gap after fees > edge", DECIDE),
     "no_action": (11.9, 6.6, "brief only", DECIDE),
@@ -113,7 +113,7 @@ def draw(path: Path):
           ls="--")
 
     ax.text(17.1, 0.85, "Inputs (public only)\n• ESPN box scores + inactive lists\n• Kalshi prices: fill at ask"
-            " + fee,\n   capped by traded volume\n• Models: M2 GRU, M3 play, M4 win",
+            " + fee,\n   capped by traded volume\n• Models: M4 win (trades);\n   M2 GRU + M3 play (briefs only)",
             fontsize=8.6, va="center", ha="center", linespacing=1.3,
             bbox=dict(boxstyle="round,pad=0.5", fc="#f4f4f4", ec="#999"))
 
