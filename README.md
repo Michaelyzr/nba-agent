@@ -599,3 +599,22 @@ The GitHub Actions workflow was removed in the layout refactor. Restoring
 `.github/workflows/tests.yml` to run `pytest -q` will bring back the PR check.
 Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.
+
+### Opt-in stats-only game-distribution experiment
+
+`forecast/benchmark_games.py` compares a richer stats-only win classifier with
+an absence-free retraining of the existing win architecture, and adds margin
+and total distributions. Run:
+
+```bash
+python -m forecast.benchmark_games --source sample --out runs/game-baseline-v1
+```
+
+See [the model guide](forecast/GAME_MODELS.md) for chronological splits, measured
+results, API examples, and limitations. The first win gain is small and its
+bootstrap interval includes zero; totals did not materially improve. New
+models remain opt-in and do not replace the existing agent's forecast API or
+market-anchored trading logic. Aggregate results are in
+`evaluation/results/game_v1/`; weights and raw experiment outputs stay in
+ignored `runs/`. Player forecasts are available through an explicit optional
+adapter; their existing training limitations are retained and documented.

@@ -63,15 +63,23 @@ class GRUForecaster:
 
     def fit(self, rows: pd.DataFrame, h: History, verbose=True):
         torch.manual_seed(self.seed)
-        rows = rows.sort_values("tip_time")
-        self.features = [f for f in FEATURES if rows[f].notna().any()]
+        rows = rows.sort_values(["tip_time", "game_id"]).reset_index(drop=True)
+        times = rows.tip_time.drop_duplicates().sort_values()
+        if len(times) < 2:
+            raise ValueError("GRU needs at least two distinct game times for chronological validation")
+        boundary = times.iloc[min(max(int(len(times) * .9), 1), len(times) - 1)]
+        cut = int((rows.tip_time < boundary).sum())
+        fit_rows = rows.iloc[:cut]
+        self.validation_start = boundary
+        self.features = [f for f in FEATURES if fit_rows[f].notna().any()]
         sample = np.concatenate([h.player_rows(p, t, SEQ_LEN) for p, t in
-                                 zip(rows.player_id[::50], rows.tip_time[::50])] or [np.zeros((1, len(SEQ_COLS)))])
+                                 zip(fit_rows.player_id[::50], fit_rows.tip_time[::50])] or [np.zeros((1, len(SEQ_COLS)))])
+        if not len(sample):
+            sample = np.zeros((1, len(SEQ_COLS)))
         self.seq_mean, self.seq_std = sample.mean(0), sample.std(0) + 1e-6
-        self.st_mean, self.st_std = rows[self.features].mean(), rows[self.features].std().replace(0, 1)
+        self.st_mean, self.st_std = fit_rows[self.features].mean(), fit_rows[self.features].std().replace(0, 1).fillna(1)
         seq, static = self._arrays(rows, h)
         y = torch.tensor(rows[list(TARGETS)].to_numpy(np.float32) / SCALE)
-        cut = int(len(rows) * 0.9)
         self.net = Net(seq.shape[2], static.shape[1], self.hidden)
         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
         best, best_state, patience = np.inf, None, 0
