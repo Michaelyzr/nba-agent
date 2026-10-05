@@ -162,3 +162,50 @@ def test_api_history_isolated_across_same_day_decision_times(late_first):
         assert len(history.player_rows(10, target_tip)) == len(expected)
     # Repeat the earlier view after both snapshots have been accessed.
     assert f.history(early).team_games(1, target_tip) == []
+
+
+
+def test_api_history_reuses_only_the_same_snapshot():
+    import gc
+    import weakref
+    from forecast.api import Forecaster
+    from replay import AsOf
+
+    pg, games = league(n_games=2)
+    tables = {"games": games, "player_games": pg}
+    now = T0 + pd.Timedelta(hours=4)
+    snapshot = AsOf(tables, now, {})
+    f = Forecaster()
+    first = f.history(snapshot)
+    assert f.history(snapshot) is first
+    other = AsOf(tables, now, {})
+    assert f.history(other) is not first
+    # Updating the dataset requires a fresh view, as for frozen replay inputs.
+    tables["games"].loc[0, "home_pts"] += 10
+    updated = AsOf(tables, now, {})
+    assert f.history(updated).team_margins(1, games.tip_time.iloc[1])[0] == first.team_margins(1, games.tip_time.iloc[1])[0] + 10
+    ref = weakref.ref(snapshot)
+    del snapshot
+    gc.collect()
+    assert ref() is None
+    assert len(f._history_by_view) == 2
+
+
+def test_api_history_rebuilds_if_view_time_changes():
+    from forecast.api import Forecaster
+    from replay import AsOf
+
+    pg, games = league(n_games=2)
+    snapshot = AsOf({"games": games, "player_games": pg}, T0 + pd.Timedelta(hours=1), {})
+    f = Forecaster()
+    assert f.history(snapshot).team_games(1, games.tip_time.iloc[1]) == []
+    snapshot.now = T0 + pd.Timedelta(hours=4)
+    assert f.history(snapshot).team_games(1, games.tip_time.iloc[1]) == ["g000"]
+    snapshot.now = T0 + pd.Timedelta(hours=1)
+    assert f.history(snapshot).team_games(1, games.tip_time.iloc[1]) == []
+
+
+def test_api_skips_forecasting_when_no_markets_exist():
+    from forecast.api import Forecaster
+
+    assert Forecaster()(None, None, pd.DataFrame(), {}) == {}

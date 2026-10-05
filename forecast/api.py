@@ -7,11 +7,13 @@
     MarketAgent(forecaster=f)                   # P(yes) for every game-winner market
 
 Every call reads only the as-of view it is given. The history index is
-rebuilt from the supplied as-of view on every call, so accessing a later
-view cannot contaminate an earlier prediction or leave a later one stale.
+cached only within the supplied as-of view, so accessing a later view
+cannot contaminate an earlier prediction or leave a later one stale.
+Views reference frozen input tables; create a new view after updating them.
 """
 import math
 import pickle
+from weakref import WeakKeyDictionary
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +34,7 @@ def _load(path: Path):
 class Forecaster:
     def __init__(self, win=None, play=None, points=None):
         self.win_model, self.play_model, self.points_model = win, play, points
+        self._history_by_view = WeakKeyDictionary()
 
     @classmethod
     def load(cls, folder: Path = MODELS):
@@ -46,9 +49,13 @@ class Forecaster:
         return "+".join(m.name for m in (self.win_model, self.play_model, self.points_model) if m is not None)
 
     def history(self, view) -> History:
-        # A date-wide cache mixes different decision times within the same day.
-        # Rebuild from the filtered view to keep forward and backward replay safe.
-        return History(view.player_games(), view.games())
+        # Views refer to frozen tables. Never share an index across views, even
+        # on the same calendar date. Weak keys release indexes with their views.
+        cached = self._history_by_view.get(view)
+        if cached is None or cached[0] != view.now or cached[1] is not view._t:
+            cached = (view.now, view._t, History(view.player_games(), view.games()))
+            self._history_by_view[view] = cached
+        return cached[2]
 
     # ---------------- games ----------------
 
@@ -62,6 +69,8 @@ class Forecaster:
 
     def __call__(self, view, game, markets: pd.DataFrame, overrides: dict) -> dict:
         """MarketAgent interface: P(yes) for each game-winner market."""
+        if markets.empty:
+            return {}
         p_home = self.win(view, game, overrides.get("out", []))["p_home"]
         return {m.market_ticker: p_home if m.team == game.home_team else 1 - p_home
                 for m in markets.itertuples() if m.kind == "game"}
