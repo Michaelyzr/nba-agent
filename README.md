@@ -486,6 +486,7 @@ python -m agents.graph --source synthetic --forecaster record --start 2026-01-01
 ```bash
 python -m evaluation.ablations                   # section 6 ablations, calibration, policy tests, headline chart
 python -m evaluation.m4_report                    # M4 win model vs the market: m4_vs_market.png and tables
+python -m evaluation.trade_visuals                # how the agent trades: trade_flow.png, trade_example.png, trade_funnel.png
 python -m evaluation.scorer runs/<name>          # score any run folder
 python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
 streamlit run app.py                             # demo: replayed night, coach, channel briefs, learning, safety, models
