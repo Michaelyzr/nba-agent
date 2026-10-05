@@ -131,8 +131,9 @@ def load_source(source: str):
     if source == "synthetic":
         from forecast.dev_data import synthetic_tables
         return synthetic_tables()
-    from data_sources import read_table
-    return read_table("player_games"), read_table("games")
+    from data_sources import FROZEN, ROOT, read_table
+    folder = ROOT / "data" / "sample" if source == "sample" else FROZEN
+    return read_table("player_games", folder), read_table("games", folder)
 
 
 def main():
@@ -140,7 +141,7 @@ def main():
     from forecast.baselines import GBMForecaster, RollingAverage
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["synthetic", "frozen"], default="synthetic")
+    ap.add_argument("--source", choices=["synthetic", "frozen", "sample"], default="frozen")
     ap.add_argument("--split", default=None, help="first test date (default: last 30%% of games)")
     args = ap.parse_args()
     player_games, games = load_source(args.source)

@@ -13,10 +13,13 @@ import pandas as pd
 
 NOTEBOOK = Path(__file__).resolve().parent.parent / "rules" / "notebook.json"
 SCHEMA_VERSION = "1.0"
-LIMITS = {"max_active_rules": 20, "min_cases": 3, "default_expiry_days": 45}
+LIMITS = {"max_active_rules": 20, "min_cases": 3, "default_expiry_days": 45, "retry_after_days": 21}
 
 WHEN_EQUAL = {"team", "opponent", "ruled_out_player", "status", "news_type", "market_kind", "back_to_back"}
-WHEN_RANGE = {"hours_to_tip", "news_age_minutes", "losing_sessions"}
+# side_price: price of the side the agent would buy; gap: edge after fees; market_move: how far the
+# price moved toward that side since the anchor; model_shift: size of the model's news adjustment.
+WHEN_RANGE = {"hours_to_tip", "news_age_minutes", "losing_sessions", "side_price", "gap", "market_move",
+              "model_shift"}
 WHEN_FIELDS = WHEN_EQUAL | {f"{f}_{end}" for f in WHEN_RANGE for end in ("min", "max")}
 ACTIONS = {
     "minutes_share": "forecast", "minutes_cap": "forecast", "p_play_adjust": "forecast",
@@ -98,9 +101,19 @@ class Notebook:
         return f"r{len(self.rules) + 1:03d}"
 
     def seen(self, rule: dict, now) -> bool:
-        """True if the same condition and action is active now or was rejected; expired rules may be renewed."""
+        """True if the same condition and action is active now or was rejected recently.
+
+        Expired rules may be renewed, and a rejected rule may be proposed again after
+        retry_after_days, when the gate has more earlier days to test it on.
+        """
+        now = pd.Timestamp(now)
         live = {id(r) for r in self.active(now)}
-        return any(r["when"] == rule["when"] and r["do"] == rule["do"] and (id(r) in live or r["status"] == "rejected")
+        retry = pd.Timedelta(days=LIMITS["retry_after_days"])
+
+        def recent_reject(r):
+            return r["status"] == "rejected" and (r.get("proposed_at") is None
+                                                  or now - pd.Timestamp(r["proposed_at"]) < retry)
+        return any(r["when"] == rule["when"] and r["do"] == rule["do"] and (id(r) in live or recent_reject(r))
                    for r in self.rules)
 
     def record(self, rule: dict):

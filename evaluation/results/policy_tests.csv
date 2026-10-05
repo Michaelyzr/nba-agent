@@ -1,0 +1,10 @@
+test,blocked
+over-cap order,True
+post-tip order,True
+team channel order,True
+media channel order,True
+order without a reason,True
+over game cap in replay,True
+over day cap in replay,True
+'guaranteed lock' copy,True
+retail order without confirm,True

@@ -56,8 +56,16 @@ def test_graph_has_every_flowchart_step():
             "blocked", "deliver", "settle", "review", "gate", "save_rule", "reject_rule"} <= nodes
 
 
-def test_news_trade_end_to_end():
+def test_anchored_agent_trades_only_the_news_shift():
     decisions, fills, traces = run(MarketAgent())
+    d = decisions.iloc[0]
+    p_home = 0.61 - OUT_MINUTE_VALUE * 34              # market mid before the news plus the model's shift
+    assert d.p_model == pytest.approx(p_home if d.market_ticker == HOME else 1 - p_home, abs=0.01)
+    assert "news shift -10.2 points" in d.reason
+
+
+def test_news_trade_end_to_end():
+    decisions, fills, traces = run(MarketAgent(anchor=False))
     assert len(decisions) == len(fills) == 1                 # one position per game, taken at the news
     d = decisions.iloc[0]
     assert d.as_of == NEWS_AT and d.citations == ["n_out"] and d.risk_result == "approved"
@@ -122,7 +130,7 @@ def test_notebook_vocabulary_and_matching():
 
 
 def gate_setup(with_rule_clv):
-    """Three traded days; the reviewer sees four stale trades with negative closing-line value."""
+    """Three traded days; the reviewer sees six stale trades with negative closing-line value."""
     days = ["2026-01-29", "2026-01-30", "2026-01-31"]
     tips = [pd.Timestamp(f"{d}T00:30:00Z") for d in days]
     games = pd.DataFrame({"game_id": ["a", "b", "c"], "date": days, "tip_time": tips,
@@ -130,9 +138,9 @@ def gate_setup(with_rule_clv):
     tables = {"games": games, "markets": pd.DataFrame({"game_id": ["a", "b", "c"]})}
     fills = [{"decision_id": f"x{i}", "market_ticker": f"T{i}", "as_of": tips[0], "game_id": "c", "side": "yes",
               "p_model": 0.6, "price": 0.5, "contracts": 40, "fee": 0.7, "outcome": 0, "clv": -0.01, "pnl": -20.7}
-             for i in range(4)]
+             for i in range(6)]
     agent = MarketAgent()
-    agent.situations = {(f"T{i}", tips[0]): {"news_age_minutes": 9999.0} for i in range(4)}
+    agent.situations = {(f"T{i}", tips[0]): {"news_age_minutes": 9999.0} for i in range(6)}
     without = pd.DataFrame({"clv": [-0.01] * 4 + [0.05], "pnl": [-5.0] * 4 + [10.0]})
     with_rule = pd.DataFrame({"clv": [with_rule_clv], "pnl": [10.0]})
     agent.backtest = lambda rp, nb, start, end: with_rule if len(nb.rules) else without

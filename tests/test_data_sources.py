@@ -103,3 +103,29 @@ def test_build_player_games_schema():
     p = build_player_games(logs)
     assert list(p.columns) == ["game_id", "player_id", "team_id", "min", "pts", "fga", "fta", "usage", "started"]
     assert p["min"].iloc[0] == 33.5
+
+
+def test_espn_box_rows_split_players_and_inactive_news():
+    from data_sources.espn import box_rows, game_row
+    team_ids = {"ORL": 1, "MEM": 2, "GSW": 3}
+    keys = ["minutes", "points", "fieldGoalsMade-fieldGoalsAttempted", "freeThrowsMade-freeThrowsAttempted"]
+    event = {"id": "401", "date": "2026-01-15T19:00Z", "season": {"type": 2},
+             "competitions": [{"status": {"type": {"name": "STATUS_FINAL"}}, "competitors": [
+                 {"homeAway": "home", "team": {"abbreviation": "ORL"}, "score": "118"},
+                 {"homeAway": "away", "team": {"abbreviation": "GS"}, "score": "111"}]}]}
+    game = game_row(event, team_ids, "2025-26")
+    assert (game["home_team"], game["away_team"], game["date"]) == ("ORL", "GSW", "2026-01-15")
+    athletes = [
+        {"athlete": {"id": "7", "displayName": "A Starter"}, "starter": True, "didNotPlay": False,
+         "stats": ["33", "30", "12-22", "3-4"]},
+        {"athlete": {"id": "8", "displayName": "B Hurt"}, "didNotPlay": True, "reason": "RIGHT CALF STRAIN", "stats": []},
+        {"athlete": {"id": "9", "displayName": "C Bench"}, "didNotPlay": True, "reason": "COACH'S DECISION", "stats": []},
+        {"athlete": {}, "stats": []}]
+    data = {"boxscore": {"players": [{"team": {"abbreviation": "ORL"},
+                                      "statistics": [{"keys": keys, "athletes": athletes}]}]}}
+    played, people, news = box_rows(game, data, team_ids)
+    assert [(p["player_id"], p["min"], p["pts"], p["fga"], p["fta"], p["started"]) for p in played] == \
+        [(7, 33, 30, 22, 4, True)]
+    assert [n["player_id"] for n in news] == [8]                        # coach's decision is not news
+    assert news[0]["published_at"] == game["tip_time"] - pd.Timedelta(minutes=30)
+    assert len(people) == 3
