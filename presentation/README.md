@@ -8,7 +8,7 @@ Our agent is the evidence that the answer is no, so the product educates and pro
 "Unfair" here means structural disadvantages (costs, speed, expertise), not manipulation or fraud.
 We make no accusation against Kalshi.
 
-`nba_agent_deck.pptx` is a 16:9 deck of 14 slides with speaker notes on every slide. It is
+`nba_agent_deck.pptx` is a 16:9 deck of 15 slides with speaker notes on every slide. It is
 built by `build_deck.py` from the figures in `figures/`, which are copies of
 `evaluation/results/*.png`, so this folder is self-contained.
 
@@ -16,7 +16,8 @@ built by `build_deck.py` from the figures in `figures/`, which are copies of
 
 ```bash
 python -m evaluation.consumer_fairness      # costs, price discovery, long-shot check (needs data/frozen)
-cp evaluation/results/{product_workflow,cost_burden,price_discovery,m4_vs_market,m6_vs_baselines,walkforward,longshot_calibration,agent_workflow}.png presentation/figures/
+python -m evaluation.cumulative_pnl         # cumulative P&L chart from the saved runs in runs/
+cp evaluation/results/{product_workflow,cost_burden,price_discovery,m4_vs_market,m6_vs_baselines,walkforward,cumulative_pnl,longshot_calibration,agent_workflow}.png presentation/figures/
 python presentation/build_deck.py           # writes presentation/nba_agent_deck.pptx
 python presentation/build_deck.py --check   # also prints the estimated fit of every text box
 ```
@@ -37,25 +38,26 @@ The time limit has not been confirmed, so adjust the timings if needed.
 | # | Slide | Time |
 | --- | --- | --- |
 | 1 | Title: Betting markets are tilted against consumers | 0:15 |
-| 2 | The problem: three things consumers face (want to learn / markets tilted / betting causes harm) | 1:00 |
+| 2 | The problem: three things consumers face (want to learn / markets tilted / betting causes harm) | 0:55 |
 | 3 | Research question, what we built to test it, and the answer | 0:30 |
-| 4 | What we built: a market-graded agent (`product_workflow.png`) | 0:20 |
+| 4 | What we built: a market-graded agent (`product_workflow.png`) | 0:15 |
 | 5 | Evidence 1: costs set a hurdle before you start (`cost_burden.png`, with the selectivity funnel) | 0:40 |
 | 6 | Evidence 2: the price moves before the news reaches you (`price_discovery.png`) | 0:30 |
 | 7 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:25 |
-| 8 | Evidence 4: even a market-trained neural net finds nothing (`m6_vs_baselines.png`) | 0:35 |
-| 9 | Evidence 5: tested with CIs, never trading wins (`walkforward.png`) | 0:45 |
-| 10 | Our product: educate and protect the consumer (`agent_workflow.png`) | 0:30 |
-| 11 | Coach: teach why most bets don't clear costs | 0:20 |
-| 12 | Honest scope: what "unfair" means here (disclosure, long-shot result, external-research note) | 0:30 |
-| 13 | Live demo: `streamlit run app.py` | 2:30 |
-| 14 | Recommendations, next steps and Q&A | 0:25 |
-| | **Total** | **about 9:15** |
+| 8 | Evidence 4: even a market-trained neural net finds nothing (`m6_vs_baselines.png`) | 0:30 |
+| 9 | Evidence 5: money over time, every line drifts down (`cumulative_pnl.png`) | 0:40 |
+| 10 | Evidence 6: tested with CIs, never trading wins (`walkforward.png`) | 0:35 |
+| 11 | Our product: educate and protect the consumer (`agent_workflow.png`) | 0:30 |
+| 12 | Coach: teach why most bets don't clear costs | 0:20 |
+| 13 | Honest scope: what "unfair" means here (disclosure, long-shot result, external-research note) | 0:30 |
+| 14 | Live demo: `streamlit run app.py` | 2:30 |
+| 15 | Recommendations, next steps and Q&A | 0:25 |
+| | **Total** | **about 9:30** |
 
-That leaves about 45 seconds for transitions. The 5 minutes of Q&A follow. The old long-shot and
-"who sits on the other side" slides were cut. The long-shot result is now a caveat on slide 12, and
-`figures/longshot_calibration.png` is kept as a backup for Q&A. If time is short, shorten slide 4.
-If the live demo fails, play the backup recording on slide 13.
+That leaves about 30 seconds for transitions. The 5 minutes of Q&A follow. The old long-shot and
+"who sits on the other side" slides were cut. The long-shot result is now a caveat on slide 13, and
+`figures/longshot_calibration.png` is kept as a backup for Q&A. If time is short, skip slide 4 or shorten slide 10, whose story slide 9 already tells.
+If the live demo fails, play the backup recording on slide 14.
 
 ## External research on slide 2 (not our measurement)
 
@@ -107,8 +109,15 @@ These were checked against the full texts in October 2026. The slide labels this
     (P&L gain p = 0.13).
   - Play-off holdout of 87 games: full agent 0 trades; no learning 6 trades, −$74; raw model
     +$450 with negative CLV, which is luck.
+- **Money over time** (`cumulative_pnl.csv`, from `evaluation/cumulative_pnl.py`): cumulative
+  P&L after fees by game date, with never trading at $0 as the reference line. Test period
+  1 Feb – 12 Apr: full agent −$32 (74 trades, lowest point −$131), no learning −$247 (129), raw
+  model −$2,087 (366), M6 agent $0 (0 trades). Walk-forward Nov – 12 Apr: −$25 / −$407 / −$2,475,
+  the same as `walkforward_summary.md`. The dotted lines are the cumulative closing-line value of
+  the same fills (as in `headline_clv.png`), below zero for every setup. The raw model's steady
+  slope is costs. Learning flattens the line by trading less, not by finding profit.
 - **Long-shot bias: not clearly supported** (1 win in 66 against 7.4% implied, z = −1.8). Long
   shots still return −13.4% against −2.2% for heavy favourites, because of costs.
-- **Disclosure (slide 12):** the market anchor and the reviewer were designed after seeing the
+- **Disclosure (slide 13):** the market anchor and the reviewer were designed after seeing the
   Feb–Apr results, so that window is not a clean holdout. The walk-forward season and the
   play-off holdout are the honest checks.

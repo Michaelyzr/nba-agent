@@ -66,6 +66,10 @@ K = {
     # M6 market-impact model (S)
     "m6_mae": "0.867", "zero_mae": "0.833", "m6_coef": "0.025", "m6_coef_pct": "2.5%",
     "m6_forced_n": "501", "m6_forced_pnl": "−$652",
+    # cumulative P&L after fees by settlement date (evaluation/results/cumulative_pnl.csv; ends match
+    # ablations.md and walkforward_summary.md)
+    "cum_nolearn_n": "129", "cum_nolearn_pnl": "−$247", "cum_raw_n": "366", "cum_raw_pnl": "−$2,087",
+    "cum_full_low": "−$131",
 }
 
 # External published research (NOT our measurement); full references in presentation/README.md.
@@ -445,9 +449,30 @@ def build():
     callout(s, MARGIN, 6.42, CW, 0.5,
             "The price already contains the public information; the consumer is left paying costs", pt=18, n=n)
 
-    # 9 Evidence: walk-forward ----------------------------------------------
+    # 9 Evidence: money over time -------------------------------------------
     n = 9
-    s = new_slide(prs, "Evidence 5: tested with CIs, never trading wins", (
+    s = new_slide(prs, "Evidence 5: money over time, every line drifts down", (
+        f"Here is the money over time, after fees, one line per strategy; the dashed black line at zero is never "
+        f"trading. Left is the February-to-April test period, right the walk-forward season. Read it like this. "
+        f"The red raw model, which trades whenever its estimate differs from the price, falls steadily: "
+        f"{K['cum_raw_pnl']} on {K['cum_raw_n']} trades in the test period, {K['wf_raw_pnl']} over the season. "
+        f"That steady slope is costs: every trade pays the spread and the fee, and there is no edge to pay them "
+        f"back. Orange, the agent without learning, trades less and falls less, {K['cum_nolearn_pnl']}. Blue, "
+        f"the full agent, learned rules that mostly say do not trade, so its line flattens near zero, "
+        f"{K['full_pnl']}, after dipping to {K['cum_full_low']}. The M6 agent made no trades, so it sits on zero. "
+        f"Learning does not find profit; it flattens the line by trading less. The dotted lines are closing-line "
+        f"value: below zero for everyone, so the agent paid worse than the closing price. No strategy ends "
+        f"above never trading; the next slide tests whether the gaps are more than luck."), n)
+    picture(s, "cumulative_pnl.png", MARGIN, TOP, CW, 4.6)
+    textbox(s, MARGIN, 5.9, CW, 1.05, [
+        f"Raw model falls steadily ({K['cum_raw_pnl']} test, {K['wf_raw_pnl']} season): the slope is costs",
+        f"Learning flattens the line by trading less: full agent {K['full_pnl']} test, {K['wf_full_pnl']} season; "
+        f"M6: 0 trades",
+    ], pt=18, bullets=True, space=4, slide_no=n)
+
+    # 10 Evidence: walk-forward ----------------------------------------------
+    n = 10
+    s = new_slide(prs, "Evidence 6: tested with CIs, never trading wins", (
         f"Finally, the honest test. We re-ran the whole season walk-forward, retraining the win model every month, "
         f"with day-clustered bootstrap confidence intervals. Mean closing-line value is below zero for every setup, "
         f"and every interval lies entirely below zero. The full agent's {K['wf_full_pnl']} is indistinguishable from "
@@ -472,8 +497,8 @@ def build():
         f"{K['ho_raw']} with negative CLV (luck)",
     ], pt=18, bullets=True, space=4, slide_no=n)
 
-    # 10 Product as consumer protection -------------------------------------
-    n = 10
+    # 11 Product as consumer protection -------------------------------------
+    n = 11
     s = new_slide(prs, "Our product: educate and protect the consumer", (
         f"So, back to the problem: the product educates and protects instead of encouraging bets. The agent passes by default: it declined about "
         f"{K['pass_share']} of decision points, and on the play-off holdout it did not trade at all. Retail briefs "
@@ -490,8 +515,8 @@ def build():
         "**Learned rules:** skip ≤ 35¢; skip after a 2¢ move against",
     ], pt=18, bullets=True, space=8, slide_no=n)
 
-    # 11 Coach ---------------------------------------------------------------
-    n = 11
+    # 12 Coach ---------------------------------------------------------------
+    n = 12
     s = new_slide(prs, "Coach: teach why most bets don't clear costs", (
         "The Coach turns this evidence into lessons. At a chosen moment it explains the game using only what was "
         "public and shows the break-even after spread and fee. Lesson cards appear when relevant: price is a "
@@ -514,8 +539,8 @@ def build():
             "Educational, paper money only · only information public at that moment · no promise words",
             pt=18, n=n)
 
-    # 12 Honest scope ---------------------------------------------------------
-    n = 12
+    # 13 Honest scope ---------------------------------------------------------
+    n = 13
     s = new_slide(prs, "Honest scope: what “unfair” means here", (
         "To be precise: unfair here means structural disadvantages, namely costs, speed and expertise. It does not "
         "mean manipulation or fraud, and we make no accusation against Kalshi. One disclosure: we designed the "
@@ -539,8 +564,8 @@ def build():
         "Well-being figures are published research, not ours",
     ], RED, pt=18, n=n)
 
-    # 13 Demo -----------------------------------------------------------------
-    n = 13
+    # 14 Demo -----------------------------------------------------------------
+    n = 14
     s = new_slide(prs, "Live demo: streamlit run app.py", (
         "Now the demo, focused on protection. On the replayed night, watch the agent see the news, compare its "
         "estimate with the bid and ask, and usually decline with a reason. In the Coach, I'll make a paper call "
@@ -556,8 +581,8 @@ def build():
     table(s, rows, MARGIN, TOP + 0.15, [2.6, CW - 2.6], row_h=0.66, pt=18)
     callout(s, MARGIN, 6.3, CW, 0.55, "Backup: recorded run of the same demo", pt=18, n=n)
 
-    # 14 Recommendations ------------------------------------------------------
-    n = 14
+    # 15 Recommendations ------------------------------------------------------
+    n = 15
     s = new_slide(prs, "Recommendations, next steps and Q&A", (
         "Our recommendations follow from the evidence. Before any order, show the all-in cost and the break-even "
         "probability, not just the price. Warn by default when news is likely already priced in. Put education, "

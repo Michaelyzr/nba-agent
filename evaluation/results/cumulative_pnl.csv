@@ -1,0 +1,8 @@
+panel,setup,trades,pnl_after_fees,clv_usd,low_point
+"Test period, 1 Feb – 12 Apr 2026",Full agent (anchor + learning),74,-32.02,-10.05,-131.4
+"Test period, 1 Feb – 12 Apr 2026","Agent, no learning",129,-247.27,-35.25,-358.03
+"Test period, 1 Feb – 12 Apr 2026","Raw model, no anchor",366,-2087.26,-172.12,-2132.22
+"Test period, 1 Feb – 12 Apr 2026",M6 agent (no trades),0,0.0,0.0,0.0
+"Walk-forward season, 1 Nov – 12 Apr",Full agent (anchor + learning),157,-25.3,-44.31,-193.95
+"Walk-forward season, 1 Nov – 12 Apr","Agent, no learning",276,-407.13,-83.59,-517.89
+"Walk-forward season, 1 Nov – 12 Apr","Raw model, no anchor",711,-2475.35,-254.52,-2520.31
