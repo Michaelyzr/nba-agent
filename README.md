@@ -537,7 +537,7 @@ use the same numbers). `python -m evaluation.workflow_diagram` redraws
 
 Replay on real Kalshi prices. Development period: 1 Nov 2025 – 31 Jan 2026.
 Test period: 1 Feb – 12 Apr 2026, with the same prices for every setup.
-Stake $25 per order. Fills are at the ask plus the Kalshi fee, capped by
+Stake $20 per order (caps: $50 per order, $100 per game, $300 per day). Fills are at the ask plus the Kalshi fee, capped by
 traded volume. Closing-line value (CLV) is measured per contract against the
 mid at tip. Offline rules; no LLM.
 
@@ -550,6 +550,9 @@ mid at tip. Offline rules; no LLM.
 | Plain model, no agent | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
 
 ![Cumulative CLV on the test period](evaluation/results/headline_clv.png)
+
+"Kill-switch trips" counts days that lost more than $100. It is measured,
+not enforced: no live daily-loss stop exists yet.
 
 What the numbers say:
 

@@ -24,7 +24,7 @@ NODES = {
     "propose": (11.9, 8.0, "order if gap after fees > edge", DECIDE),
     "no_action": (11.9, 6.6, "brief only", DECIDE),
     "checks": (14.5, 7.3, "citations, numbers, wording", SAFETY),
-    "risk": (17.1, 7.3, "stake caps, daily loss limit", SAFETY),
+    "risk": (17.1, 7.3, "stake caps: order, game, day", SAFETY),
     "blocked": (14.5, 5.5, "explain why, no order", SAFETY),
     "confirm": (17.1, 5.5, "retail orders need a human", SAFETY),
     "deliver": (15.8, 4.2, "channel briefs + audit log", DECIDE),
