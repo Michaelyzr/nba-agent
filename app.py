@@ -5,6 +5,7 @@
 Reads data/frozen/ if it has prices, otherwise the committed data/sample/.
 Models come from models/ (python -m forecast.train); runs from runs/.
 """
+import copy
 import json
 from pathlib import Path
 
@@ -13,7 +14,7 @@ import pandas as pd
 import streamlit as st
 
 import replay
-from agents import coach
+from agents import coach, league
 from agents.briefs import channel_briefs, outlook
 from agents.graph import FAULTS, OUT_STATUSES, MarketAgent
 from agents.notebook import Notebook
@@ -61,7 +62,7 @@ def view_at(tables, now):
 def price_chart(view, ticker, game, news, title):
     p = view.prices(ticker)
     p = p[p.ts >= pd.Timestamp(game.tip_time) - pd.Timedelta(hours=7)].assign(mid=lambda d: (d.bid + d.ask) / 2)
-    chart = alt.Chart(p).mark_line().encode(x=alt.X("ts:T", title="time (UTC)"),
+    chart = alt.Chart(p).mark_line().encode(x=alt.X("ts:T", title="time (UTC)", scale=alt.Scale(type="utc")),
                                             y=alt.Y("mid:Q", title=title, scale=alt.Scale(zero=False)))
     marks = [alt.Chart(pd.DataFrame({"ts": news.published_at})).mark_rule(color="orange").encode(x="ts:T")]
     if view.now >= game.tip_time:
@@ -81,6 +82,42 @@ def run_night(tables, day, notebook, game_id=None, plant=None, channel="platform
     return agent, decisions, fills
 
 
+def make_league(tables, notebook, name, period, n_games):
+    """New league: seeded slate plus the house bots (anchored agent, raw model) deciding on it offline."""
+    from evaluation.ablations import plain_policy
+    rp = engine(tables)
+    lg = league.create(name, rp, period, n_games)
+    agent = MarketAgent(copy.deepcopy(notebook), forecaster=forecaster(), learn=False)
+    return league.add_bots(lg, rp, agent.policy, plain_policy(forecaster()))
+
+
+def money(x):
+    return "-" if x is None or pd.isna(x) else f"{'+' if x > 0 else '−' if x < 0 else ''}${abs(x):,.2f}"
+
+
+def dollars(text):
+    """Escape $ so Streamlit markdown does not render the text between two amounts as LaTeX."""
+    return text.replace("$", "\\$")
+
+
+def fee_fmt(x):
+    return "-" if x is None or pd.isna(x) else f"${x:,.2f}"
+
+
+def share(x):
+    return "-" if x is None or pd.isna(x) else f"{x:.0%}"
+
+
+def cents(x):
+    return "-" if x is None or pd.isna(x) else f"{x * 100:+.2f}¢"
+
+
+def home_ticker(tables, g):
+    m = tables["markets"]
+    m = m[(m.game_id == g.game_id) & (m.kind == "game") & (m.team == g.home_team)]
+    return m.market_ticker.iloc[0] if len(m) else None
+
+
 folder, tables, names = load()
 games = tables["games"]
 traded = games[games.game_id.isin(tables["markets"].game_id)]
@@ -96,8 +133,9 @@ label = {g.game_id: f"{g.away_team} @ {g.home_team}" for g in tonight.itertuples
 gid = st.sidebar.selectbox("Game", list(label), format_func=label.get)
 game = next(g for g in tonight.itertuples() if g.game_id == gid)
 
-night, coach_tab, briefs, learning, safety, models = st.tabs(
-    ["Replayed night", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
+night, coach_tab, league_tab, briefs, learning, safety, models = st.tabs(
+    ["Replayed night", "Coach: learn the market", "League: practise with play money", "Channel briefs", "Learning",
+     "Safety", "Models"])
 decision_times = sorted({t for t in tables["news"].loc[tables["news"].game_id == gid, "published_at"]
                          if game.tip_time - replay.NEWS_WINDOW <= t < game.tip_time} | {game.tip_time - replay.LEAD})
 fmt_time = lambda t: f"{pd.Timestamp(t):%H:%M} UTC"
@@ -229,6 +267,152 @@ with coach_tab:
             hide_index=True, width="stretch")
     for tip in fb["tips"]:
         st.write(f"- {tip}")
+
+with league_tab:
+    st.info(league.NOTICE)
+    st.write("Practise on real past Kalshi NBA prices with play money. Everyone in a league plays the same slate of "
+             "decisions and sees only what was public at that moment. You are ranked on **closing-line value**: how "
+             "far below the tip-off price you bought, per contract. Over many trades that is skill; one night's "
+             "profit is mostly luck. House bots play the same slate so you can compare.")
+    lrp = engine(tables)
+    existing = league.list_leagues()
+    with st.form("league-join"):
+        c1, c2, c3, c4 = st.columns(4)
+        lname = c1.text_input("League name", value=st.session_state.get("league_name") or
+                              (existing[0] if existing else "friday-night"))
+        luser = c2.text_input("Your username", value=st.session_state.get("league_user") or "")
+        lperiod = c3.selectbox("Games from (new league)", list(league.PERIODS),
+                               format_func={"test": "test period, Feb-Apr", "holdout": "play-offs"}.get)
+        lgames = c4.number_input("Decisions per round (new league)", 3, 30, league.N_GAMES)
+        if existing:
+            st.caption("Existing leagues: " + ", ".join(existing))
+        if st.form_submit_button("Join or create", type="primary"):
+            try:
+                if lname in existing:
+                    lg = league.load(lname)
+                else:
+                    with st.spinner("Choosing the slate and running the house bots on it..."):
+                        lg = make_league(tables, notebook, lname, lperiod, int(lgames))
+                league.save(league.join(lg, luser))
+                st.session_state.update(league_name=lname, league_user=luser, league_reveal=None)
+            except ValueError as exc:
+                st.error(str(exc))
+
+    lname, luser = st.session_state.get("league_name"), st.session_state.get("league_user")
+    if lname and luser and lname in league.list_leagues():
+        lg = league.load(lname)
+        n_slate, idx = len(lg["slate"]), league.next_index(lg, luser)
+        played = n_slate if idx is None else idx
+        st.subheader(f"League {lname} · {luser} · play-money bankroll ${league.balance(lg, luser):,.2f}")
+        st.progress(played / n_slate, text=f"{played} of {n_slate} decisions played")
+        reveal = st.session_state.get("league_reveal")
+
+        if reveal is not None:
+            t = lg["players"][luser]["picks"][str(reveal)]
+            g = league._game(lrp, t["game_id"])
+            st.markdown(f"#### Revealed: {g.away_team} {g.away_pts:.0f}, {g.home_team} {g.home_pts:.0f} "
+                        f"(final, {g.date})")
+            ticker = home_ticker(tables, g)
+            close_view = view_at(tables, g.tip_time)
+            q = close_view.quote(ticker) if ticker else None
+            if t.get("filled"):
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric(f"You backed {t['team']} at", f"{t['price']:.0%}", f"{t['contracts']} contracts")
+                m2.metric("Closing price", f"{t['close_price']:.1%}", f"{t['clv'] * 100:+.1f}¢ closing-line value")
+                m3.metric("Result", "won" if t["won"] else "lost")
+                m4.metric("P&L after fees", money(t["pnl"]), f"fee ${t['fee']:.2f}", delta_color="off")
+            elif t["why"] == "pass":
+                st.write("You passed: no money at risk, no fee."
+                         + (f" {g.home_team} closed at {(q.bid + q.ask) / 2:.1%}." if q is not None else ""))
+            else:
+                st.warning(f"Order not filled: {t['why'].replace('_', ' ')}.")
+            bots_here = {b: lg["bots"][b]["picks"].get(str(reveal), {}) for b in lg["bots"]}
+            st.write(dollars("**House bots at the same moment:** " + "; ".join(
+                f"{b}: " + (f"backed {p['team']} at {p['price']:.0%}, CLV {p['clv'] * 100:+.1f}¢, P&L {money(p['pnl'])}"
+                            if p.get("filled") else "passed") for b, p in bots_here.items())))
+            if ticker:
+                st.altair_chart(price_chart(close_view, ticker, g, close_view.news(g.game_id),
+                                            f"{g.home_team} win price"), width="stretch")
+                st.caption(f"your decision time: {fmt_time(t['as_of'])} · orange: news · red: tip-off (closing price)")
+            if st.button("Next decision" if idx is not None else "See the final standings", type="primary"):
+                st.session_state["league_reveal"] = None
+                st.rerun()
+
+        elif idx is not None:
+            inf = league.decision_info(forecaster(), lrp, lg, idx, names)
+            g, s = inf["game"], inf["snapshot"]
+            st.markdown(f"#### Decision {idx + 1} of {n_slate}: {g.away_team} @ {g.home_team}, {g.date} · "
+                        f"{fmt_time(inf['now'])}, tip-off in {s['hours_to_tip']:.1f} h")
+            left, right = st.columns([3, 2])
+            with left:
+                for line in inf["explain"]:
+                    st.write(line)
+                if s["sides"]:
+                    cols = st.columns(len(s["sides"]))
+                    for col, side in zip(cols, s["sides"].values()):
+                        col.metric(f"Back {side['team']}: estimate vs break-even", f"{side['p']:.0%}",
+                                   f"{side['gap'] * 100:+.1f} pts vs {side['breakeven']:.1%}")
+                ticker = home_ticker(tables, g)
+                if ticker:
+                    st.altair_chart(price_chart(inf["view"], ticker, g, inf["news"], f"{g.home_team} win price"),
+                                    width="stretch")
+                    st.caption("price so far (orange: news). The rest of the night is revealed after your call.")
+            with right:
+                st.subheader("Concepts in this game")
+                for i, card in enumerate(inf["lessons"]):
+                    with st.expander(card["title"], expanded=i < 2):
+                        st.write(card["body"])
+            cap = league.stake_cap(lg, luser)
+            with st.form(f"league-call-{lname}-{idx}"):
+                options = ([f"Back {g.away_team}", f"Back {g.home_team}"] if cap >= league.STAKE_MIN else []) + ["Pass"]
+                choice = st.radio("Your call", options, index=len(options) - 1, horizontal=True)
+                stake = st.slider("Stake (play-money dollars)", int(league.STAKE_MIN),
+                                  int(max(cap, league.STAKE_MIN + 5)), int(min(20, max(cap, league.STAKE_MIN))), 5,
+                                  disabled=cap < league.STAKE_MIN)
+                if st.form_submit_button("Make my call", type="primary"):
+                    lg = league.load(lname)
+                    pick = "pass" if choice == "Pass" else ("away" if choice.endswith(g.away_team) else "home")
+                    try:
+                        league.pick(lg, luser, idx, pick, float(stake), lrp, s)
+                        league.save(lg)
+                        st.session_state["league_reveal"] = idx
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
+        else:
+            st.success("Round complete. Start a new league name for a fresh slate.")
+
+        st.subheader("Leaderboard: ranked by closing-line value")
+        board = league.leaderboard(lg, games)
+        st.dataframe(pd.DataFrame({
+            "rank": board["rank"], "name": board.name, "who": board.kind.map({"player": "player", "bot": "house bot"}),
+            "decisions": board.decisions, "trades": board.trades, "pass rate": board.pass_rate.map(share),
+            "mean CLV / contract": board.mean_clv.map(cents), "beat the close": board.beat_close.map(share),
+            "CLV $": board.clv_dollars.map(money), "P&L": board.pnl.map(money), "fees": board.fees.map(fee_fmt),
+            "skill or luck?": board.badge}), hide_index=True, width="stretch")
+        st.caption(f"Ranked only with at least {league.MIN_TRADES} trades. Badge: 'skill' if the 95% day-clustered "
+                   f"bootstrap interval of mean CLV is above zero, 'costs' if below, otherwise 'too early to tell'. "
+                   f"P&L is shown, not ranked: over a few games it is mostly luck.")
+
+        mine = league.summary(lg["players"][luser]["picks"], games)
+        st.subheader("Your summary")
+        if mine["trades"]:
+            st.write(dollars(f"You beat the closing price on **{share(mine['beat_close'])}** of your {mine['trades']} "
+                             f"trades (mean {cents(mine['mean_clv'])} per contract). Your fees cost "
+                             f"**{fee_fmt(mine['fees'])}**; P&L after fees {money(mine['pnl'])}. You passed on "
+                             f"{share(mine['pass_rate'])} of decisions. Verdict so far: **{mine['badge']}**."))
+        elif mine["decisions"]:
+            st.write(dollars("You have passed on every decision so far: $0, like the never-trade bot."))
+        cmp = league.compare(lg, luser, games)
+        if mine["decisions"]:
+            st.write("On the same decisions:")
+            st.dataframe(pd.DataFrame({"": cmp.name, "trades": cmp.trades, "mean CLV / contract": cmp.mean_clv.map(cents),
+                                       "beat the close": cmp.beat_close.map(share), "fees": cmp.fees.map(fee_fmt),
+                                       "P&L": cmp.pnl.map(money)}), hide_index=True, width="stretch")
+        for tip in coach.feedback(list(lg["players"][luser]["picks"].values()))["tips"]:
+            st.write(f"- {tip}")
+    else:
+        st.write("Enter a league name and a username to start. A new name creates a league with a fresh seeded slate.")
 
 with briefs:
     times = decision_times

@@ -18,6 +18,7 @@ built by `build_deck.py` from the figures in `figures/`, which are copies of
 python -m evaluation.consumer_fairness      # costs, price discovery, long-shot check (needs data/frozen)
 python -m evaluation.cumulative_pnl         # cumulative P&L chart from the saved runs in runs/
 cp evaluation/results/{product_workflow,cost_burden,price_discovery,m4_vs_market,m6_vs_baselines,walkforward,cumulative_pnl,longshot_calibration,agent_workflow}.png presentation/figures/
+# figures/league_reveal.png is a screenshot of the League tab (streamlit run app.py, demo league friday-league)
 python presentation/build_deck.py           # writes presentation/nba_agent_deck.pptx
 python presentation/build_deck.py --check   # also prints the estimated fit of every text box
 ```
@@ -28,7 +29,7 @@ The script warns, and exits with status 1, if a shape leaves the slide, a text b
 estimated to overflow, or a slide has no speaker notes.
 
 **M4 Brier score:** the deck uses the README's definition, M4 0.186 against the market's 0.164,
-both 1 hour before tip on 501 test games. Slide 7 footnotes the at-tip pair: M4 with the inactive
+both 1 hour before tip on 501 test games. Slide 6 footnotes the at-tip pair: M4 with the inactive
 list 0.183, market at tip 0.163.
 
 ## Slides and timing (target: about 10 minutes including the demo)
@@ -38,25 +39,27 @@ The time limit has not been confirmed, so adjust the timings if needed.
 | # | Slide | Time |
 | --- | --- | --- |
 | 1 | Title: Betting markets are tilted against consumers | 0:15 |
-| 2 | The problem: three things consumers face (want to learn / markets tilted / betting causes harm) | 0:55 |
-| 3 | Research question, what we built to test it, and the answer | 0:30 |
-| 4 | What we built: a market-graded agent (`product_workflow.png`) | 0:15 |
-| 5 | Evidence 1: costs set a hurdle before you start (`cost_burden.png`, with the selectivity funnel) | 0:40 |
-| 6 | Evidence 2: the price moves before the news reaches you (`price_discovery.png`) | 0:30 |
-| 7 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:25 |
-| 8 | Evidence 4: even a market-trained neural net finds nothing (`m6_vs_baselines.png`) | 0:30 |
-| 9 | Evidence 5: money over time, every line drifts down (`cumulative_pnl.png`) | 0:40 |
-| 10 | Evidence 6: tested with CIs, never trading wins (`walkforward.png`) | 0:35 |
-| 11 | Our product: educate and protect the consumer (`agent_workflow.png`) | 0:30 |
-| 12 | Coach: teach why most bets don't clear costs | 0:20 |
+| 2 | The problem: three things consumers face (want to learn / markets tilted / betting causes harm) | 0:50 |
+| 3 | Research question, what we built to test it (`product_workflow.png`), and the answer | 0:35 |
+| 4 | Evidence 1: costs set a hurdle before you start (`cost_burden.png`, with the selectivity funnel) | 0:40 |
+| 5 | Evidence 2: the price moves before the news reaches you (`price_discovery.png`) | 0:30 |
+| 6 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:25 |
+| 7 | Evidence 4: even a market-trained neural net finds nothing (`m6_vs_baselines.png`) | 0:30 |
+| 8 | Evidence 5: money over time, every line drifts down (`cumulative_pnl.png`) | 0:40 |
+| 9 | Evidence 6: tested with CIs, never trading wins (`walkforward.png`) | 0:30 |
+| 10 | Our product: educate and protect the consumer (`agent_workflow.png`) | 0:30 |
+| 11 | Coach: teach why most bets don't clear costs | 0:20 |
+| 12 | League: practise against the real market with play money (`league_reveal.png`, example leaderboard) | 0:35 |
 | 13 | Honest scope: what "unfair" means here (disclosure, long-shot result, external-research note) | 0:30 |
-| 14 | Live demo: `streamlit run app.py` | 2:30 |
+| 14 | Live demo: `streamlit run app.py` (now including one League call) | 2:30 |
 | 15 | Recommendations, next steps and Q&A | 0:25 |
-| | **Total** | **about 9:30** |
+| | **Total** | **about 9:45** |
 
-That leaves about 30 seconds for transitions. The 5 minutes of Q&A follow. The old long-shot and
-"who sits on the other side" slides were cut. The long-shot result is now a caveat on slide 13, and
-`figures/longshot_calibration.png` is kept as a backup for Q&A. If time is short, skip slide 4 or shorten slide 10, whose story slide 9 already tells.
+That leaves about 15 seconds for transitions. The 5 minutes of Q&A follow. The old slides 3
+(research question) and 4 (what we built) overlapped, so they are merged into slide 3 to make room for
+the League slide. The old long-shot and "who sits on the other side" slides were cut. The long-shot
+result is now a caveat on slide 13, and `figures/longshot_calibration.png` is kept as a backup for Q&A.
+If time is short, shorten slide 9, whose story slide 8 already tells, or skip the League call in the demo.
 If the live demo fails, play the backup recording on slide 14.
 
 ## External research on slide 2 (not our measurement)
@@ -118,6 +121,13 @@ These were checked against the full texts in October 2026. The slide labels this
   slope is costs. Learning flattens the line by trading less, not by finding profit.
 - **Long-shot bias: not clearly supported** (1 win in 66 against 7.4% implied, z = −1.8). Long
   shots still return −13.4% against −2.2% for heavy favourites, because of costs.
+- **League (slide 12, `agents/league.py`):** a $1,000 play-money bankroll, stakes of $5–$50, a seeded
+  slate of 10 real decision points from the test period, and the same fills as the agent (ask + fee).
+  Players are ranked by mean CLV per contract once they have at least 5 trades. The skill-or-luck badge
+  comes from the day-clustered bootstrap in `evaluation/stats.py`. The example leaderboard and the
+  screenshot come from the demo league `friday-league`. Its two users' plays are illustrative, not a
+  measurement; the house bots ran offline on the same slate. In it the raw-model bot is up +$15.27 with
+  a mean CLV of −0.63¢, so its badge is "costs".
 - **Disclosure (slide 13):** the market anchor and the reviewer were designed after seeing the
   Feb–Apr results, so that window is not a clean holdout. The walk-forward season and the
   play-off holdout are the honest checks.

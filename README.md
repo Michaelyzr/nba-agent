@@ -580,7 +580,7 @@ python -m evaluation.walkforward                  # walk-forward by month, play-
 python -m evaluation.walkforward --report-only    # re-score saved runs/walkforward and runs/holdout only
 python -m evaluation.scorer runs/<name>          # score any run folder
 python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
-streamlit run app.py                             # demo: replayed night, coach, channel briefs, learning, safety, models
+streamlit run app.py                             # demo: replayed night, coach, league, channel briefs, learning, safety, models
 ```
 
 ### Coach: learning how the market works
@@ -621,6 +621,51 @@ so its explanations match the agent's decisions.
 - its text never uses promise words such as "lock" or "risk-free".
 
 Every screen carries an educational, not-betting-advice notice.
+
+### League: practising with play money
+
+The **League** tab (`agents/league.py`) lets users practise on real past Kalshi
+NBA markets with play money, ranked on skill rather than luck. Nothing is
+deposited, bet or paid out.
+
+- **A league** is a name plus a seeded slate of real decision points: 10 by
+  default, one per game, from the test period (1 Feb – 12 Apr) or the play-offs.
+  Every player sees the same slate. A game's decision time is one of its
+  injury-news times, or tip − 60 min if it had no news.
+- **Each decision** shows only as-of information, the same view the Coach
+  uses: prices so far, the news, the model brief and the lesson cards. The
+  player backs the home team, backs the away team or passes. Each player
+  starts with a $1,000 bankroll; stakes are $5–$50 and never more than the
+  remaining bankroll.
+- **Fills** go through `coach.paper_trade`, so they work like the agent's:
+  ask plus Kalshi fee, capped by volume, settled at the final result. After
+  each call the closing price, closing-line value (CLV), result and P&L are
+  revealed, along with what the house bots did at the same moment.
+- **Leaderboard.** Ranked by mean CLV per contract, among players with at
+  least 5 trades. P&L, CLV dollars, fees, pass rate and beat-the-close share
+  are shown alongside. The "skill or luck?" badge uses the day-clustered
+  bootstrap in `evaluation/stats.py`. It reads "skill" if the 95% CI of mean
+  CLV is above 0, "costs" if it is below 0, and "too early to tell"
+  otherwise.
+- **House bots** play the same slate: "Never trade" ($0), "Agent" (the
+  anchored `MarketAgent` with the sidebar's rule notebook, offline) and "Raw
+  model" (the no-agent plain model). The personal summary compares the user
+  with each bot on the decisions the user played, then adds the Coach's habit
+  tips.
+- **Storage.** One JSON file per league in `league_data/`, which is
+  git-ignored.
+
+```bash
+streamlit run app.py      # open "League: practise with play money", enter a league name and a username
+```
+
+`tests/test_league.py` checks that:
+- a decision never shows later prices, news or the score;
+- fills and P&L match `paper_trade`;
+- the leaderboard order, minimum trade count and badges are correct;
+- the bots are included;
+- stake caps and play order are enforced;
+- leagues round-trip through JSON.
 
 Results are written to `evaluation/results/` (committed, so the report and demo
 use the same numbers). `python -m evaluation.workflow_diagram` redraws
