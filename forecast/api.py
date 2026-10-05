@@ -7,7 +7,7 @@
     MarketAgent(forecaster=f)                   # P(yes) for every game-winner market
 
 Every call reads only the as-of view it is given. The history index is
-rebuilt once per Eastern date from games already final at that moment, so a
+rebuilt when the as-of view changes, from games already final at that moment, so a
 forecast never sees a game that finished after the decision.
 """
 import math
@@ -30,10 +30,9 @@ def _load(path: Path):
 
 
 class Forecaster:
-    _cache: dict = {}
-
     def __init__(self, win=None, play=None, points=None):
         self.win_model, self.play_model, self.points_model = win, play, points
+        self._cache = {}
 
     @classmethod
     def load(cls, folder: Path = MODELS):
@@ -48,13 +47,13 @@ class Forecaster:
         return "+".join(m.name for m in (self.win_model, self.play_model, self.points_model) if m is not None)
 
     def history(self, view) -> History:
-        day = view.now.tz_convert("America/New_York").date()
-        key = (id(view._t), day)
+        # Hold the source reference in the entry to prevent Python id reuse.
+        key = (id(view._t), pd.Timestamp(view.now).value)
         if key not in self._cache:
             if len(self._cache) > 32:
                 self._cache.clear()
-            self._cache[key] = History(view.player_games(), view.games())
-        return self._cache[key]
+            self._cache[key] = (view._t, History(view.player_games(), view.games()))
+        return self._cache[key][1]
 
     # ---------------- games ----------------
 
