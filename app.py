@@ -96,8 +96,8 @@ label = {g.game_id: f"{g.away_team} @ {g.home_team}" for g in tonight.itertuples
 gid = st.sidebar.selectbox("Game", list(label), format_func=label.get)
 game = next(g for g in tonight.itertuples() if g.game_id == gid)
 
-night, coach_tab, briefs, learning, safety, models = st.tabs(
-    ["Replayed night", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
+night, pregame, coach_tab, briefs, learning, safety, models = st.tabs(
+    ["Replayed night", "Pregame news loop", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
 decision_times = sorted({t for t in tables["news"].loc[tables["news"].game_id == gid, "published_at"]
                          if game.tip_time - replay.NEWS_WINDOW <= t < game.tip_time} | {game.tip_time - replay.LEAD})
 fmt_time = lambda t: f"{pd.Timestamp(t):%H:%M} UTC"
@@ -127,6 +127,75 @@ with night:
             st.subheader("Fills tonight (settled)")
             st.dataframe(fills[["market_ticker", "side", "p_model", "price", "contracts", "fee", "close_price", "clv",
                                 "pnl"]].round(3), hide_index=True)
+
+with pregame:
+    from uuid import uuid4
+    from agents.pregame import PregameAgent, run_loop
+    from data_sources.live_news import TableNews
+    from data_sources.news_registry import NewsRegistry
+
+    st.header("Pregame news → win probability → fair odds")
+    st.caption("Replay the six hours before tip-off at fixed intervals. Historical data sets the initial "
+               "probability; player status changes update it. Decimal odds = 1 / probability, without margin.")
+    plan = NewsRegistry.load().for_game(game)
+    with st.expander("News sources planned for this matchup"):
+        source_rows = [{"Source": m["name"], "Role": "Authoritative media", "Team": "Both", "Link": m["url"]}
+                       for m in plan["media"]]
+        source_rows.append({"Source": "NBA injury report", "Role": "Official report", "Team": "Both",
+                            "Link": "https://official.nba.com/nba-injury-report-2025-26-season/"})
+        roles = {"team_official": "Team official / PR", "insider": "Insider", "team_reporter": "Team reporter / writer"}
+        source_rows.extend({"Source": a["name"] + " (@" + a["handle"] + ")", "Role": roles[a["role"]],
+                            "Team": a["team"] or "Both", "Link": a["url"]} for a in plan["x_accounts"])
+        st.dataframe(pd.DataFrame(source_rows), hide_index=True,
+                     column_config={"Link": st.column_config.LinkColumn("Link")})
+        st.caption(f"Account list reviewed {plan['reviewed_at']}. This is the live source plan; "
+                   "this demo uses historical replay news and does not query X. "
+                   "Official reports and team announcements take priority, then ESPN/CBS, Shams and team reporters.")
+    interval = st.selectbox("News check interval (minutes)", [1, 5, 15, 30], index=1)
+    model_choice = st.selectbox("Forecast model", ["Trained M4", "Record baseline (demo)"])
+    if st.button("Run the pregame loop", type="primary"):
+        from agents.graph import record_forecaster
+        f = forecaster() if model_choice == "Trained M4" else record_forecaster
+        people = pd.DataFrame({"player_id": list(names), "player_name": list(names.values())})
+        output = replay.RUNS / f"pregame-ui-{gid}-{uuid4().hex[:8]}"
+        agent = PregameAgent(tables, people, game, f, TableNews(tables["news"]), output)
+        with st.spinner("Polling replay news and recomputing probabilities..."):
+            run_loop(agent, interval * 60, start=game.tip_time - pd.Timedelta(hours=6), replay_mode=True)
+        snapshots = [json.loads(line) for line in (output / "snapshots.jsonl").read_text().splitlines()]
+        st.session_state[f"pregame|{gid}"] = (snapshots, str(output))
+    result = st.session_state.get(f"pregame|{gid}")
+    if result:
+        snapshots, output = result
+        first, last = snapshots[0], snapshots[-1]
+        a, b, c = st.columns(3)
+        a.metric(f"{game.home_team} win probability", f"{last['p_home']:.1%}",
+                 f"{(last['p_home'] - first['p_home']) * 100:+.1f} percentage points")
+        b.metric(f"{game.home_team} fair decimal odds", f"{last['home_decimal_odds']:.3f}")
+        c.metric(f"{game.away_team} fair decimal odds", f"{last['away_decimal_odds']:.3f}")
+        history = pd.DataFrame(snapshots)
+        history["as_of"] = pd.to_datetime(history.as_of, utc=True)
+        st.line_chart(history.set_index("as_of")[["p_home", "p_away"]])
+        st.dataframe(history[["phase", "as_of", "p_home", "p_away", "home_decimal_odds", "away_decimal_odds"]],
+                     hide_index=True)
+        if last["factors"]:
+            st.subheader("Factors applied before tip-off")
+            st.dataframe(pd.DataFrame(last["factors"])[["player_id", "status", "published_at", "source", "confirmation", "url", "text"]],
+                         hide_index=True)
+        if last.get("conflicts"):
+            with st.expander("Conflicting reports retained for review", expanded=True):
+                for conflict in last["conflicts"]:
+                    st.write(f"Selected {conflict['selected_status']} from {conflict['selected_source']}.")
+                    st.dataframe(pd.DataFrame(conflict["alternatives"])[["source", "status", "published_at", "url", "text"]],
+                                 hide_index=True)
+        if last.get("source_coverage"):
+            with st.expander("Retrieval coverage"):
+                st.dataframe(pd.DataFrame(last["source_coverage"]), hide_index=True)
+        evidence_path = Path(output) / "evidence.jsonl"
+        if evidence_path.exists():
+            with st.expander("Original articles and posts"):
+                st.dataframe(pd.read_json(evidence_path, lines=True), hide_index=True)
+        st.caption("Questionable/probable/doubtful weights are scenario assumptions pending calibration. "
+                   f"Snapshot and source logs: {output}")
 
 with coach_tab:
     st.info(coach.NOTICE)

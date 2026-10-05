@@ -114,6 +114,10 @@ def test_api_reads_only_the_as_of_view_and_formats_section5(forecaster):
     w = f.win(v, game, out=[10])
     assert 0.02 <= w["p_home"] <= 0.98 and w["overrides"] == {"out": [10]}
     assert w["missing"]["home" if game.home_team_id == 1 else "away"] == [10]
+    full = f.win(v, game)["p_home"]
+    half = f.win(v, game, availability={10: 0.5})
+    assert min(full, w["p_home"]) <= half["p_home"] <= max(full, w["p_home"])
+    assert half["overrides"]["availability"] == {10: 0.5}
     fc = f.player(v, game, 11, "pts", lines=[14.5], out=[10])
     assert set(fc) >= {"game_id", "player_id", "as_of", "model", "target", "quantiles", "p_over", "p_play", "overrides"}
     assert fc["quantiles"]["p10"] <= fc["quantiles"]["p50"] <= fc["quantiles"]["p90"]
