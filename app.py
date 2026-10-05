@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 import replay
+from agents import coach
 from agents.briefs import channel_briefs, outlook
 from agents.graph import FAULTS, OUT_STATUSES, MarketAgent
 from agents.notebook import Notebook
@@ -46,11 +47,26 @@ def traces(run: Path) -> list:
     return [json.loads(line) for line in (run / "trace.jsonl").read_text().splitlines()]
 
 
-def view_at(tables, now):
+def engine(tables) -> replay.Replay:
     rp = st.session_state.setdefault("rp", {})
     if id(tables) not in rp:
-        rp[id(tables)] = replay.Replay(tables, lambda *a: []).price_index
-    return replay.AsOf(tables, now, rp[id(tables)])
+        rp[id(tables)] = replay.Replay(tables, lambda *a: [])
+    return rp[id(tables)]
+
+
+def view_at(tables, now):
+    return replay.AsOf(tables, now, engine(tables).price_index)
+
+
+def price_chart(view, ticker, game, news, title):
+    p = view.prices(ticker)
+    p = p[p.ts >= pd.Timestamp(game.tip_time) - pd.Timedelta(hours=7)].assign(mid=lambda d: (d.bid + d.ask) / 2)
+    chart = alt.Chart(p).mark_line().encode(x=alt.X("ts:T", title="time (UTC)"),
+                                            y=alt.Y("mid:Q", title=title, scale=alt.Scale(zero=False)))
+    marks = [alt.Chart(pd.DataFrame({"ts": news.published_at})).mark_rule(color="orange").encode(x="ts:T")]
+    if view.now >= game.tip_time:
+        marks.append(alt.Chart(pd.DataFrame({"ts": [game.tip_time]})).mark_rule(color="red").encode(x="ts:T"))
+    return alt.layer(chart, *marks)
 
 
 def out_list(news):
@@ -80,7 +96,11 @@ label = {g.game_id: f"{g.away_team} @ {g.home_team}" for g in tonight.itertuples
 gid = st.sidebar.selectbox("Game", list(label), format_func=label.get)
 game = next(g for g in tonight.itertuples() if g.game_id == gid)
 
-night, briefs, learning, safety, models = st.tabs(["Replayed night", "Channel briefs", "Learning", "Safety", "Models"])
+night, coach_tab, briefs, learning, safety, models = st.tabs(
+    ["Replayed night", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
+decision_times = sorted({t for t in tables["news"].loc[tables["news"].game_id == gid, "published_at"]
+                         if game.tip_time - replay.NEWS_WINDOW <= t < game.tip_time} | {game.tip_time - replay.LEAD})
+fmt_time = lambda t: f"{pd.Timestamp(t):%H:%M} UTC"
 
 with night:
     st.header(f"{label[gid]} · tip {game.tip_time:%H:%M} UTC · final {game.away_pts}-{game.home_pts}")
@@ -94,14 +114,8 @@ with night:
         st.session_state["night"] = run_night(tables, day, notebook)
     agent, decisions, fills = st.session_state.get("night", (None, pd.DataFrame(), pd.DataFrame()))
     if len(home_m):
-        p = final_view.prices(home_m.market_ticker.iloc[0])
-        p = p[p.ts >= pd.Timestamp(game.tip_time) - pd.Timedelta(hours=7)].assign(mid=lambda d: (d.bid + d.ask) / 2)
-        chart = alt.Chart(p).mark_line().encode(x=alt.X("ts:T", title="time (UTC)"),
-                                                y=alt.Y("mid:Q", title=f"{game.home_team} win price",
-                                                        scale=alt.Scale(zero=False)))
-        marks = [alt.Chart(pd.DataFrame({"ts": news.published_at})).mark_rule(color="orange").encode(x="ts:T"),
-                 alt.Chart(pd.DataFrame({"ts": [game.tip_time]})).mark_rule(color="red").encode(x="ts:T")]
-        st.altair_chart(alt.layer(chart, *marks), width="stretch")
+        st.altair_chart(price_chart(final_view, home_m.market_ticker.iloc[0], game, news,
+                                    f"{game.home_team} win price"), width="stretch")
         st.caption("orange: news published · red: tip-off (closing price)")
     if agent is not None:
         mine = [t for t in agent.traces if t["game_id"] == gid]
@@ -114,10 +128,111 @@ with night:
             st.dataframe(fills[["market_ticker", "side", "p_model", "price", "contracts", "fee", "close_price", "clv",
                                 "pnl"]].round(3), hide_index=True)
 
+with coach_tab:
+    st.info(coach.NOTICE)
+    c_when = st.select_slider("Decision time (you only see what was public then)", options=decision_times,
+                              value=decision_times[0], format_func=fmt_time, key="coach_when")
+    c_view = view_at(tables, c_when)
+    s = coach.snapshot(forecaster(), c_view, game, names)
+    key = f"{gid}|{pd.Timestamp(c_when).isoformat()}"
+    paper = st.session_state.setdefault("paper", {})
+    left, right = st.columns([3, 2])
+    with left:
+        st.subheader("What's going on")
+        for line in coach.explain(s):
+            st.write(line)
+        if s["sides"]:
+            cols = st.columns(len(s["sides"]))
+            for col, side in zip(cols, s["sides"].values()):
+                col.metric(f"Back {side['team']}: our estimate vs break-even", f"{side['p']:.0%}",
+                           f"{side['gap'] * 100:+.1f} pts vs {side['breakeven']:.1%}")
+        if len(home_m):
+            shown = view_at(tables, game.tip_time) if key in paper else c_view
+            st.altair_chart(price_chart(shown, home_m.market_ticker.iloc[0], game, shown.news(gid),
+                                        f"{game.home_team} win price"), width="stretch")
+            st.caption("price so far (orange: news). After your call the rest of the night is revealed "
+                       "(red: tip-off, the closing price).")
+    with right:
+        st.subheader("Concepts in this game")
+        for i, card in enumerate(coach.lessons(s)):
+            with st.expander(card["title"], expanded=i < 2):
+                st.write(card["body"])
+
+    st.subheader("Your call")
+    if key not in paper:
+        if not s["sides"]:
+            st.warning("No fresh market price at this time; pick another decision time.")
+        else:
+            with st.form(f"call-{key}"):
+                choice = st.radio("What do you do?", [f"Back {s['away']}", f"Back {s['home']}", "Pass"],
+                                  index=2, horizontal=True)
+                stake = st.slider("Stake (paper dollars)", 5, 50, 20, 5)
+                reason = st.text_input("Why? (one line, optional)")
+                if st.form_submit_button("Submit my call", type="primary"):
+                    if choice == "Pass":
+                        paper[key] = {"filled": False, "why": "pass", "game_id": gid, "as_of": c_when,
+                                      "team": None, "pick": s["pick"], "reason": reason}
+                    else:
+                        side = s["sides"][choice.split()[-1]]
+                        paper[key] = {**coach.paper_trade(engine(tables), game, c_when, side, stake, s),
+                                      "reason": reason}
+                    st.rerun()
+    else:
+        t = paper[key]
+        st.write(f"**Final score: {game.away_team} {game.away_pts:.0f}, {game.home_team} {game.home_pts:.0f}.**")
+        if t.get("filled"):
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric(f"You backed {t['team']} at", f"{t['price']:.0%}", f"{t['contracts']} contracts")
+            m2.metric("Closing price", f"{t['close_price']:.1%}",
+                      f"{t['clv'] * 100:+.1f} cents closing-line value")
+            m3.metric("Result", "won" if t["won"] else "lost")
+            m4.metric("Paper P&L after fees", f"${t['pnl']:+.2f}")
+        elif t["why"] == "pass":
+            st.write("You passed. What backing each team would have done:")
+            what_if = [coach.paper_trade(engine(tables), game, c_when, side, 20, s) for side in s["sides"].values()]
+            st.dataframe(pd.DataFrame([{"back": w["team"], "price": w.get("price"), "closing price": w.get("close_price"),
+                                        "won": w.get("won"), "P&L on $20": w.get("pnl")} for w in what_if]).round(3),
+                         hide_index=True)
+        else:
+            st.warning(f"Order not filled: {t['why']}.")
+        runs_key = f"agent|{day}|{gid}"
+        if runs_key not in st.session_state:
+            with st.spinner("Running the agent on this game..."):
+                st.session_state[runs_key] = run_night(tables, day, notebook, gid)
+        agent, _, agent_fills = st.session_state[runs_key]
+        same = [x for x in agent.traces if pd.Timestamp(x["as_of"]) == pd.Timestamp(c_when)]
+        st.write(f"**Coach's model view at this time:** "
+                 + (f"back {s['pick']}." if s["pick"] else "pass (no edge after fees)."))
+        if same:
+            st.write(f"**What the agent did at this time:** {same[0]['status'].replace('_', ' ')}.")
+            st.text(same[0]["brief"])
+        if len(agent_fills):
+            f = agent_fills.iloc[0]
+            st.write(f"The agent's position in this game: {f.side.upper()} {f.market_ticker.rsplit('-', 1)[-1]} at "
+                     f"{f.price:.0%}, closing price {f.close_price:.1%}, P&L ${f.pnl:+.2f}.")
+        else:
+            st.write("The agent took no position in this game.")
+        if st.button("Try this decision again"):
+            del paper[key]
+            st.rerun()
+
+    st.subheader("Your scoreboard")
+    fb = coach.feedback(list(paper.values()))
+    if fb["trades"]:
+        a, b, c, d = st.columns(4)
+        a.metric("Paper trades", fb["trades"])
+        b.metric("P&L after fees", f"${fb['pnl']:+.2f}")
+        c.metric("Closing-line value", f"${fb['clv_dollars']:+.2f}")
+        d.metric("Long shots", f"{fb['long_shot_share']:.0%}")
+        st.dataframe(pd.DataFrame([x for x in paper.values() if x.get("filled")])[
+            ["game_id", "as_of", "team", "price", "close_price", "clv", "won", "pnl", "reason"]].round(3),
+            hide_index=True, width="stretch")
+    for tip in fb["tips"]:
+        st.write(f"- {tip}")
+
 with briefs:
-    times = sorted(set(news.published_at) | {game.tip_time - replay.LEAD})
-    when = st.select_slider("Decision time", options=times, value=times[-1],
-                            format_func=lambda t: f"{pd.Timestamp(t):%H:%M} UTC")
+    times = decision_times
+    when = st.select_slider("Decision time", options=times, value=times[-1], format_func=fmt_time)
     view = view_at(tables, when)
     now_news = view.news(gid)
     o = outlook(forecaster(), view, game, out_list(now_news))

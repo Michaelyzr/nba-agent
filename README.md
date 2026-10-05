@@ -487,8 +487,47 @@ python -m agents.graph --source synthetic --forecaster record --start 2026-01-01
 python -m evaluation.ablations                   # section 6 ablations, calibration, policy tests, headline chart
 python -m evaluation.scorer runs/<name>          # score any run folder
 python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
-streamlit run app.py                             # demo: replayed night, channel briefs, learning, safety, models
+streamlit run app.py                             # demo: replayed night, coach, channel briefs, learning, safety, models
 ```
+
+### Coach: learning how the market works
+
+The **Coach** tab (`agents/coach.py`) teaches users what is happening in a
+game and how betting markets work. It runs on replayed nights with paper
+money only.
+
+1. **What's going on.** At a chosen decision time the coach explains the
+   game in plain language. It covers the news so far, our model's win
+   probability before and after it, and the market price now against 24 hours
+   earlier. It then shows the anchored estimate and the break-even price after
+   the spread and fee. Only information public at that moment is shown.
+2. **Concepts in this game.** Lesson cards are triggered by the situation:
+   - a price is a probability;
+   - the spread and fee move your break-even;
+   - how injury news moves a win probability;
+   - whether the news is already priced in (chasing);
+   - long shots look cheap;
+   - the closing line is the scoreboard;
+   - passing is a position.
+3. **Your call.** The user backs a team or passes, with a paper stake. The
+   order fills exactly as the agent's would: at the recorded ask plus fee,
+   capped by traded volume. The rest of the night is then revealed: closing
+   price, closing-line value, result and P&L. If the user passed, it shows
+   what backing each team would have done. It also shows what the agent did
+   at the same moment.
+4. **Scoreboard and feedback.** Totals and habit tips over the session:
+   paying above the closing price, long shots, chasing moved prices,
+   negative-edge trades, and small samples being mostly luck.
+
+The coach uses the same models, market anchor and fee formula as the agent,
+so its explanations match the agent's decisions.
+`tests/test_coach.py` checks that:
+- its numbers match the as-of view;
+- it never sees later news;
+- paper fills match the replay;
+- its text never uses promise words such as "lock" or "risk-free".
+
+Every screen carries an educational, not-betting-advice notice.
 
 Results are written to `evaluation/results/` (committed, so the report and demo
 use the same numbers). `python -m evaluation.workflow_diagram` redraws

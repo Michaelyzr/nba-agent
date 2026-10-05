@@ -28,6 +28,7 @@ NODES = {
     "blocked": (14.5, 5.5, "explain why, no order", SAFETY),
     "confirm": (17.1, 5.5, "retail orders need a human", SAFETY),
     "deliver": (15.8, 4.2, "channel briefs + audit log", DECIDE),
+    "coach": (17.1, 2.85, "explain the game, lessons,\npaper trades + feedback", GOOD),
     "settle": (1.5, 1.75, "settle fills; CLV vs mid at tip", REVIEW),
     "review": (4.3, 1.75, "worst closing-line-value slice\n→ propose one rule", REVIEW),
     "gate": (7.1, 1.75, "backtest on earlier days only", REVIEW),
@@ -55,6 +56,7 @@ EDGES = [  # (from point, to point, label, arc, colour, label offset)
     (pt("checks", "b"), pt("blocked", "t"), "fails twice", 0, RED, (-0.5, 0)),
     (pt("blocked", "b"), pt("deliver", "l"), "", 0.25, INK, (0, 0)),
     (pt("confirm", "b"), pt("deliver", "r"), "", -0.25, INK, (0, 0)),
+    (pt("deliver", "b", 0.6), pt("coach", "t"), "same trace", 0, GREEN, (0.55, 0.05)),
     (pt("checks", "t", 0.5), pt("investigate", "t"), "check fails → one retry with feedback", 0.25, RED, (0, 1.36)),
     (pt("settle", "r"), pt("review", "l"), "", 0, INK, (0, 0)),
     (pt("review", "r"), pt("gate", "l"), "", 0, INK, (0, 0)),
@@ -110,7 +112,7 @@ def draw(path: Path):
     arrow(ax, (nx - 0.6, ny + nh / 2), pt("analyse", "b"), "rules apply from valid_from", 0.15, GOLD, (0.4, -0.35),
           ls="--")
 
-    ax.text(17.1, 1.75, "Inputs (public only)\n• ESPN box scores + inactive lists\n• Kalshi prices: fill at ask"
+    ax.text(17.1, 0.85, "Inputs (public only)\n• ESPN box scores + inactive lists\n• Kalshi prices: fill at ask"
             " + fee,\n   capped by traded volume\n• Models: M2 GRU, M3 play, M4 win",
             fontsize=8.6, va="center", ha="center", linespacing=1.3,
             bbox=dict(boxstyle="round,pad=0.5", fc="#f4f4f4", ec="#999"))
