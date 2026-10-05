@@ -448,6 +448,127 @@ entry point the agent, scorer and demo call.
 
 ### Running the agent loop
 
+#### Pregame news polling and fair odds
+
+`agents/pregame.py` adds a separate pregame-only LangGraph:
+**historical baseline → retrieve news → extract factors → reforecast → record**.
+The runner repeats this graph at a fixed interval, ending strictly before
+tip-off. It computes both teams' probabilities and **fair decimal odds
+(`1 / probability`, no bookmaker margin)** without requiring market quotes,
+submitting orders or waiting for settlement.
+
+The baseline uses only box scores final at its timestamp. Its history stays
+fixed for that run, so subsequent changes reflect news factors. The default
+is trained M4 via `forecast/api.py`; `--forecaster record` is an explicit
+development baseline that needs no trained weights.
+
+```bash
+# Find a game id in the committed sample schedule.
+python -c "import pandas as pd; print(pd.read_parquet('data/sample/games.parquet')[['game_id','date','away_team','home_team']].tail(10).to_string(index=False))"
+
+# Offline: poll the frozen news every minute over six pregame hours.
+python -m agents.pregame --mode replay --source sample --game-id <id> --forecaster record --name pregame-demo
+
+# Concrete example: ORL @ BOS on 2026-04-12, with late inactive news.
+python -m agents.pregame --mode replay --source sample --game-id 401811041 --forecaster record --name pregame-bos
+
+# Trained M4 (train it first with python -m forecast.win --source sample).
+python -m agents.pregame --mode replay --source sample --game-id <id> --name pregame-model
+
+# Live: requires a FUTURE game in data/frozen/games.parquet, plus historical
+# player_games.parquet and players.parquet with matching player ids.
+python -m agents.pregame --mode live --source frozen --game-id <future-id> --poll-seconds 60 --name pregame-live
+
+# One poll, or a shorter window (timezone-aware timestamps required).
+python -m agents.pregame --mode live --source frozen --game-id <future-id> --once --name pregame-once
+python -m agents.pregame --mode replay --source sample --game-id <id> --forecaster record --start-time <ISO-time-with-zone> --until <ISO-time-with-zone> --name pregame-window
+```
+
+Live sources are ESPN and CBS Sports NBA RSS, the latest matching NBA injury
+report, Shams Charania's X posts, and **both teams' official and reporter X
+accounts**. [The source catalog](docs/news_sources.md) lists all 30 teams,
+account links, affiliations and review evidence. Three verified team PR accounts
+are also included. Only the two playing teams' accounts are queried per game;
+other teams' posts do not enter the source plan.
+
+X uses the [official recent-search API](https://docs.x.com/x-api/posts/search/quickstart/recent-search).
+Set `X_BEARER_TOKEN` in the local environment or `.env` (see `.env.example`);
+the token needs recent-search access. No token means **unconfigured**, not a
+successful search with no news. Other sources keep running. The API searches
+at most seven days, uses a 30-second indexing allowance and a five-minute
+overlap, and persists unfinished pagination across polls/restarts. Rate limits
+defer retries without losing the pending window. Posts from the final indexing
+window may not become searchable before tip-off.
+
+```bash
+# Inspect a game's planned accounts without network access or credentials.
+python -m data_sources.news_registry --teams BOS LAL
+```
+
+`--news-registry <json>` replaces the source catalog. `--rss-url <url>` replaces
+the default media feeds (repeat for multiple RSS feeds); unregistered feeds
+have no authoritative priority. `--no-official` disables NBA PDF requests;
+`--no-x` explicitly disables X requests.
+Replay reads only the supplied table; it never searches today's web for a
+historical game. Live mode ignores retrospective inactive-list news.
+The local sample contains historical games, so it cannot be used as a current
+live schedule. Schedule/roster refresh is currently the data pipeline's job.
+
+Factors currently supported:
+
+| Factor | Model input |
+| --- | --- |
+| Out / available | Lost share 1 / 0; source priority resolves conflicting reports |
+| Doubtful / questionable / probable | Lost share 0.75 / 0.50 / 0.25 |
+| Explicit minutes limit | Expected minutes capped against the player's recent usual minutes |
+| Ambiguous news, rumours, trades or role changes without a supported status | Logged as review-only, no invented numerical adjustment |
+
+Uncertain-status weights are **scenario assumptions awaiting calibration**,
+not outputs from a trained participation classifier. M4 uses the expected
+missing minutes and points as features; this extension likewise needs
+held-out calibration. A minutes limit and uncertain participation combine
+as `1 - P(play) × allowed_minutes / usual_minutes`. Repeated news does not
+compound a player's impact. The conflict order is **NBA official injury report
+→ team official/PR account → ESPN/CBS → Shams → team reporter → unclassified**.
+Within a tier, the latest publication wins. Each source's latest evidence is
+kept: a newer contradictory personal post stays pending until a primary source
+changes its report; it does not silently override an older authoritative report.
+With no primary report, Shams/reporter factors may update the forecast with
+`secondary_only` confirmation. All contradictory evidence remains in snapshots.
+RSS parsing requires a full player name from the as-of
+roster, explicit status language, and "today/tonight" on the game's Eastern
+date; multi-player or ambiguous sentences remain review-only. X also supports
+unique roster surnames and explicit injury-list headings on the game's Eastern
+date. Images, unsupported lineup/role changes and ambiguous text retain their
+original post/link for review; image OCR is not implemented. A selected
+available status clears an absence; an explicit minutes cap remains until
+replaced by a later cap.
+
+Every live item records publication time, first observation time, source and
+URL; extracted player factors also record player id. Future items and observations are rejected. Requests have
+timeouts; failed sources leave previous factors intact, mark the poll
+degraded, and retry at the next interval. No new HTTP request starts at or
+after tip-off; a request already in progress may finish after tip, in which
+case its news is not used to emit another forecast.
+
+`runs/<name>/` contains `snapshots.jsonl` (initial/current probabilities,
+odds, changes, factors, conflicts, per-source coverage and errors), `news.jsonl`
+(deduplicated player factors and application result), `evidence.jsonl` (original
+articles/posts, including review-only items), and `state.json` (restart state,
+source evidence and API pagination; no credentials). Reusing the same
+name resumes the same baseline and factors; replay resumes at the next poll
+unless an explicit start time is supplied. Configuration mismatches or time
+travel require a new name. Model weights and historical tables should remain
+fixed during a resumed run. The Streamlit **Pregame news loop** tab shows the
+offline probability curve, decimal odds, applied evidence and per-game source
+plan. The displayed source plan is configuration, not a live retrieval claim.
+
+```bash
+pytest -q tests/test_pregame.py tests/test_news_sources.py
+```
+
+#### Existing market replay and learning
+
 `agents/graph.py` is the section 2 loop as one LangGraph with two phases.
 At every replay decision time it runs trigger → news investigator → forecast
 → market analyst → checks (one retry) → risk → confirm or blocked. After each
