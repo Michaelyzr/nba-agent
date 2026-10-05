@@ -139,3 +139,26 @@ def test_channel_briefs_keep_market_language_out_of_media_and_team(forecaster):
 def test_scorer_policy_tests_all_blocked():
     from evaluation.scorer import policy_tests
     assert policy_tests().blocked.all()
+
+
+@pytest.mark.parametrize("late_first", [False, True])
+def test_api_history_isolated_across_same_day_decision_times(late_first):
+    from forecast.api import Forecaster
+    from replay import AsOf
+
+    pg, games = league(n_games=2)
+    tables = {"games": games, "player_games": pg}
+    early = AsOf(tables, T0 + pd.Timedelta(hours=1), {})
+    late = AsOf(tables, T0 + pd.Timedelta(hours=4), {})
+    target_tip = games.tip_time.iloc[1]
+    assert early.now.tz_convert("America/New_York").date() == late.now.tz_convert("America/New_York").date()
+    f = Forecaster()
+    ordered = [(early, []), (late, ["g000"])]
+    if late_first:
+        ordered.reverse()
+    for snapshot, expected in ordered:
+        history = f.history(snapshot)
+        assert history.team_games(1, target_tip) == expected
+        assert len(history.player_rows(10, target_tip)) == len(expected)
+    # Repeat the earlier view after both snapshots have been accessed.
+    assert f.history(early).team_games(1, target_tip) == []

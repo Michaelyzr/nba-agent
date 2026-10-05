@@ -12,3 +12,5 @@ data/frozen/
 data/raw/
 runs/
 models/
+*.egg-info/
+uv.lock

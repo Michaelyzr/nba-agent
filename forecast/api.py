@@ -7,8 +7,8 @@
     MarketAgent(forecaster=f)                   # P(yes) for every game-winner market
 
 Every call reads only the as-of view it is given. The history index is
-rebuilt once per Eastern date from games already final at that moment, so a
-forecast never sees a game that finished after the decision.
+rebuilt from the supplied as-of view on every call, so accessing a later
+view cannot contaminate an earlier prediction or leave a later one stale.
 """
 import math
 import pickle
@@ -30,8 +30,6 @@ def _load(path: Path):
 
 
 class Forecaster:
-    _cache: dict = {}
-
     def __init__(self, win=None, play=None, points=None):
         self.win_model, self.play_model, self.points_model = win, play, points
 
@@ -48,13 +46,9 @@ class Forecaster:
         return "+".join(m.name for m in (self.win_model, self.play_model, self.points_model) if m is not None)
 
     def history(self, view) -> History:
-        day = view.now.tz_convert("America/New_York").date()
-        key = (id(view._t), day)
-        if key not in self._cache:
-            if len(self._cache) > 32:
-                self._cache.clear()
-            self._cache[key] = History(view.player_games(), view.games())
-        return self._cache[key]
+        # A date-wide cache mixes different decision times within the same day.
+        # Rebuild from the filtered view to keep forward and backward replay safe.
+        return History(view.player_games(), view.games())
 
     # ---------------- games ----------------
 
