@@ -1,0 +1,49 @@
+period,comparison,metric,estimate,ci_low,ci_high,p_one_sided
+"Walk-forward, Season, Nov–12 Apr",Full agent: anchor + learning − Never trade,clv_dollars,-44.30999999999995,-67.25224999999989,-21.28875,1.0
+"Walk-forward, Season, Nov–12 Apr",Full agent: anchor + learning − Never trade,pnl,-25.299999999999926,-569.0077499999998,563.9694999999997,0.5317341329335332
+"Walk-forward, Season, Nov–12 Apr","Agent: anchor, no learning − Never trade",clv_dollars,-83.58999999999995,-114.4603749999999,-54.25837500000001,1.0
+"Walk-forward, Season, Nov–12 Apr","Agent: anchor, no learning − Never trade",pnl,-407.13,-1323.6569999999992,553.1449999999976,0.8085957021489255
+"Walk-forward, Season, Nov–12 Apr","Raw model, no agent − Never trade",clv_dollars,-254.52499999999975,-326.42774999999983,-188.09899999999988,1.0
+"Walk-forward, Season, Nov–12 Apr","Raw model, no agent − Never trade",pnl,-2475.349999999999,-3995.421500000002,-845.2257500000007,0.9985007496251874
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Agent: anchor, no learning",mean_clv,-0.0002355072463768107,-0.0019217031771738904,0.0015213980157875488,0.591704147926037
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Agent: anchor, no learning",clv_dollars,39.279999999999994,18.02750000000001,60.88775000000001,0.0009995002498750624
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Agent: anchor, no learning",pnl,381.83000000000004,-303.9524999999996,1047.1064999999992,0.12743628185907047
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Raw model, no agent",mean_clv,-0.00042194092827004155,-0.0030648239986420063,0.0025844790559561718,0.5947026486756621
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Raw model, no agent",clv_dollars,210.2149999999998,147.6141249999998,280.1307499999993,0.0004997501249375312
+"Walk-forward, Season, Nov–12 Apr","Full agent: anchor + learning − Raw model, no agent",pnl,2450.0499999999993,854.0012499999992,3983.8325000000013,0.001999000499750125
+"Walk-forward, Season incl. play-offs",Full agent: anchor + learning − Never trade,clv_dollars,-44.30999999999995,-66.76574999999993,-21.608249999999977,1.0
+"Walk-forward, Season incl. play-offs",Full agent: anchor + learning − Never trade,pnl,-25.299999999999972,-576.42675,574.0740000000002,0.5222388805597201
+"Walk-forward, Season incl. play-offs","Agent: anchor, no learning − Never trade",clv_dollars,-83.52999999999992,-116.07549999999992,-50.38499999999997,1.0
+"Walk-forward, Season incl. play-offs","Agent: anchor, no learning − Never trade",pnl,-481.00000000000006,-1336.335999999999,439.2602499999999,0.8565717141429285
+"Walk-forward, Season incl. play-offs","Raw model, no agent − Never trade",clv_dollars,-279.01999999999975,-349.23787499999986,-209.1576249999997,1.0
+"Walk-forward, Season incl. play-offs","Raw model, no agent − Never trade",pnl,-2041.2499999999998,-3722.577499999999,-295.7675000000013,0.993503248375812
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Agent: anchor, no learning",mean_clv,-0.0004432624113475175,-0.00223217722711783,0.0013937499999999998,0.6761619190404797
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Agent: anchor, no learning",clv_dollars,39.21999999999996,16.719749999999912,63.47362499999999,0.001999000499750125
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Agent: anchor, no learning",pnl,455.7000000000001,-224.79100000000048,1110.56425,0.08295852073963018
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Raw model, no agent",mean_clv,-0.0003626943005181349,-0.003085608646239285,0.0024209958347165264,0.5717141429285357
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Raw model, no agent",clv_dollars,234.7099999999998,167.38862499999982,302.0927499999998,0.0004997501249375312
+"Walk-forward, Season incl. play-offs","Full agent: anchor + learning − Raw model, no agent",pnl,2015.9499999999998,299.99649999999974,3719.7329999999965,0.0069965017491254375
+Holdout 13 Apr–14 Jun,Full agent: anchor + learning − Never trade,clv_dollars,0.0,0.0,0.0,
+Holdout 13 Apr–14 Jun,Full agent: anchor + learning − Never trade,pnl,0.0,0.0,0.0,
+Holdout 13 Apr–14 Jun,"Agent: anchor, no learning − Never trade",clv_dollars,0.06000000000000261,-3.1249999999999973,3.7062499999999963,0.48825587206396803
+Holdout 13 Apr–14 Jun,"Agent: anchor, no learning − Never trade",pnl,-73.86999999999999,-175.80474999999998,26.276999999999965,0.9415292353823088
+Holdout 13 Apr–14 Jun,"Raw model, no agent − Never trade",clv_dollars,-23.934999999999974,-38.38499999999996,-12.02925,0.999000499750125
+Holdout 13 Apr–14 Jun,"Raw model, no agent − Never trade",pnl,449.5500000000001,-55.338999999999785,1171.2539999999992,0.08695652173913043
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Agent: anchor, no learning",mean_clv,-0.005000000000000009,-0.020000000000000018,0.0050000000000000044,0.7981009495252374
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Agent: anchor, no learning",clv_dollars,-0.06000000000000261,-3.706250000000001,3.1249999999999973,0.5122438780609695
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Agent: anchor, no learning",pnl,73.86999999999999,-26.27699999999999,175.80474999999993,0.05897051474262868
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Raw model, no agent",mean_clv,0.005169491525423722,0.002592592592592587,0.008333333333333325,0.001999000499750125
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Raw model, no agent",clv_dollars,23.934999999999974,12.029249999999998,38.38499999999996,0.0014992503748125937
+Holdout 13 Apr–14 Jun,"Full agent: anchor + learning − Raw model, no agent",pnl,-449.5500000000001,-1171.254,55.33899999999946,0.9135432283858071
+Original test 1 Feb–12 Apr (not a clean holdout),Full agent: anchor + learning − Never trade,clv_dollars,-10.04999999999998,-27.385499999999944,7.642249999999995,0.8730634682658671
+Original test 1 Feb–12 Apr (not a clean holdout),Full agent: anchor + learning − Never trade,pnl,-32.01999999999998,-340.39374999999995,280.57724999999976,0.5712143928035982
+Original test 1 Feb–12 Apr (not a clean holdout),"Agent: anchor, no learning − Never trade",clv_dollars,-35.24999999999997,-60.29012499999998,-11.547124999999935,0.9970014992503748
+Original test 1 Feb–12 Apr (not a clean holdout),"Agent: anchor, no learning − Never trade",pnl,-247.27,-718.2989999999998,264.9269999999992,0.8305847076461769
+Original test 1 Feb–12 Apr (not a clean holdout),"Raw model, no agent − Never trade",clv_dollars,-172.12499999999991,-230.6176249999998,-117.96724999999996,1.0
+Original test 1 Feb–12 Apr (not a clean holdout),"Raw model, no agent − Never trade",pnl,-2087.2599999999998,-3082.524499999999,-1045.042250000001,1.0
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Agent: anchor, no learning",mean_clv,0.0012586423632935271,-0.0009884772767036996,0.003975369312025072,0.16741629185407297
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Agent: anchor, no learning",clv_dollars,25.199999999999992,9.247124999999967,43.92700000000002,0.006496751624187906
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Agent: anchor, no learning",pnl,215.25000000000003,-167.017,584.1269999999998,0.12893553223388307
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Raw model, no agent",mean_clv,0.0025107074287402183,-0.0017161848419024288,0.0074949837971990075,0.14992503748125938
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Raw model, no agent",clv_dollars,162.07499999999993,111.19412499999987,217.30687499999974,0.0004997501249375312
+Original test 1 Feb–12 Apr (not a clean holdout),"Full agent: anchor + learning − Raw model, no agent",pnl,2055.24,1030.5382499999998,3008.906499999999,0.0004997501249375312

@@ -487,6 +487,8 @@ python -m agents.graph --source synthetic --forecaster record --start 2026-01-01
 python -m evaluation.ablations                   # section 6 ablations, calibration, policy tests, headline chart
 python -m evaluation.m4_report                    # M4 win model vs the market: m4_vs_market.png and tables
 python -m evaluation.trade_visuals                # how the agent trades: trade_flow.png, trade_example.png, trade_funnel.png
+python -m evaluation.walkforward                  # walk-forward by month, play-off holdout, bootstrap CIs (~20 min)
+python -m evaluation.walkforward --report-only    # re-score saved runs/walkforward and runs/holdout only
 python -m evaluation.scorer runs/<name>          # score any run folder
 python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
 streamlit run app.py                             # demo: replayed night, coach, channel briefs, learning, safety, models
@@ -550,6 +552,7 @@ mid at tip. Offline rules; no LLM.
 | Agent on win-rate placeholder model | 246 | −0.0038 (0.0009) | −$429 | −8.9% | $599 | 0 |
 | Agent without market anchor (raw model) | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
 | Plain model, no agent | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
+| Never trade | 0 | – | $0 | – | $0 | 0 |
 
 ![Cumulative CLV on the test period](evaluation/results/headline_clv.png)
 
@@ -567,7 +570,8 @@ What the numbers say:
   the market price 24 hours before tip and adds only the model's *news shift*
   (its probability after the news minus before). That cuts losses from
   −$2,087 to −$247.
-- **Learning helps further.** The reviewer proposes one rule a day from the
+- **Learning helps further on this window** (the walk-forward check below
+  shows the P&L gain is not significant). The reviewer proposes one rule a day from the
   worst-CLV slice of settled trades. The gate keeps a rule only if a backtest
   on *earlier* days improves mean CLV. Over the test period it proposed
   37 rules and kept 5, for example "skip when buying a side priced at or
@@ -583,6 +587,75 @@ What the numbers say:
     before the test period started.
 - **Safety:** all 9 planted policy violations were blocked
   (`policy_tests.csv`).
+
+**Research-process disclosure.** The market anchor and the data-driven
+reviewer were designed *after* we looked at the first test-period results, so
+1 Feb – 12 Apr is not a clean holdout, and the table above flatters the agent.
+M4 was also trained on games before 1 Feb, so November–January is in-sample
+for it. The walk-forward run and the play-off holdout below are the honest
+checks.
+
+#### Walk-forward and holdout, with confidence intervals
+
+`python -m evaluation.walkforward` runs monthly windows over the 2025-26
+season. Before each window, M4 (the win model, the only model that drives
+trades) is retrained on every earlier game. M2/M3 stay as loaded. Each setup
+is one replay over the season. The learning agent starts with an empty
+notebook on 1 Nov and carries it forward, and its reviewer and gate only use
+earlier days. The 95% confidence intervals (CI) come from a day-clustered bootstrap: game-days are
+resampled with replacement, 2000 replicates, fixed seed. Never trade is $0
+by construction. Full tables: `walkforward_summary.md`, `holdout.md`,
+`significance.md`.
+
+| Walk-forward, 1 Nov – 12 Apr | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] |
+| --- | --- | --- | --- | --- |
+| Full agent: anchor + learning | 157 | −0.0050 [−0.0079, −0.0018] | −$44 [−67, −21] | −$25 [−569, +564] |
+| Agent: anchor, no learning | 276 | −0.0048 [−0.0068, −0.0027] | −$84 [−114, −54] | −$407 [−1,324, +553] |
+| Raw model, no agent | 711 | −0.0046 [−0.0057, −0.0035] | −$255 [−326, −188] | −$2,475 [−3,995, −845] |
+| Never trade | 0 | – | $0 | $0 |
+
+![Walk-forward by month](evaluation/results/walkforward.png)
+
+**Holdout: play-in and play-offs, 13 Apr – 14 Jun 2026** (87 games, 44
+game-days). Nobody had looked at these games before this run. Each setup was
+run once, with the default models. The full agent continued from the
+test-period notebook.
+
+| Holdout | Trades | Mean CLV [95% CI] | P&L after fees [95% CI] |
+| --- | --- | --- | --- |
+| Full agent: anchor + learning | 0 | – | $0 |
+| Agent: anchor, no learning | 6 | +0.0050 [−0.0050, +0.0200] | −$74 [−176, +26] |
+| Raw model, no agent | 59 | −0.0052 [−0.0083, −0.0026] | +$450 [−55, +1,171] |
+| Never trade | 0 | – | $0 |
+
+What the tests say:
+
+- **No setup has positive closing-line value.** Over the walk-forward season,
+  mean CLV is below zero for every setup, and every 95% CI excludes zero
+  (one-sided p for CLV > 0 is 1.00 in all three). On the original test
+  window, the learning agent's CLV cannot be told apart from zero
+  (−0.0022, 95% CI −0.0067 to +0.0031). Orders fill at the ask, but CLV is
+  measured against the mid, and the median half-spread is 0.005. So about
+  −0.005 is what a trader with no edge would score: the agents pay the
+  spread and show no edge over the closing price.
+- **No setup beats never trading.** The full agent's walk-forward P&L is
+  −$25 (95% CI −$569 to +$564; p = 0.53 for "better than never trading").
+  The raw model loses significantly: −$2,475 (CI −$3,995 to −$845).
+- **Learning helps by trading less, not by trading better.** Against the
+  agent with no learning on the same days, the full agent loses $39 less CLV
+  (CI +$18 to +$61, p = 0.001). Its mean CLV per trade is no better
+  (−0.0002, CI −0.0019 to +0.0015). The P&L gain of +$382 is not significant
+  (CI −$304 to +$1,047, p = 0.13).
+- **The market anchor is the one clear effect.** Full agent minus raw model:
+  P&L +$2,450 (CI +$854 to +$3,984, p = 0.002).
+- **The holdout is too small to say much.** The anchored agent with no
+  learning found only 6 trades in the play-offs. The learning agent's rules
+  still active at that point (7¢ minimum edge, skip if the price has moved
+  2¢ against us) filtered out all 6, so in the play-offs it equals never
+  trading. The raw model's +$450 comes with significantly negative CLV
+  (p = 0.999 for CLV > 0), so it is luck on outcomes, not an edge.
+  Inactive-list news in the frozen data ends 7 May, so after that the agents
+  trade on prices and team form only.
 
 ### Testing
 
