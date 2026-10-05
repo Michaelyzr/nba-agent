@@ -170,9 +170,12 @@ class MarketAgent:
     def __init__(self, notebook: Notebook | None = None, forecaster: Callable = record_forecaster,
                  risk: Callable = pretrade_risk, confirm: Callable = auto_confirm, use_llm: bool = False,
                  learn: bool = True, stake: float = DEFAULT_STAKE, channel: str = "platform", plant=None,
-                 anchor: bool = True):
+                 anchor: bool = True, impact=None, min_edge: float = DEFAULT_MIN_EDGE):
         self.notebook = notebook or Notebook()
         self.anchor = anchor
+        # M6 (forecast/impact.py): p(home) = current home mid + predicted move to tip, instead of anchor + news shift.
+        self.impact = impact
+        self.min_edge = min_edge
         self.forecaster = forecaster
         self.risk = risk
         self.confirm = confirm
@@ -257,14 +260,21 @@ class MarketAgent:
         markets = state["markets"].set_index("market_ticker")
         age = minutes_between(news.published_at.max(), now) if len(news) else NO_NEWS_AGE
         rows = []
+        impact = self.impact.predict(view, game, now) if self.impact is not None else None
         for ticker, f in state["forecasts"].items():
             m, q = markets.loc[ticker], self._fresh_quote(view, ticker, now)
-            if q is None:
+            if q is None or (self.impact is not None and impact is None):
                 continue
             shift = f["after"] - f["before"]
-            anchor = self._anchor_mid(view, ticker, game) if self.anchor else None
+            anchor = self._anchor_mid(view, ticker, game) if self.anchor or impact else None
+            home = m.team == game.home_team
+            if impact is not None:
+                p_home = clip(impact["mid"] + impact["move"])
+                p, base = (p_home, impact["mid"]) if home else (1 - p_home, 1 - impact["mid"])
             # Anchored: the market is the base rate and only the model's news shift is traded.
-            p = clip(anchor + shift) if anchor is not None else f["after"]
+            else:
+                p = clip(anchor + shift) if anchor is not None else f["after"]
+                base = anchor if anchor is not None else f["before"]
             yes_gap = p - q.ask - fee_per_contract(q.ask)
             no_gap = (1 - p) - (1 - q.bid) - fee_per_contract(1 - q.bid)
             side, gap = ("yes", yes_gap) if yes_gap >= no_gap else ("no", no_gap)
@@ -276,13 +286,13 @@ class MarketAgent:
                          "model_shift": float(abs(shift))}
             self.situations[(ticker, now)] = situation
             rules = self.notebook.matching(situation, now, "trader")
-            min_edge = max([DEFAULT_MIN_EDGE] + [r["do"]["params"]["edge"] for r in rules
-                                                 if r["do"]["action"] == "min_edge"])
+            min_edge = max([self.min_edge] + [r["do"]["params"]["edge"] for r in rules
+                                              if r["do"]["action"] == "min_edge"])
             scale = min([1.0] + [r["do"]["params"]["scale"] for r in rules if r["do"]["action"] == "stake_scale"])
             skip = [r["rule_id"] for r in rules if r["do"]["action"] == "skip_market"]
             rows.append({"ticker": ticker, "team": m.team, "kind": m.kind, "p": p,
-                         "before": anchor if anchor is not None else f["before"], "shift": shift,
-                         "anchored": anchor is not None,
+                         "before": base, "shift": shift, "anchored": anchor is not None and impact is None,
+                         "impact": None if impact is None else impact["move"] * (1 if home else -1),
                          "bid": float(q.bid), "ask": float(q.ask), "side": side, "gap": float(gap),
                          "min_edge": min_edge, "scale": scale, "rules": [r["rule_id"] for r in rules],
                          "act": gap > min_edge and not skip, "why_not": "rule " + ", ".join(skip) if skip else
@@ -325,7 +335,10 @@ class MarketAgent:
     def _line(self, r):
         price = r["ask"] if r["side"] == "yes" else 1 - r["bid"]
         p_side = r["p"] if r["side"] == "yes" else 1 - r["p"]
-        if r.get("anchored"):
+        if r.get("impact") is not None:
+            basis = (f"estimate {r['p']:.0%} (market mid {r['before']:.0%} now, M6 expects "
+                     f"{r['impact'] * 100:+.1f} points by tip-off)")
+        elif r.get("anchored"):
             basis = (f"estimate {r['p']:.0%} (market {r['before']:.0%} a day earlier, news shift "
                      f"{r['shift'] * 100:+.1f} points)")
         else:
@@ -538,7 +551,8 @@ class MarketAgent:
     def backtest(self, rp, notebook, start, end) -> pd.DataFrame:
         """Replay earlier days with an offline, non-learning copy of this agent."""
         child = MarketAgent(notebook, self.forecaster, self.risk, self.confirm, use_llm=False, learn=False,
-                            stake=self.stake, channel=self.channel, anchor=self.anchor)
+                            stake=self.stake, channel=self.channel, anchor=self.anchor, impact=self.impact,
+                            min_edge=self.min_edge)
         _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee).run(start, end)
         return fills
 
@@ -661,14 +675,21 @@ def main():
     ap.add_argument("--plant", choices=FAULTS, default=None)
     ap.add_argument("--forecaster", choices=["models", "record"], default="models",
                     help="trained models via forecast/api.py, or the win-rate placeholder")
+    ap.add_argument("--signal", choices=["anchor", "impact"], default="anchor",
+                    help="anchor + M4 news shift (default), or M6: current mid + predicted move to tip")
+    ap.add_argument("--impact-model", type=Path, default=None, help="M6 pickle (default models/m6/impact.pkl)")
     args = ap.parse_args()
 
     forecaster = record_forecaster
     if args.forecaster == "models":
         from forecast.api import Forecaster
         forecaster = Forecaster.load()
+    impact = None
+    if args.signal == "impact":
+        from forecast.impact import MODEL_PATH, load_impact
+        impact = load_impact(args.impact_model or MODEL_PATH)
     agent = MarketAgent(Notebook.load(args.notebook) if args.notebook else Notebook(), forecaster=forecaster,
-                        use_llm=args.llm, learn=not args.no_learn, plant=args.plant)
+                        use_llm=args.llm, learn=not args.no_learn, plant=args.plant, impact=impact)
     if args.draw:
         print(agent.graph.get_graph().draw_mermaid())
         return

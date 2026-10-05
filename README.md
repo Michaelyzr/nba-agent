@@ -446,6 +446,95 @@ leakage-safe history index (`forecast/history.py`): every feature for a game
 uses only games that tipped off before it. `forecast/api.py` (M5) is the one
 entry point the agent, scorer and demo call.
 
+### M6: market-impact model (learning from the market's reaction)
+
+```bash
+python -m forecast.impact                                  # dataset, ImpactNet, baselines; models/m6/impact.pkl, m6_heldout.csv, m6_vs_baselines.png
+python -m agents.graph --signal impact --start 2026-02-01 --end 2026-04-12 --name m6-test --no-learn
+python -m evaluation.m6_ablation                           # M6 agent vs the other setups; runs/m6/, m6_ablation.csv and .md
+```
+
+- **What it predicts.** Where the home game-winner price will be at tip-off:
+  the move of the home mid from the decision time to the mid at tip. The
+  market grades the model directly (the label is the closing price), so no
+  game result is needed and every decision time is a training row.
+- **Rows.** One per (game, time): the replay's own decision times (news inside
+  the 6-hour window, tip − 60 min) plus a grid every 30 minutes from tip − 6 h to
+  tip − 30 min, and tip − 15 min. Rows need a quote under 5 minutes old, as
+  the agent does. Train on games before 15 Jan 2026 (7,826 rows, 602 games),
+  validate on 15–31 Jan (1,638 rows), test 1 Feb – 12 Apr (6,508 rows, 501
+  games, 771 at real decision times). Play-in and playoff games after 12 Apr
+  are a holdout scored once (1,127 rows, 87 games).
+- **Inputs, as-of only.** The home market's last 6 hours as 24 steps of 15
+  minutes (mid relative to now, spread, volume, a has-quote mask); the current
+  mid, spread and last-hour volume; the mid 24 h before tip and the move
+  since; hours to tip and minutes since the latest news; M4 before and after
+  the news and the shift; and players out, missing minutes and missing points
+  per team (M4's rotation, `forecast/win.py` `team_side`). M4 is the saved
+  model trained on games before 1 Feb, so it is in-sample on M6's Nov–Jan
+  training rows. `tests/test_impact.py` checks that every feature is unchanged
+  when all quotes and news after the decision time are deleted or replaced.
+- **Architecture.** `ImpactNet`: a GRU (16 units) over the price sequence,
+  concatenated with the 18 standardised static features, then an MLP to the
+  10th, 50th and 90th percentiles of the move. The quantiles are kept ordered
+  with softplus increments and trained with pinball loss. Fixed seed, Adam
+  with weight decay, early stopping on validation (best epoch 28).
+- **Baselines on the same rows.** Zero move (the market is a martingale), linear
+  regression and gradient boosting on the static features, and a fitted
+  coefficient × M4's news shift. The fitted coefficient is +0.025: after the
+  inactive list, the price moves on average 2.5% of what M4 says it should.
+
+Held-out move to tip, in cents (`evaluation/results/m6_heldout.csv`). R² is
+out-of-sample against zero move, so above 0 beats it.
+
+| Rows | Model | MAE | RMSE | R² vs zero move | Correlation |
+| --- | --- | --- | --- | --- | --- |
+| Test, decision times (771) | Zero move | **0.833** | 1.489 | 0 | — |
+| | M6 ImpactNet | 0.867 | 1.493 | −0.006 | 0.03 |
+| | M4 shift only | 0.843 | **1.485** | +0.006 | 0.08 |
+| | Linear | 0.937 | 1.492 | −0.004 | 0.11 |
+| | Gradient boosting | 1.056 | 1.617 | −0.179 | 0.04 |
+| Test, all rows (6,508) | Zero move | **1.346** | 2.481 | 0 | — |
+| | M6 ImpactNet | 1.374 | **2.475** | +0.004 | 0.07 |
+| Holdout, decision times (94) | Zero move | **0.660** | 1.149 | 0 | — |
+| | M6 ImpactNet | 0.717 | 1.147 | +0.003 | 0.08 |
+
+![M6 against the baselines](evaluation/results/m6_vs_baselines.png)
+
+- **Trading.** `MarketAgent(impact=load_impact())`, or `--signal impact`,
+  prices the home market at p = current mid + M6's median move, and the away
+  market at 1 − p. It keeps the fee-adjusted edge threshold, checks, risk
+  limits, notebook rules and one position per game. Results are in
+  `evaluation/results/m6_ablation.md`, with day-clustered bootstrap CIs from
+  `evaluation/stats.py`.
+  - The M6 agent made **0 trades** on the test period and on the holdout,
+    with or without learning, so it is identical to never trading ($0).
+  - M6's median predictions stay within ±1.25¢. To trade, a prediction must
+    beat half the spread plus the fee plus the 4¢ edge, about 5.5¢.
+  - As a diagnostic only, M6 with the threshold off takes its preferred side
+    in every game: 501 test trades, mean CLV −0.0048 (95% CI −0.0064 to
+    −0.0035), CLV −$134, P&L −$652 (CI −$1,642 to +$268). On the holdout:
+    87 trades, CLV −0.0040, P&L +$109 (CI −$250 to +$510). A CLV of about
+    −0.5¢ per contract is roughly half the spread, so M6's direction adds
+    nothing beyond what crossing the spread costs.
+- **Interpretation.** The zero-move baseline wins. No model predicts the move
+  to tip better than "the price will not move" on MAE: every model's excess
+  MAE has a day-clustered 95% CI above zero (see the chart). The best R² is
+  under 1%, which is too small to matter.
+  In this window (6 hours to 15 minutes before tip), Kalshi's NBA game-winner
+  price behaves like a martingale with respect to everything we can see:
+  its own recent path, the clock, M4 and the inactive list. M6 learned this
+  and predicts moves near zero, so the agent sensibly stays out. This is a
+  null result, not an edge.
+- **Caveats.**
+  - Small sample: 501 test games and 87 holdout games, and rows from the same
+    game are strongly correlated.
+  - Our news is the inactive list stamped 30 minutes before tip. Real injury
+    reports arrive hours earlier, so the market may react before our first
+    news row.
+  - M4 is in-sample on M6's training rows.
+  - Labels use the last quote at or before tip, as the replay's CLV does.
+
 ### Running the agent loop
 
 `agents/graph.py` is the section 2 loop as one LangGraph with two phases.
@@ -552,6 +641,7 @@ mid at tip. Offline rules; no LLM.
 | Agent on win-rate placeholder model | 246 | −0.0038 (0.0009) | −$429 | −8.9% | $599 | 0 |
 | Agent without market anchor (raw model) | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
 | Plain model, no agent | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
+| Agent on M6 market-impact signal (with or without learning) | 0 | — | $0 | 0% | $0 | 0 |
 | Never trade | 0 | – | $0 | – | $0 | 0 |
 
 ![Cumulative CLV on the test period](evaluation/results/headline_clv.png)
