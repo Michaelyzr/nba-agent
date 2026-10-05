@@ -7,13 +7,14 @@ code-enforced guardrails tailored by user type.
 
 **Deadline:** code, demo, backup recording and report by **Saturday 10 October 2026**.
 
-> **Project status (4 Oct):** the data downloaders (`data_sources/`), the
-> replay engine (`replay.py`), M1 baselines (`forecast/baselines.py`) and the
-> agent loop (`agents/graph.py`) are written and unit-tested. Downloads have
-> been checked against live Kalshi, Polymarket and NBA injury-report data; the
-> full season has not been frozen yet. Forecasts in the loop still use a
-> placeholder win model until `forecast/api.py` exists. Do not present
-> P&L from the synthetic season as results.
+> **Project status (5 Oct):** everything runs end to end on real data:
+> ESPN box scores and inactive lists for three seasons, and Kalshi game-winner
+> prices for 2025-26 (1,316 games). M1–M5 are trained (`forecast/`). The
+> agent loop is market-anchored and learns gated notebook rules. Ablations,
+> calibration and policy tests are in `evaluation/results/`, and the Streamlit
+> demo is `app.py`. Results are summarised in [Results](#results). By default
+> the agent runs with offline rules; add a Gemini key and `--llm` for the LLM
+> steps.
 
 ## Contents
 
@@ -115,7 +116,7 @@ flowchart TD
 | Diagram box | Graph node | Type | Job |
 | --- | --- | --- | --- |
 | News investigator (Forecaster in the work packages) | `investigate` | LLM | Read late news, apply notebook rules, name who is out and which markets are affected |
-| Forecast models | `forecast` | Code / DL | `forecast()` before vs after the news: play chance, minutes, points, win % (placeholder win model until M5) |
+| Forecast models | `forecast` | Code / DL | `forecast/api.py` before vs after the news: play chance (M3), minutes and points (M2 GRU), win % (M4) |
 | Market analyst (Grader / trader) | `analyse` → `propose` / `no_action` | LLM + code | Code computes the gap after fees; the LLM may drop a trade and explain, never add one |
 | Checks | `checks` | Code | Citations must predate the decision; numbers must match the models; no “lock” wording; one retry then block |
 | Risk limits | `risk` | Code | Caps, no post-tip orders, channel permissions; team and media cannot order; no parlays |
@@ -151,19 +152,18 @@ New code goes into these folders. `models/` is reserved for trained artifacts an
 is git-ignored, so model code lives in `forecast/`.
 
 ```text
-data_sources/   nba_stats.py, news.py, kalshi.py, polymarket.py   Data and replay
+data_sources/   espn.py, kalshi.py, sample.py                      Data and replay
+                (nba_stats.py, news.py, polymarket.py: same formats, for unblocked networks)
 replay.py       chronological day loop, fills, settlement          Data and replay
-forecast/       baselines.py, play.py, gru.py, win.py, api.py      Models
-                (dev_data.py: synthetic season until D1 lands)
-agents/         graph.py, notebook.py, demo_data.py                Agents (loop)
-                (planned: forecaster.py, trader.py, reviewer.py)
-llm.py          multi-supplier chat wrapper                        Agents
-policy/         risk.py, gate.py, checks.py                        Agents
-rules/          notebook.json                                      written by the gate
-evaluation/     scorer.py, ablations.py, labels/                   Evaluation and product
+forecast/       history.py, baselines.py, gru.py, play.py, win.py, api.py, train.py   Models
+                (dev_data.py: synthetic season for development)
+agents/         graph.py, notebook.py, briefs.py, demo_data.py     Agents
+                (risk limits, checks and gate live in graph.py and notebook.py)
+llm.py          chat-model wrapper with offline fallback           Agents
+evaluation/     scorer.py, ablations.py, results/                  Evaluation and product
 app.py          Streamlit demo                                     Evaluation and product
-tests/          leakage, risk and planted-failure tests            everyone
-data/sample/    a few committed replay days for graders            Data and replay
+tests/          leakage, risk, model and planted-failure tests     everyone
+data/sample/    committed history and a few replay nights          Data and replay
 ```
 
 ## 3. Team, roles and work packages
@@ -402,28 +402,49 @@ cp .env.example .env            # add GEMINI_API_KEY for the LLM steps (optional
 
 Without `GEMINI_API_KEY`, the agent's LLM steps use offline rules.
 
-### Building the frozen data and running the replay
+### Quick start from a fresh clone (no downloads)
+
+`data/sample/` holds every game, box score and inactive list for 2023-24 to
+2025-26 plus the markets and prices of a few test-period nights.
+
+```bash
+python -m forecast.train --source sample          # trains M1-M4 into models/ (about 3 minutes)
+streamlit run app.py                              # the demo
+python -m agents.graph --source sample --start <night> --end <night> --name sample-night
+```
+
+### Building the frozen data
 
 Run from the repo root, in this order (each step caches its downloads under
 `data/raw/`, so rerun to resume):
 
 ```bash
-python -m data_sources.nba_stats --seasons 2025-26 --limit 5   # smoke test first
-python -m data_sources.nba_stats                               # 2022-23 to 2025-26
-python -m data_sources.news --start 2025-10-21 --end 2026-04-12
-python -m data_sources.kalshi depth                            # coverage by month
-python -m data_sources.kalshi download --start 2025-10-21 --end 2026-04-12
-python replay.py --start 2026-02-01 --end 2026-02-28 --policy record --name feb-record
+python -m data_sources.espn                                     # games, box scores, inactive lists (2023-24 to 2025-26)
+python -m data_sources.kalshi download --start 2025-10-21 --end 2026-06-30 --series KXNBAGAME
+python -m data_sources.sample                                   # refresh data/sample/ from data/frozen/
 ```
 
-`replay.py --policy record` is a smoke-test baseline (team win rates to date)
-until `forecast/api.py` exists. Results go to `runs/<name>/` (git-ignored).
+**Which NBA source.** stats.nba.com and the NBA injury-report PDFs block cloud
+and VPN addresses (time-outs and 403 errors), so the frozen tables come from
+ESPN's public JSON (`data_sources/espn.py`). It has every box score and each
+game's inactive list with the reason (injury, illness, rest, suspension).
+Following section 6, inactive-list entries become news stamped 30 minutes
+before tip-off, so the agent sees no news earlier than that. Real injury
+reports come out hours earlier, which makes this a conservative test. On an
+unblocked network, `data_sources.nba_stats` and `data_sources.news` give
+nba_api box scores and timestamped injury reports in the same formats.
 
-Known issues: stats.nba.com often times out from Hong Kong networks and
-cloud machines; try another network or a VPN, and keep the cache. If the
-schedule call fails, `nba_stats` takes tip-off times from the injury reports
-(run `news` first, then rerun `nba_stats`). On a python.org install of Python
-on macOS, run `Install Certificates.command` once if HTTPS calls fail.
+### Training the models
+
+```bash
+python -m forecast.train                         # M1-M4 on games before 2026-02-01; held-out tables in evaluation/results/
+```
+
+M1 baselines (`forecast/baselines.py`), M2 GRU (`forecast/gru.py`), M3 play
+classifier (`forecast/play.py`) and M4 win model (`forecast/win.py`) share one
+leakage-safe history index (`forecast/history.py`): every feature for a game
+uses only games that tipped off before it. `forecast/api.py` (M5) is the one
+entry point the agent, scorer and demo call.
 
 ### Running the agent loop
 
@@ -433,20 +454,24 @@ At every replay decision time it runs trigger → news investigator → forecast
 replay day it runs settle → reviewer → gate → rule notebook.
 
 ```bash
-python -m agents.graph --draw                                       # Mermaid of the compiled graph
-python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1             # synthetic markets
-python -m agents.graph --start 2026-01-01 --end 2026-03-31 --name agent-q1 --no-learn  # ablation
-python -m agents.graph --source frozen --start 2026-02-01 --end 2026-02-28 --llm       # real data, Gemini
-python -m agents.graph --plant lock_wording --start 2026-02-01 --end 2026-02-03         # show a blocked order
+python -m agents.graph --draw                                               # Mermaid of the compiled graph
+python -m agents.graph --start 2026-02-01 --end 2026-02-28 --name agent-feb             # real data, trained models
+python -m agents.graph --start 2026-02-01 --end 2026-02-28 --name agent-feb --no-learn  # ablation
+python -m agents.graph --start 2026-02-01 --end 2026-02-28 --llm                        # with Gemini
+python -m agents.graph --plant lock_wording --start 2026-02-10 --end 2026-02-10         # show a blocked order
+python -m agents.graph --source synthetic --forecaster record --start 2026-01-01 --end 2026-01-31
 ```
 
 - **LLM steps.** The news investigator, market analyst and reviewer use Gemini
   through `llm.py` when `--llm` is set and a key is in `.env`. Without one, they
   fall back to offline rules, so the loop runs with no network. An LLM can drop
   a candidate trade but never add one. Every number comes from code.
-- **Forecasts.** `record_forecaster` (win rates, log5, minus the usual minutes
-  of players ruled out) is a placeholder. Pass `forecast/api.py` as `forecaster=`
-  once M5 exists.
+- **Forecasts.** `forecast/api.py` by default: M4 win probability before and
+  after the news (rotation players ruled out). `--forecaster record` uses the
+  old win-rate placeholder, kept as an ablation.
+- **Briefs.** `agents/briefs.py` turns one forecast into the four channel
+  briefs (platform, media, team, retail). Media and team briefs are checked for
+  market language; retail briefs need a confirm per order.
 - **Rules.** The gate back-tests a proposed rule on up to 14 earlier days with
   and without it, and keeps it if mean closing-line value improves by 0.005
   over at least 3 changed trades. Expired rules can be renewed.
@@ -455,6 +480,109 @@ python -m agents.graph --plant lock_wording --start 2026-02-01 --end 2026-02-03 
   nothing, so never report it.
 - **Output.** `runs/<name>/` gets `decisions.parquet`, `fills.parquet`,
   `notebook.json` and `trace.jsonl` (every step of every decision).
+
+### Evaluation and demo
+
+```bash
+python -m evaluation.ablations                   # section 6 ablations, calibration, policy tests, headline chart
+python -m evaluation.m4_report                    # M4 win model vs the market: m4_vs_market.png and tables
+python -m evaluation.trade_visuals                # how the agent trades: trade_flow.png, trade_example.png, trade_funnel.png
+python -m evaluation.scorer runs/<name>          # score any run folder
+python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
+streamlit run app.py                             # demo: replayed night, coach, channel briefs, learning, safety, models
+```
+
+### Coach: learning how the market works
+
+The **Coach** tab (`agents/coach.py`) teaches users what is happening in a
+game and how betting markets work. It runs on replayed nights with paper
+money only.
+
+1. **What's going on.** At a chosen decision time the coach explains the
+   game in plain language. It covers the news so far, our model's win
+   probability before and after it, and the market price now against 24 hours
+   earlier. It then shows the anchored estimate and the break-even price after
+   the spread and fee. Only information public at that moment is shown.
+2. **Concepts in this game.** Lesson cards are triggered by the situation:
+   - a price is a probability;
+   - the spread and fee move your break-even;
+   - how injury news moves a win probability;
+   - whether the news is already priced in (chasing);
+   - long shots look cheap;
+   - the closing line is the scoreboard;
+   - passing is a position.
+3. **Your call.** The user backs a team or passes, with a paper stake. The
+   order fills exactly as the agent's would: at the recorded ask plus fee,
+   capped by traded volume. The rest of the night is then revealed: closing
+   price, closing-line value, result and P&L. If the user passed, it shows
+   what backing each team would have done. It also shows what the agent did
+   at the same moment.
+4. **Scoreboard and feedback.** Totals and habit tips over the session:
+   paying above the closing price, long shots, chasing moved prices,
+   negative-edge trades, and small samples being mostly luck.
+
+The coach uses the same models, market anchor and fee formula as the agent,
+so its explanations match the agent's decisions.
+`tests/test_coach.py` checks that:
+- its numbers match the as-of view;
+- it never sees later news;
+- paper fills match the replay;
+- its text never uses promise words such as "lock" or "risk-free".
+
+Every screen carries an educational, not-betting-advice notice.
+
+Results are written to `evaluation/results/` (committed, so the report and demo
+use the same numbers). `python -m evaluation.workflow_diagram` redraws
+`agent_workflow.png`, the LangGraph workflow figure.
+
+### Results
+
+Replay on real Kalshi prices. Development period: 1 Nov 2025 – 31 Jan 2026.
+Test period: 1 Feb – 12 Apr 2026, with the same prices for every setup.
+Stake $20 per order (caps: $50 per order, $100 per game, $300 per day). Fills are at the ask plus the Kalshi fee, capped by
+traded volume. Closing-line value (CLV) is measured per contract against the
+mid at tip. Offline rules; no LLM.
+
+| Test-period setup | Trades | Mean CLV (s.e.) | P&L after fees | ROI | Max drawdown | Kill-switch trips |
+| --- | --- | --- | --- | --- | --- | --- |
+| Full agent: market anchor + learning | 74 | −0.0022 (0.0024) | −$32 | −2.2% | $195 | 0 |
+| Agent: market anchor, no learning | 129 | −0.0035 (0.0015) | −$247 | −9.7% | $439 | 0 |
+| Agent on win-rate placeholder model | 246 | −0.0038 (0.0009) | −$429 | −8.9% | $599 | 0 |
+| Agent without market anchor (raw model) | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
+| Plain model, no agent | 366 | −0.0047 (0.0007) | −$2,087 | −28.8% | $2,326 | 10 |
+
+![Cumulative CLV on the test period](evaluation/results/headline_clv.png)
+
+"Kill-switch trips" counts days that lost more than $100. It is measured,
+not enforced: no live daily-loss stop exists yet.
+
+What the numbers say:
+
+- **Our win model does not beat the market.** On 501 test games its Brier
+  score is 0.186 (accuracy 73.9%). The market scores 0.164 one hour before
+  tip and 0.163 at tip. Absences do help the model: ignoring them gives a
+  Brier score of 0.192.
+- **Trading the raw model loses heavily.** It buys underdogs it is
+  underconfident about. Anchoring to the market changes this: the agent takes
+  the market price 24 hours before tip and adds only the model's *news shift*
+  (its probability after the news minus before). That cuts losses from
+  −$2,087 to −$247.
+- **Learning helps further.** The reviewer proposes one rule a day from the
+  worst-CLV slice of settled trades. The gate keeps a rule only if a backtest
+  on *earlier* days improves mean CLV. Over the test period it proposed
+  37 rules and kept 5, for example "skip when buying a side priced at or
+  below 35¢" and "skip when the market has already moved 2¢ or more against
+  us". With learning, losses fall to −$32 on 74 trades, and the drawdown
+  halves.
+- **Honest caveats.**
+  - Mean CLV is still slightly negative in every setup, and the learning
+    agent's CLV is within about one standard error of zero. We avoid losing
+    trades rather than finding an edge over the closing line.
+  - The "development rules frozen" setup (`ablations.md`) is identical to "no
+    learning": both rules kept during development expired (45-day limit)
+    before the test period started.
+- **Safety:** all 9 planted policy violations were blocked
+  (`policy_tests.csv`).
 
 ### Testing
 
@@ -467,7 +595,7 @@ pytest -q tests/test_replay.py                         # one file
 pytest -q -k future                                    # tests whose name matches (the leakage tests)
 ```
 
-GitHub runs the same commands on every pull request
-(`.github/workflows/tests.yml`); the result shows as a check on the PR.
+The GitHub Actions workflow was removed in the layout refactor. Restoring
+`.github/workflows/tests.yml` to run `pytest -q` will bring back the PR check.
 Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.

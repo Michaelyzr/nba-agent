@@ -3,6 +3,7 @@
 Every frozen table lives in data/frozen/<name>.parquet and must have at least the
 columns in SCHEMAS (README section 5). Times are timezone-aware UTC.
 """
+import random
 import re
 import time
 import unicodedata
@@ -49,12 +50,12 @@ def read_table(name: str, folder: Path = FROZEN) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def get_json(url: str, params: dict | None = None, tries: int = 4, timeout: int = 30) -> dict:
+def get_json(url: str, params: dict | None = None, tries: int = 8, timeout: int = 30) -> dict:
     for attempt in range(tries):
         try:
             r = requests.get(url, params=params, timeout=timeout, headers={"User-Agent": "nba-agent/0.1"})
             if r.status_code == 429:
-                time.sleep(2 ** attempt)
+                time.sleep(min(2 ** attempt, 30) + random.random())
                 continue
             r.raise_for_status()
             return r.json()

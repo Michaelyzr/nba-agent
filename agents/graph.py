@@ -42,11 +42,28 @@ OUT_MINUTE_VALUE = 0.003         # win probability per usual minute of a missing
 HOME_EDGE = 0.03
 NO_NEWS_AGE = 9999.0             # news_age_minutes when a game has no news yet
 STALE_NEWS_MINUTES = 30.0
+ANCHOR_LEAD = pd.Timedelta(hours=24)  # market price this long before tip is the anchored base rate
 GATE_DAYS = 14
 GATE_THRESHOLD = 0.005           # mean closing-line value must improve by this much
 BANNED = re.compile(r"\block\b|guarantee|can'?t lose|sure thing|risk[- ]free", re.I)
 PCT = re.compile(r"(\d+)%")
 FAULTS = ("future_citation", "lock_wording", "number_mismatch")
+REVIEW_WINDOW = pd.Timedelta(days=21)
+SKIP = {"action": "skip_market", "params": {}}
+REVIEW_TEMPLATES = [   # (condition, action, blame category, how the reviewer describes the slice)
+    ({"side_price_max": 0.25}, SKIP, "model_wrong", "the agent bought a long shot (price 25% or less)"),
+    ({"side_price_max": 0.35}, SKIP, "model_wrong", "the agent bought an underdog (price 35% or less)"),
+    ({"side_price_min": 0.65}, SKIP, "model_wrong", "the agent bought a heavy favourite (price 65% or more)"),
+    ({"gap_min": 0.10}, SKIP, "model_wrong", "the model disagreed with the market by 10 points or more"),
+    ({"gap_min": 0.15}, SKIP, "model_wrong", "the model disagreed with the market by 15 points or more"),
+    ({"market_move_max": -0.02}, SKIP, "market_priced_in", "the price had moved against the trade since the anchor"),
+    ({"market_move_min": 0.03}, SKIP, "market_priced_in", "the price had already moved 3 points toward the trade"),
+    ({"news_age_minutes_min": STALE_NEWS_MINUTES}, SKIP, "market_priced_in", "there was no fresh news"),
+    ({"model_shift_max": 0.005}, SKIP, "market_priced_in", "the news barely moved the model"),
+    ({"hours_to_tip_min": 0.75}, SKIP, "news_misread", "the trade was placed before the inactive list"),
+    ({}, {"action": "min_edge", "params": {"edge": DEFAULT_MIN_EDGE + 0.03}}, "model_wrong",
+     "the edge after fees was under 7 points"),
+]
 
 
 class State(TypedDict, total=False):
@@ -152,8 +169,10 @@ def auto_confirm(brief: str, orders: list) -> list:
 class MarketAgent:
     def __init__(self, notebook: Notebook | None = None, forecaster: Callable = record_forecaster,
                  risk: Callable = pretrade_risk, confirm: Callable = auto_confirm, use_llm: bool = False,
-                 learn: bool = True, stake: float = DEFAULT_STAKE, channel: str = "platform", plant=None):
+                 learn: bool = True, stake: float = DEFAULT_STAKE, channel: str = "platform", plant=None,
+                 anchor: bool = True):
         self.notebook = notebook or Notebook()
+        self.anchor = anchor
         self.forecaster = forecaster
         self.risk = risk
         self.confirm = confirm
@@ -242,20 +261,28 @@ class MarketAgent:
             m, q = markets.loc[ticker], self._fresh_quote(view, ticker, now)
             if q is None:
                 continue
-            situation = {"team": m.team, "opponent": game.away_team if m.team == game.home_team else game.home_team,
-                         "market_kind": m.kind, "hours_to_tip": minutes_between(now, game.tip_time) / 60,
-                         "news_age_minutes": float(age)}
-            self.situations[(ticker, now)] = situation
-            rules = self.notebook.matching(situation, now, "trader")
-            p = f["after"]
+            shift = f["after"] - f["before"]
+            anchor = self._anchor_mid(view, ticker, game) if self.anchor else None
+            # Anchored: the market is the base rate and only the model's news shift is traded.
+            p = clip(anchor + shift) if anchor is not None else f["after"]
             yes_gap = p - q.ask - fee_per_contract(q.ask)
             no_gap = (1 - p) - (1 - q.bid) - fee_per_contract(1 - q.bid)
             side, gap = ("yes", yes_gap) if yes_gap >= no_gap else ("no", no_gap)
+            moved = 0.0 if anchor is None else (q.bid + q.ask) / 2 - anchor
+            situation = {"team": m.team, "opponent": game.away_team if m.team == game.home_team else game.home_team,
+                         "market_kind": m.kind, "hours_to_tip": minutes_between(now, game.tip_time) / 60,
+                         "news_age_minutes": float(age), "side_price": float(q.ask if side == "yes" else 1 - q.bid),
+                         "gap": float(gap), "market_move": float(moved if side == "yes" else -moved),
+                         "model_shift": float(abs(shift))}
+            self.situations[(ticker, now)] = situation
+            rules = self.notebook.matching(situation, now, "trader")
             min_edge = max([DEFAULT_MIN_EDGE] + [r["do"]["params"]["edge"] for r in rules
                                                  if r["do"]["action"] == "min_edge"])
             scale = min([1.0] + [r["do"]["params"]["scale"] for r in rules if r["do"]["action"] == "stake_scale"])
             skip = [r["rule_id"] for r in rules if r["do"]["action"] == "skip_market"]
-            rows.append({"ticker": ticker, "team": m.team, "kind": m.kind, "p": p, "before": f["before"],
+            rows.append({"ticker": ticker, "team": m.team, "kind": m.kind, "p": p,
+                         "before": anchor if anchor is not None else f["before"], "shift": shift,
+                         "anchored": anchor is not None,
                          "bid": float(q.bid), "ask": float(q.ask), "side": side, "gap": float(gap),
                          "min_edge": min_edge, "scale": scale, "rules": [r["rule_id"] for r in rules],
                          "act": gap > min_edge and not skip, "why_not": "rule " + ", ".join(skip) if skip else
@@ -298,8 +325,13 @@ class MarketAgent:
     def _line(self, r):
         price = r["ask"] if r["side"] == "yes" else 1 - r["bid"]
         p_side = r["p"] if r["side"] == "yes" else 1 - r["p"]
-        moved = f" ({r['before']:.0%} before the news)" if f"{r['before']:.0%}" != f"{r['p']:.0%}" else ""
-        return (f"{r['team']} win: model {r['p']:.0%}{moved}, market "
+        if r.get("anchored"):
+            basis = (f"estimate {r['p']:.0%} (market {r['before']:.0%} a day earlier, news shift "
+                     f"{r['shift'] * 100:+.1f} points)")
+        else:
+            moved = f" ({r['before']:.0%} before the news)" if f"{r['before']:.0%}" != f"{r['p']:.0%}" else ""
+            basis = f"model {r['p']:.0%}{moved}"
+        return (f"{r['team']} win: {basis}, market "
                 f"{r['bid']:.0%}-{r['ask']:.0%}; buying {r['side']} at {price:.0%} for a {p_side:.0%} chance")
 
     def _headline(self, state):
@@ -345,9 +377,9 @@ class MarketAgent:
         cited = set(inv["citations"]) | {c for o in state["orders"] for c in o.citations}
         for c in sorted(cited - public):
             failures.append(("citation_after_decision", f"{c} was not public at {now}"))
+        analysed = {r["ticker"]: r["p"] for r in state["candidates"]}
         for o in state["orders"]:
-            f = state["forecasts"].get(o.market_ticker)
-            if f is None or not math.isclose(o.p_model, f["after"], abs_tol=1e-9):
+            if o.market_ticker not in analysed or not math.isclose(o.p_model, analysed[o.market_ticker], abs_tol=1e-9):
                 failures.append(("number_mismatch", f"{o.market_ticker} p_model {o.p_model} is not the model's"))
             if not o.reason.strip():
                 failures.append(("missing_reason", o.market_ticker))
@@ -383,7 +415,8 @@ class MarketAgent:
         orders = self.confirm(state["brief"], state["orders"])
         if orders:
             self.held.add(state["game"].game_id)
-        return {"orders": orders, "status": "sent", "trace": log("confirm", f"{len(orders)} confirmed")}
+        return {"orders": orders, "status": "sent" if orders else "unconfirmed",
+                "trace": log("confirm", f"{len(orders)} of {len(state['orders'])} confirmed")}
 
     def blocked(self, state):
         why = "checks failed twice" if state.get("failures") else "risk limits"
@@ -391,7 +424,7 @@ class MarketAgent:
         return {"orders": [], "status": "blocked", "brief": brief, "trace": log("blocked", why)}
 
     def deliver(self, state):
-        status = state.get("status") if state.get("status") in ("sent", "blocked") else "brief_only"
+        status = state.get("status") if state.get("status") in ("sent", "blocked", "unconfirmed") else "brief_only"
         return {"status": status, "trace": log("deliver", status)}
 
     # ---------------- review phase ----------------
@@ -425,18 +458,35 @@ class MarketAgent:
         return {"proposal": proposal, "trace": log("review", detail)}
 
     def _review_offline(self, fills):
-        stale = fills[fills.news_age >= STALE_NEWS_MINUTES]
-        fresh = fills[fills.news_age < STALE_NEWS_MINUTES]
-        if len(stale) >= LIMITS["min_cases"] and stale.clv.mean() < 0:
-            return self._rule({"market_kind": "game", "news_age_minutes_min": STALE_NEWS_MINUTES},
-                              {"action": "skip_market", "params": {}}, "market_priced_in",
-                              f"{len(stale)} trades without fresh news averaged {stale.clv.mean():+.3f} closing-line "
-                              "value: with no new information the market price is already right.", stale)
-        if len(fresh) >= LIMITS["min_cases"] and fresh.clv.mean() < 0:
-            return self._rule({"market_kind": "game"},
-                              {"action": "min_edge", "params": {"edge": DEFAULT_MIN_EDGE + 0.02}}, "model_wrong",
-                              f"{len(fresh)} news trades averaged {fresh.clv.mean():+.3f} closing-line value.", fresh)
-        return None
+        """Blame the slice of recent trades that lost the most closing-line value and propose a rule for it.
+
+        Each template names a situation the reviewer can describe; the gate, not the
+        reviewer, decides whether skipping that situation helps on earlier days.
+        """
+        recent = fills[pd.to_datetime(fills.as_of) >= pd.to_datetime(fills.as_of).max() - REVIEW_WINDOW]
+        sit = pd.DataFrame([self.situations.get((t, a), {}) for t, a in zip(recent.market_ticker, recent.as_of)],
+                           index=recent.index)
+        dollars = recent.clv * recent.contracts
+        best = None
+        for when, do, blame, says in REVIEW_TEMPLATES:
+            mask = pd.Series(True, index=recent.index)
+            for key, want in when.items():
+                name, end = key.rsplit("_", 1)
+                have = sit.get(name, pd.Series(np.nan, index=recent.index))
+                mask &= (have >= want) if end == "min" else (have <= want)
+            if do["action"] == "min_edge":
+                mask = sit.get("gap", pd.Series(np.nan, index=recent.index)) < do["params"]["edge"]
+            hit = recent[mask]
+            if len(hit) < 2 * LIMITS["min_cases"] or hit.clv.mean() >= 0:
+                continue
+            rule = self._rule({"market_kind": "game", **when}, do, blame,
+                              f"{len(hit)} recent trades where {says} averaged {hit.clv.mean():+.3f} closing-line "
+                              f"value ({dollars[mask].sum():+.2f} dollars).", hit)
+            if self.notebook.seen(rule, pd.Timestamp(recent.as_of.max())):
+                continue
+            if best is None or dollars[mask].sum() < best[0]:
+                best = (dollars[mask].sum(), rule)
+        return None if best is None else best[1]
 
     def _review_llm(self, fills):
         bad = fills[fills.clv < 0]
@@ -444,8 +494,9 @@ class MarketAgent:
         prompt = ("You review losing sports-market trades. Pick one blame_category from news_misread, minutes_wrong, "
                   "model_wrong, market_priced_in, and propose at most one rule. Return JSON {\"rule\": null or "
                   "{\"when\": {...}, \"do\": {\"action\": ..., \"params\": {...}}}, \"blame_category\": ..., "
-                  "\"rationale\": one sentence}. Allowed when fields: market_kind, team, opponent, hours_to_tip_min, "
-                  "hours_to_tip_max, news_age_minutes_min, news_age_minutes_max. Allowed actions: skip_market (no "
+                  "\"rationale\": one sentence}. Allowed when fields: market_kind, team, opponent, and _min/_max of "
+                  "hours_to_tip, news_age_minutes, side_price (price paid), gap (edge after fees), market_move "
+                  "(price move toward the trade since a day earlier), model_shift. Allowed actions: skip_market (no "
                   "params), min_edge ({\"edge\": >0.04}), stake_scale ({\"scale\": 0-1}).\nTrades: "
                   + sample.to_json(orient="records"))
         raw = llm.ask(prompt, want_json=True)
@@ -487,7 +538,7 @@ class MarketAgent:
     def backtest(self, rp, notebook, start, end) -> pd.DataFrame:
         """Replay earlier days with an offline, non-learning copy of this agent."""
         child = MarketAgent(notebook, self.forecaster, self.risk, self.confirm, use_llm=False, learn=False,
-                            stake=self.stake, channel=self.channel)
+                            stake=self.stake, channel=self.channel, anchor=self.anchor)
         _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee).run(start, end)
         return fills
 
@@ -514,6 +565,16 @@ class MarketAgent:
     def _fresh_quote(self, view, ticker, now):
         q = view.quote(ticker)
         return None if q is None or now - q.ts > MAX_QUOTE_AGE else q
+
+    @staticmethod
+    def _anchor_mid(view, ticker, game):
+        """Mid price ANCHOR_LEAD before tip-off (or the earliest quote), before most of the day's news."""
+        p = view.prices(ticker)
+        if p.empty:
+            return None
+        early = p[p.ts <= game.tip_time - ANCHOR_LEAD]
+        row = early.iloc[-1] if len(early) else p.iloc[0]
+        return float((row.bid + row.ask) / 2)
 
     def _faulty(self, state, kind):
         return state.get("plant") == kind and state.get("tries", 0) == 0
@@ -581,13 +642,16 @@ def load_source(source, start, end):
     if source == "synthetic":
         from agents.demo_data import synthetic_replay_tables
         return synthetic_replay_tables(start, end)
+    if source == "sample":
+        from data_sources.sample import SAMPLE
+        return replay.load_tables(SAMPLE)
     return replay.load_tables()
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--draw", action="store_true", help="print the compiled graph as Mermaid and exit")
-    ap.add_argument("--source", choices=["synthetic", "frozen"], default="synthetic")
+    ap.add_argument("--source", choices=["synthetic", "frozen", "sample"], default="frozen")
     ap.add_argument("--start", default="2026-02-01")
     ap.add_argument("--end", default="2026-02-28")
     ap.add_argument("--name", default="agent")
@@ -595,25 +659,37 @@ def main():
     ap.add_argument("--no-learn", action="store_true", help="the no-learning ablation")
     ap.add_argument("--notebook", type=Path, default=None, help="start from this notebook (default: empty)")
     ap.add_argument("--plant", choices=FAULTS, default=None)
+    ap.add_argument("--forecaster", choices=["models", "record"], default="models",
+                    help="trained models via forecast/api.py, or the win-rate placeholder")
     args = ap.parse_args()
 
-    agent = MarketAgent(Notebook.load(args.notebook) if args.notebook else Notebook(), use_llm=args.llm,
-                        learn=not args.no_learn, plant=args.plant)
+    forecaster = record_forecaster
+    if args.forecaster == "models":
+        from forecast.api import Forecaster
+        forecaster = Forecaster.load()
+    agent = MarketAgent(Notebook.load(args.notebook) if args.notebook else Notebook(), forecaster=forecaster,
+                        use_llm=args.llm, learn=not args.no_learn, plant=args.plant)
     if args.draw:
         print(agent.graph.get_graph().draw_mermaid())
         return
     tables = load_source(args.source, args.start, args.end)
     decisions, fills = Replay(tables, agent.policy, on_day_end=agent.on_day_end).run(args.start, args.end)
-    out = replay.RUNS / args.name
-    out.mkdir(parents=True, exist_ok=True)
-    decisions.to_parquet(out / "decisions.parquet", index=False)
-    fills.to_parquet(out / "fills.parquet", index=False)
-    agent.notebook.save(out / "notebook.json")
-    (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in agent.traces))
+    out = save_run(args.name, decisions, fills, agent)
     print(f"{len(decisions)} decisions, {len(fills)} fills -> {out}")
     print(replay.summary(fills))
     for r in agent.notebook.rules:
         print(f"{r['rule_id']} {r['status']}: when {r['when']} do {r['do']['action']} ({r['gate']['reason']})")
+
+
+def save_run(name, decisions, fills, agent=None) -> Path:
+    out = replay.RUNS / name
+    out.mkdir(parents=True, exist_ok=True)
+    decisions.to_parquet(out / "decisions.parquet", index=False)
+    fills.to_parquet(out / "fills.parquet", index=False)
+    if agent is not None:
+        agent.notebook.save(out / "notebook.json")
+        (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in agent.traces))
+    return out
 
 
 if __name__ == "__main__":

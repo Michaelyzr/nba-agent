@@ -9,5 +9,6 @@ pdfplumber
 torch
 scikit-learn>=1.4
 streamlit>=1.32,<2
+matplotlib
 pytest
 python-dotenv

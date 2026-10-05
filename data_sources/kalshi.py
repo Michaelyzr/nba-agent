@@ -21,7 +21,7 @@ BASE = "https://api.elections.kalshi.com/trade-api/v2"
 SERIES = {"KXNBAGAME": "game", "KXNBAPTS": "pts"}
 CACHE = RAW / "kalshi"
 WINDOW = pd.Timedelta(hours=30)
-CHUNK = pd.Timedelta(hours=12)
+CHUNK = pd.Timedelta(hours=30)          # one request returns up to 1,800 one-minute candles
 # Kalshi team codes that differ from NBA tricodes; extend when `download` reports unmatched codes.
 ALIASES: dict[str, str] = {}
 

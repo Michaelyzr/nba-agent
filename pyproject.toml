@@ -11,6 +11,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
   "google-genai",
   "langgraph",
+  "matplotlib",
   "nba_api",
   "numpy>=1.26,<3",
   "pandas>=2.2,<3",
@@ -33,4 +34,4 @@ nba-agent = "agents.graph:main"
 py-modules = ["llm", "replay"]
 
 [tool.setuptools.packages.find]
-include = ["agents*", "data_sources*", "forecast*"]
+include = ["agents*", "data_sources*", "evaluation*", "forecast*"]
