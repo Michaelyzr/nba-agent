@@ -1,0 +1,165 @@
+{
+  "feature_seconds": 0.7924226670293137,
+  "elapsed_seconds": 56.407237124978565,
+  "source": "sample",
+  "iterations": 150,
+  "folds": {
+    "2025": {
+      "initial": {
+        "rows": 28098,
+        "games": 1319
+      },
+      "validation": {
+        "rows": 10344,
+        "games": 481
+      },
+      "refit": {
+        "rows": 38442,
+        "games": 1800
+      },
+      "calibration": {
+        "rows": 4780,
+        "games": 223
+      },
+      "test": {
+        "rows": 11035,
+        "games": 524
+      },
+      "comparisons": {
+        "enriched_vs_baseline": {
+          "brier_gain": 0.0005012935163565523,
+          "game_cluster_95": [
+            0.0002745159892522943,
+            0.000730191136063505
+          ]
+        },
+        "baseline_calibrated_vs_baseline": {
+          "brier_gain": 0.00019039050396299308,
+          "game_cluster_95": [
+            0.0001090627305094799,
+            0.00026638010565217953
+          ]
+        },
+        "enriched_calibrated_vs_enriched": {
+          "brier_gain": 0.00020181200237337087,
+          "game_cluster_95": [
+            0.00011393027750201573,
+            0.0002894977602278528
+          ]
+        },
+        "enriched_calibrated_vs_baseline": {
+          "brier_gain": 0.0007031055187299231,
+          "game_cluster_95": [
+            0.0004600345756596634,
+            0.0009472959020201156
+          ]
+        }
+      },
+      "calibrators": {
+        "baseline": {
+          "slope": 1.086798036530751,
+          "intercept": 0.055135464245891,
+          "identity_fallback": false
+        },
+        "enriched": {
+          "slope": 1.0662824397718373,
+          "intercept": 0.08067498846924943,
+          "identity_fallback": false
+        }
+      },
+      "boundaries": {
+        "validation_start": "2024-10-01",
+        "calibration_start": "2025-01-01",
+        "test_start": "2025-02-01",
+        "test_end_eastern_exclusive": "2025-04-14"
+      }
+    },
+    "2026": {
+      "initial": {
+        "rows": 56252,
+        "games": 2640
+      },
+      "validation": {
+        "rows": 10705,
+        "games": 492
+      },
+      "refit": {
+        "rows": 66957,
+        "games": 3132
+      },
+      "calibration": {
+        "rows": 4936,
+        "games": 231
+      },
+      "test": {
+        "rows": 10857,
+        "games": 505
+      },
+      "comparisons": {
+        "enriched_vs_baseline": {
+          "brier_gain": 0.0004339152800723434,
+          "game_cluster_95": [
+            0.0002483349033234948,
+            0.0006278243619338221
+          ]
+        },
+        "baseline_calibrated_vs_baseline": {
+          "brier_gain": 4.470127676333407e-05,
+          "game_cluster_95": [
+            -8.196758821146225e-05,
+            0.00016894197885956595
+          ]
+        },
+        "enriched_calibrated_vs_enriched": {
+          "brier_gain": 4.164610353338317e-05,
+          "game_cluster_95": [
+            -7.663183544374407e-05,
+            0.00015343592630327526
+          ]
+        },
+        "enriched_calibrated_vs_baseline": {
+          "brier_gain": 0.0004755613836057265,
+          "game_cluster_95": [
+            0.00024572956613589774,
+            0.0007104702666108499
+          ]
+        }
+      },
+      "calibrators": {
+        "baseline": {
+          "slope": 1.1527757641452996,
+          "intercept": 0.05415363177905857,
+          "identity_fallback": false
+        },
+        "enriched": {
+          "slope": 1.1411712911579797,
+          "intercept": 0.04199327978381887,
+          "identity_fallback": false
+        }
+      },
+      "boundaries": {
+        "validation_start": "2025-10-01",
+        "calibration_start": "2026-01-01",
+        "test_start": "2026-02-01",
+        "test_end_eastern_exclusive": "2026-04-13"
+      }
+    }
+  },
+  "versions": {
+    "python": "3.13.3",
+    "numpy": "2.2.6",
+    "pandas": "2.3.0",
+    "sklearn": "1.7.0"
+  },
+  "hashes": {
+    "games": "5b09fb6434f6e14368725963adf2d60b9e6d511f09ffaff398ca266b9e3fffeb",
+    "player_games": "a8331e494cf6b8c83d5501d7cf9df965331f5df64382c294ee371cfff67c0f6b"
+  },
+  "caveats": [
+    "All events conditional on played; no DNP/void pricing.",
+    "Fixed diagnostic thresholds, not actual exchange lines.",
+    "Both seasons are retrospective temporal evaluations; 2026 overlaps published results.",
+    "Calibrated probability metrics do not describe uncalibrated quantile intervals.",
+    "Bootstrap clusters by game, not season or player across games."
+  ]
+}
