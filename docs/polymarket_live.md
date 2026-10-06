@@ -48,6 +48,48 @@ assume outcomes are Yes/No.
 Future model or recommendation code should run only when
 `usable_for_future_analysis` is `True`.
 
+## Agent adapter boundary
+
+`data_sources/polymarket_adapter.py` is the explicit bridge to the existing
+agent table interface. It accepts only open two-team `moneyline` markets with
+complete CLOB token, bid, and ask data whose start time is still in the future,
+and produces read-only `games`, `markets`, and `prices` DataFrames. The frames
+contain all columns required by the existing schemas and retain Polymarket
+`event_id`, `market_id`, and `token_id` fields.
+
+```python
+from data_sources.polymarket import PolymarketClient
+from data_sources.polymarket_adapter import adapt_live_nba_snapshot
+
+snapshot = PolymarketClient().fetch_live_nba()
+live = adapt_live_nba_snapshot(snapshot)
+if live.usable_for_live_analysis:
+    print(live.games)
+    print(live.markets)
+    print(live.prices)
+```
+
+Totals, spreads, odd/even, and first-score markets remain visible on the live
+dashboard but are not mislabeled as game-winner inputs. The adapter also leaves
+the replay `volume` field empty: Polymarket's cumulative market volume is kept
+in separate columns because it is not interchangeable with replay's interval
+volume. This bridge does not call `Replay._fill`, apply Kalshi fees, generate a
+recommendation, or place an order.
+
+`data_sources/polymarket_live.py` is the single refresh entry point used by the
+UI and live agents. `PolymarketLiveProvider.refresh()` always calls the public
+API and returns a `PolymarketLiveContext`. The context can build the existing
+`AsOf` interface with `context.view(historical_tables)`, so `MarketAgent` and
+`Forecaster` see current Polymarket markets and quotes while retaining prior NBA
+games/player games for model features. `PregameAgent` live mode records a
+`polymarket` block on every poll with fetch time, source quality, token IDs,
+bid/ask, probability, spread, liquidity, and volume metadata.
+
+Saved parquet snapshots only extend `view.prices()` for movement charts. They
+never become the current `view.quote()`: if a refresh is unavailable or invalid,
+the live context is unusable and returns no cached quote. This prevents an API
+outage from silently turning old data into a supposedly live agent input.
+
 ## Run
 
 Print a concise real-time snapshot (or a truthful empty/unavailable result):

@@ -19,9 +19,9 @@ from agents.briefs import channel_briefs, outlook
 from agents.graph import FAULTS, OUT_STATUSES, MarketAgent
 from agents.notebook import Notebook
 from data_sources import FROZEN, ROOT
-from data_sources.polymarket import (LIVE_HISTORY, DataQualityStatus, LiveNBASnapshot,
-                                     MarketSnapshot, PolymarketClient, snapshot_frame,
-                                     write_snapshot_history)
+from data_sources.polymarket import DataQualityStatus, LiveNBASnapshot, MarketSnapshot, snapshot_frame
+from data_sources.polymarket_adapter import PolymarketAgentTables
+from data_sources.polymarket_live import PolymarketLiveProvider
 
 SAMPLE = ROOT / "data" / "sample"
 RESULTS = ROOT / "evaluation" / "results"
@@ -41,6 +41,11 @@ def load():
 def forecaster():
     from forecast.api import Forecaster
     return Forecaster.load()
+
+
+@st.cache_resource
+def polymarket_live_provider():
+    return PolymarketLiveProvider()
 
 
 def runs() -> list:
@@ -196,6 +201,7 @@ def render_analysis_panel(
     predictions=None,
     news=None,
     quality_status: DataQualityStatus | None = None,
+    live_market_input: PolymarketAgentTables | None = None,
 ):
     """Stable extension point for a future model/news teammate."""
     st.divider()
@@ -204,6 +210,29 @@ def render_analysis_panel(
     if quality_status is not None:
         allowed = "Yes" if quality_status.usable_for_future_analysis else "No"
         st.write(f"Market data quality: **{quality_status.status}** · Usable for future analysis: **{allowed}**")
+    if live_market_input is not None:
+        if live_market_input.usable_for_live_analysis:
+            games, quotes, skipped = st.columns(3)
+            games.metric("Mapped moneyline games", live_market_input.game_count)
+            quotes.metric("Outcome-token quotes", live_market_input.quote_count)
+            skipped.metric("Other/unsupported markets", live_market_input.skipped_markets)
+            st.success("Live Polymarket context is available to the read-only agent integrations. "
+                       "No order execution is connected.")
+            with st.expander("Agent-ready moneyline input", expanded=False):
+                view = live_market_input.markets.merge(
+                    live_market_input.prices,
+                    on=["venue", "market_ticker"],
+                    how="left",
+                )
+                st.dataframe(
+                    view[["game_id", "team", "market_id", "token_id", "bid", "ask", "midpoint", "ts"]],
+                    hide_index=True,
+                    width="stretch",
+                )
+        elif quality_status is not None and quality_status.usable_for_future_analysis:
+            reason = "; ".join(live_market_input.reasons[:3])
+            st.warning("Live data loaded, but no safe moneyline input is available for the agent."
+                       + (f" {reason}" if reason else ""))
     st.caption("Future versions may compare Polymarket probability, an NBA statistical model, "
                "injury/news effects, model confidence, liquidity, and spread.")
 
@@ -223,15 +252,18 @@ def render_live_page():
     def refresh():
         st.button("Refresh now", key="live_refresh_now", type="primary")
         with st.spinner("Fetching current NBA markets from Polymarket..."):
-            snapshot = PolymarketClient().fetch_live_nba()
-        if save_history and snapshot.markets:
-            try:
-                write_snapshot_history(snapshot)
-                st.caption(f"Live history: {LIVE_HISTORY.relative_to(ROOT)}")
-            except (OSError, ValueError, ImportError) as exc:
-                st.warning(f"Live data loaded, but the history snapshot could not be saved: {exc}")
+            live_context = polymarket_live_provider().refresh(save_history=save_history)
+            snapshot = live_context.snapshot
+        if live_context.history_written:
+            st.caption(f"Live history: {live_context.history_path.relative_to(ROOT)}")
+        if live_context.history_error:
+            st.warning(f"Live data loaded, but the history snapshot could not be saved: {live_context.history_error}")
         render_market_dashboard(snapshot)
-        render_analysis_panel(snapshot.markets, quality_status=snapshot.quality)
+        render_analysis_panel(
+            snapshot.markets,
+            quality_status=snapshot.quality,
+            live_market_input=live_context.agent_tables,
+        )
 
     fragment = getattr(st, "fragment", None)
     if fragment is None:
