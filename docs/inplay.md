@@ -13,7 +13,7 @@
 ```bash
 source .venv/bin/activate
 python -m agents.inplay --mode replay --source sample --game-id 401811041 --name inplay-demo --initial-p-home 0.60
-streamlit run inplay_app.py
+streamlit run frontend/inplay_app.py
 ```
 
 演示依次包含伤退、确认无法回归、回归、对手被驱逐和终场；比分及消息均为合成数据，
@@ -45,7 +45,7 @@ Ctrl+C 会关闭流连接，保留恢复状态。相同 `--name` 恢复同一场
 | Shams、两队官方/PR 账号、两队跟队记者 | 使用 X filtered stream 持续接收帖子，新消息唤醒循环 |
 | ESPN / CBS NBA RSS | 每六十秒补充权威媒体消息 |
 
-仅检索本场球队的账号和相关球员。账号目录为 `data_sources/news_sources.json`，
+仅检索本场球队的账号和相关球员。账号目录为 `backend/data_sources/news_sources.json`，
 具体名单见 [新闻来源目录](news_sources.md)。NBA liveData 在本次网络检查中返回 403，
 ESPN 返回 200；因此备用路径与来源异常提示都保留，不把 fallback 写成 NBA 成功。
 
@@ -137,5 +137,5 @@ python -m agents.inplay --mode replay --source frozen --game-id <id> --scores <s
 | `inplay_events.jsonl` | 去重的球员事件和待审解析 |
 | `inplay_evidence.jsonl` | 原始媒体/帖子与官方事件证据 |
 
-赛前原入口 `agents.pregame`、原页面 `app.py` 及其状态格式保持不变。
-赛中独立验证：`pytest -q tests/test_inplay.py`；完整回归：`pytest -q`。
+赛前原入口 `agents.pregame`、原页面 `frontend/app.py` 及其状态格式保持不变。
+赛中独立验证：`pytest -q backend/tests/test_inplay.py`；完整回归：`pytest -q`。

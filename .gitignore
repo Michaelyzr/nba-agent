@@ -1,5 +1,6 @@
 .venv/
 .idea/
+.DS_Store
 .env
 __pycache__/
 .pytest_cache/
@@ -12,3 +13,7 @@ data/frozen/
 data/raw/
 runs/
 models/
+rules/
+*.egg-info/
+build/
+dist/

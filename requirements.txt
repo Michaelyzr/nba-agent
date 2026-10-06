@@ -1,14 +1,3 @@
-langgraph
-google-genai
-nba_api
-pandas>=2.2,<3
-numpy>=1.26,<3
-pyarrow
-requests
-pdfplumber
-torch
-scikit-learn>=1.4
-streamlit>=1.32,<2
-matplotlib
-pytest
-python-dotenv
+# Install from the repository root; backend metadata owns its dependencies.
+-e ./backend[dev]
+-r frontend/requirements.txt

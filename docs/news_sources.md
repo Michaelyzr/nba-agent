@@ -1,6 +1,6 @@
 # Pregame news sources
 
-The machine-readable configuration is [`data_sources/news_sources.json`](../data_sources/news_sources.json).
+The machine-readable configuration is [`backend/data_sources/news_sources.json`](../backend/data_sources/news_sources.json).
 Account identities and affiliations were reviewed on 2026-10-06. This is a
 maintained source list, not a guarantee that every account will post every game.
 Recheck the linked bios/publication pages when reporters change assignments.
@@ -89,5 +89,5 @@ unavailable before the pregame loop stops at tip-off. Tokens are never persisted
 
 Inspect the plan with `python -m data_sources.news_registry --teams BOS LAL`.
 Update the JSON (or use `--news-registry`) when accounts or assignments change.
-See the [pregame runner instructions](../README.md#pregame-news-polling-and-fair-odds)
+See the [pregame runner instructions](project-plan.md#pregame-news-polling-and-fair-odds)
 for live/replay commands and output files.
