@@ -29,9 +29,14 @@ dev = ["pytest"]
 
 [project.scripts]
 nba-agent = "agents.graph:main"
+nba-pregame = "agents.pregame:main"
+nba-inplay = "agents.inplay:main"
 
 [tool.setuptools]
 py-modules = ["llm", "replay"]
 
 [tool.setuptools.packages.find]
 include = ["agents*", "data_sources*", "evaluation*", "forecast*"]
+
+[tool.setuptools.package-data]
+data_sources = ["news_sources.json"]

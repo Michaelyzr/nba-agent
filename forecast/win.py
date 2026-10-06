@@ -23,22 +23,27 @@ SHRINK = 3.0                     # pseudo-games at zero margin
 WIN_FEATURES = ["rating_diff", "margin10_diff", "rest_diff", "b2b_diff", "missing_min_diff", "missing_pts_diff"]
 
 
-def team_side(h: History, team, tip, out: set) -> dict:
+def team_side(h: History, team, tip, out: set, availability=None) -> dict:
     m = h.team_margins(team, tip, 40)
     w = 0.5 ** (np.arange(len(m))[::-1] / HALF_LIFE)
     rest = h.team_rest_days(team, tip)
     rotation = h.rotation(team, tip)
-    missing = [v for p, v in rotation.items() if p in out]
+    # availability maps player ids to expected lost share (0 = full, 1 = absent).
+    lost = availability or {}
+    missing = [(v, 1.0 if p in out else lost.get(p, 0.0)) for p, v in rotation.items()]
     return {"rating": float((w * m).sum() / (w.sum() + SHRINK)), "margin10": float(m[-10:].mean()) if len(m) else 0.0,
-            "rest": rest, "b2b": float(rest < 1.5), "missing_min": float(sum(v[0] for v in missing)),
-            "missing_pts": float(sum(v[1] for v in missing)), "rotation": rotation}
+            "rest": rest, "b2b": float(rest < 1.5), "missing_min": float(sum(v[0] * share for v, share in missing)),
+            "missing_pts": float(sum(v[1] * share for v, share in missing)), "rotation": rotation}
 
 
-def game_features(h: History, home_team_id, away_team_id, tip, out=()) -> dict:
+def game_features(h: History, home_team_id, away_team_id, tip, out=(), availability=None) -> dict:
     out = set(out)
-    home, away = team_side(h, home_team_id, tip, out), team_side(h, away_team_id, tip, out)
+    home = team_side(h, home_team_id, tip, out, availability)
+    away = team_side(h, away_team_id, tip, out, availability)
     row = {f"{k}_diff": home[k] - away[k] for k in ("rating", "margin10", "rest", "b2b", "missing_min", "missing_pts")}
-    row["missing"] = {"home": [p for p in home["rotation"] if p in out], "away": [p for p in away["rotation"] if p in out]}
+    lost = availability or {}
+    row["missing"] = {"home": [p for p in home["rotation"] if p in out or lost.get(p, 0) > 0],
+                      "away": [p for p in away["rotation"] if p in out or lost.get(p, 0) > 0]}
     return row
 
 

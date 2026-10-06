@@ -7,7 +7,7 @@
     MarketAgent(forecaster=f)                   # P(yes) for every game-winner market
 
 Every call reads only the as-of view it is given. The history index is
-rebuilt once per Eastern date from games already final at that moment, so a
+cached per decision timestamp from games already final at that moment, so a
 forecast never sees a game that finished after the decision.
 """
 import math
@@ -48,8 +48,8 @@ class Forecaster:
         return "+".join(m.name for m in (self.win_model, self.play_model, self.points_model) if m is not None)
 
     def history(self, view) -> History:
-        day = view.now.tz_convert("America/New_York").date()
-        key = (id(view._t), day)
+        # A game can finish between two polls on the same Eastern date.
+        key = (id(view._t), pd.Timestamp(view.now).value)
         if key not in self._cache:
             if len(self._cache) > 32:
                 self._cache.clear()
@@ -58,13 +58,18 @@ class Forecaster:
 
     # ---------------- games ----------------
 
-    def win(self, view, game, out=()) -> dict:
+    def win(self, view, game, out=(), availability=None) -> dict:
         from forecast.win import game_features
+        if availability is not None and any(not math.isfinite(v) or not 0 <= v <= 1 for v in availability.values()):
+            raise ValueError("expected lost shares must be finite and between zero and one")
         h = self.history(view)
-        f = game_features(h, game.home_team_id, game.away_team_id, game.tip_time, out)
+        f = game_features(h, game.home_team_id, game.away_team_id, game.tip_time, out, availability)
         p = float(self.win_model.predict(pd.DataFrame([f]))[0])
+        overrides = {"out": list(out)}
+        if availability is not None:
+            overrides["availability"] = dict(availability)
         return {"game_id": game.game_id, "as_of": view.now.isoformat(), "model": self.win_model.name,
-                "p_home": min(max(p, P_MIN), P_MAX), "missing": f["missing"], "overrides": {"out": list(out)}}
+                "p_home": min(max(p, P_MIN), P_MAX), "missing": f["missing"], "overrides": overrides}
 
     def __call__(self, view, game, markets: pd.DataFrame, overrides: dict) -> dict:
         """MarketAgent interface: P(yes) for each game-winner market."""
