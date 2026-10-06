@@ -567,6 +567,32 @@ plan. The displayed source plan is configuration, not a live retrieval claim.
 pytest -q tests/test_pregame.py tests/test_news_sources.py
 ```
 
+#### Independent in-play news and fair odds
+
+`agents/inplay.py` runs a separate post-tip loop over current scores, remaining
+time, injury exits/returns, ejections and foul-outs. It uses NBA liveData with an
+ESPN fallback, a dedicated X filtered stream for Shams and both teams' accounts,
+and media RSS. Authoritative reports take priority over secondary posts.
+The pregame runner, UI, state and model weights stay unchanged; in-play outputs
+live under `runs/inplay/<name>/` and have their own read-only monitor.
+
+```bash
+# Synthetic event/score scenarios, not historical NBA play-by-play; no network.
+python -m agents.inplay --mode replay --source sample --game-id 401811041 --initial-p-home 0.60 --name inplay-demo
+streamlit run inplay_app.py
+
+# Requires a current game in the local schedule and historical/player tables.
+python -m agents.inplay --mode live --source frozen --game-id <current-id> --poll-seconds 5 --name inplay-live
+```
+
+Configure `INPLAY_X_BEARER_TOKEN` separately, with filtered-stream and recent-search
+access. Five seconds is the target score polling period; publication, API and
+request delays still apply. Stale or unavailable scores suppress fresh odds.
+The default in-play model and injury weights are prototypes awaiting calibration;
+near-real-time retrieval does not establish forecast accuracy. See
+[the in-play guide](docs/inplay.md) for source priority, recovery, training,
+replay schemas and independent state files.
+
 #### Existing market replay and learning
 
 `agents/graph.py` is the section 2 loop as one LangGraph with two phases.
