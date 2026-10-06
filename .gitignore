@@ -10,5 +10,6 @@ data/news/
 data/eval/
 data/frozen/
 data/raw/
+data/live/
 runs/
 models/
