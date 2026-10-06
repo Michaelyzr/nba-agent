@@ -15,7 +15,8 @@
 
 The Streamlit process imports the installed backend. An HTTP service and a
 JavaScript client can be added later, but they are not part of this refactor.
-The current frontend remains a historical demo with paper transactions.
+The frontend retains the live Polymarket dashboard and the historical demo
+with paper transactions.
 
 ## Changes from the original main branch
 
@@ -51,7 +52,10 @@ The current frontend remains a historical demo with paper transactions.
   the test suite, so the demo works with the installed backend package.
 
 The pregame and in-play command entry points, source catalog package data,
-player experiment modules and committed results from main `3977a67` are retained.
+player experiment modules, live Polymarket client/UI and committed results from
+main `9944d71` are retained.
+Live Polymarket modules retain the upstream adapter/provider and its Agent
+context; current quotes always come from each refresh.
 The main Streamlit page keeps seven tabs; the in-play monitor remains separate.
 
 ## Existing limits

@@ -26,6 +26,7 @@ from forecast import api, baselines, inplay
 from forecast.player_experiment import benchmark
 from agents.inplay import INPLAY_RUNS
 from data_sources.news_registry import NewsRegistry
+from data_sources import polymarket, polymarket_live
 import nba_agent_paths as paths
 
 expected = Path(__import__('sys').argv[1])
@@ -43,6 +44,8 @@ assert INPLAY_RUNS == expected / 'runs' / 'inplay'
 assert benchmark.DATA == expected / 'data'
 assert benchmark.RUNS == expected / 'runs'
 assert len(NewsRegistry.load().data['teams']) == 30
+assert polymarket.LIVE_HISTORY == expected / 'data' / 'live' / 'polymarket_nba_snapshots.parquet'
+assert polymarket_live.LIVE_HISTORY == polymarket.LIVE_HISTORY
 print(json.dumps({'root': str(paths.ROOT)}))
 """
     result = subprocess.run([sys.executable, "-c", script, str(expected)], cwd=tmp_path,

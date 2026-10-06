@@ -1,4 +1,4 @@
-> This project plan was retained from main commit `3977a67`. Source locations were updated for the frontend/backend layout; see [the current setup](../README.md) and [migration notes](architecture.md).
+> This project plan was retained from main commit `9944d71`. Source locations were updated for the frontend/backend layout; see [the current setup](../README.md) and [migration notes](architecture.md).
 
 # Market-Graded Learning for NBA Game-Impact Intelligence
 

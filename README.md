@@ -1,11 +1,11 @@
 # NBA Game-Impact Agent
 
 A LangGraph research agent for NBA late news, model forecasts, market comparison
-and gated rule learning. The Streamlit demo replays historical nights and uses
-paper transactions. See [the project plan and results](docs/project-plan.md).
+and gated rule learning. The Streamlit frontend shows public live Polymarket markets and replays
+historical nights with paper transactions. See [the project plan and results](docs/project-plan.md).
 
 This layout is based on `Michaelyzr/nba-agent` main commit
-`3977a679aa3401e8ad05381d9dad9c91bab47b86`.
+`9944d71ed1a2e0a840753aef5b0904c9c68f559c`.
 
 ## Structure
 
@@ -53,13 +53,23 @@ streamlit run frontend/app.py
 ```
 
 Trained weights are intentionally not committed. `Forecaster.load()` requires
-the win model in `models/m4/win.pkl`; train before opening the demo.
+the win model in `models/m4/win.pkl`; train before opening the historical agent page.
 
 For Gemini, create `backend/.env` from `backend/.env.example` and add your key.
 Existing root `.env` files are still read; process environment variables take
 precedence, followed by `backend/.env`, then the root `.env`. LLM CLI steps need
 `--llm`. The existing demo uses offline rules and displays learning notebooks
 from previous runs.
+
+## Live markets
+
+The default page is the public, read-only Polymarket NBA dashboard. It keeps
+the latest main behavior: market discovery, quotes, filters, timed/manual
+refresh, quality states and optional history. Choose **Historical replay and
+agent** in the sidebar for the existing seven-tab demo. Live markets do not
+require model training. The shared live provider also supplies current
+Polymarket context to the read-only Agent boundary and live pregame snapshots;
+failed refreshes never use stored quotes as current data. See [the live data guide](docs/polymarket_live.md).
 
 ## News monitoring
 

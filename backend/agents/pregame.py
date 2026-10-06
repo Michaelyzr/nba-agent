@@ -57,7 +57,7 @@ class PollState(TypedDict, total=False):
 
 class PregameAgent:
     def __init__(self, tables, players, game, model, provider, output: Path,
-                 lookback_hours=48, clock=None):
+                 lookback_hours=48, clock=None, market_provider=None):
         if not math.isfinite(lookback_hours) or lookback_hours <= 0:
             raise ValueError("lookback_hours must be positive")
         self.tables, self.players, self.game = tables, players, game
@@ -65,6 +65,7 @@ class PregameAgent:
         self.registry = getattr(provider, "registry", None) or NewsRegistry.load()
         self.lookback = pd.Timedelta(hours=lookback_hours)
         self.clock = clock  # live: observation time is AFTER the network request
+        self.market_provider = market_provider
         self.baseline, self.factors, self.seen, self.last_as_of = None, {}, set(), None
         self.latest = None
         self._history_index = None
@@ -286,6 +287,16 @@ class PregameAgent:
                     "errors": state["errors"], "news_health": "degraded" if state["errors"] else "ok",
                     "odds_basis": "fair decimal odds, no bookmaker margin",
                     "factor_assumptions": STATUS_LOSS}
+        if self.market_provider is not None:
+            try:
+                snapshot["polymarket"] = self.market_provider(self.game, state["now"])
+            except Exception as exc:
+                snapshot["polymarket"] = {
+                    "source": "polymarket", "is_live": True, "status": "UNAVAILABLE",
+                    "source_state": "SOURCE DATA UNAVAILABLE", "fetched_at": state["now"].isoformat(),
+                    "age_seconds": 0.0, "usable_for_future_analysis": False,
+                    "reasons": [f"Polymarket provider failed: {exc}"], "markets": [],
+                }
         return {"snapshot": snapshot}
 
     def _record(self, state):
@@ -385,8 +396,14 @@ def main():
     live_clock = lambda: pd.Timestamp.now(tz="UTC")
     provider = (LiveNews(args.rss_url, official=not args.no_official, registry=NewsRegistry.load(args.news_registry),
                          x_enabled=not args.no_x) if args.mode == "live" else TableNews(tables["news"]))
+    market_provider = None
+    if args.mode == "live":
+        from data_sources.polymarket_live import PolymarketLiveProvider
+        polymarket = PolymarketLiveProvider()
+        market_provider = polymarket.for_game
     agent = PregameAgent(tables, players, game, model, provider, RUNS / args.name,
-                         args.lookback_hours, clock=live_clock if args.mode == "live" else None)
+                         args.lookback_hours, clock=live_clock if args.mode == "live" else None,
+                         market_provider=market_provider)
     start = utc(args.start_time) if args.start_time else utc(game.tip_time) - pd.Timedelta(hours=args.window_hours)
     if args.mode == "replay" and agent.last_as_of is not None and not args.start_time:
         start = agent.last_as_of + pd.Timedelta(seconds=args.poll_seconds)

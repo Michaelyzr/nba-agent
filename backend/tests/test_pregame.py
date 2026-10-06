@@ -96,6 +96,41 @@ def test_outage_preserves_factors_and_restart_deduplicates(tmp_path):
         setup_agent(tmp_path, feed).poll(NEWS_AT)
 
 
+def test_pregame_snapshot_records_fresh_polymarket_block(tmp_path):
+    calls = []
+
+    def market_provider(game, now):
+        calls.append((game.game_id, now))
+        return {"source": "polymarket", "is_live": True, "status": "OK",
+                "source_state": "SOURCE DATA AVAILABLE", "fetched_at": now.isoformat(),
+                "age_seconds": 0.0, "usable_for_future_analysis": True,
+                "reasons": [], "markets": [{"token_id": "live-token", "bid": 0.4, "ask": 0.41}]}
+
+    tables = make_tables()
+    players = pd.DataFrame({"player_id": [7], "player_name": ["Test Star"]})
+    game = next(tables["games"].iloc[[1]].itertuples(index=False))
+    agent = PregameAgent(tables, players, game, record_forecaster, TableNews(tables["news"]),
+                         tmp_path, market_provider=market_provider)
+    result = agent.poll(NEWS_AT)["snapshot"]
+    assert calls == [("g2", NEWS_AT)]
+    assert result["polymarket"]["is_live"]
+    assert result["polymarket"]["markets"][0]["token_id"] == "live-token"
+
+
+def test_pregame_polymarket_failure_is_visible_and_does_not_crash(tmp_path):
+    def fail(*_args):
+        raise TimeoutError("offline")
+
+    tables = make_tables()
+    players = pd.DataFrame({"player_id": [7], "player_name": ["Test Star"]})
+    game = next(tables["games"].iloc[[1]].itertuples(index=False))
+    agent = PregameAgent(tables, players, game, record_forecaster, TableNews(tables["news"]),
+                         tmp_path, market_provider=fail)
+    result = agent.poll(NEWS_AT)["snapshot"]
+    assert result["polymarket"]["status"] == "UNAVAILABLE"
+    assert not result["polymarket"]["usable_for_future_analysis"]
+
+
 def test_no_search_or_forecast_at_or_after_tip(tmp_path):
     feed = Feed([row()])
     agent = setup_agent(tmp_path, feed)
