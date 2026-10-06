@@ -30,6 +30,7 @@ dev = ["pytest"]
 [project.scripts]
 nba-agent = "agents.graph:main"
 nba-pregame = "agents.pregame:main"
+nba-inplay = "agents.inplay:main"
 
 [tool.setuptools]
 py-modules = ["llm", "replay"]
