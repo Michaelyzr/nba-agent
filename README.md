@@ -446,6 +446,10 @@ leakage-safe history index (`forecast/history.py`): every feature for a game
 uses only games that tipped off before it. `forecast/api.py` (M5) is the one
 entry point the agent, scorer and demo call.
 
+A separate, files-only experiment on player features and probability
+calibration lives in `forecast/player_experiment/`; see
+[its README](forecast/player_experiment/README.md). It does not change M1-M5.
+
 ### M6: market-impact model (learning from the market's reaction)
 
 ```bash
@@ -682,6 +686,13 @@ near-real-time retrieval does not establish forecast accuracy. See
 [the in-play guide](docs/inplay.md) for source priority, recovery, training,
 replay schemas and independent state files.
 
+#### Live Polymarket markets (read-only)
+
+`streamlit run app.py` opens on the **NBA Polymarket Live Markets** page, which
+shows current NBA markets from Polymarket's public API with no keys and no
+trading. Use the sidebar **Page** switch for **Historical replay and agent**
+(the tabs below). See [the Polymarket live guide](docs/polymarket_live.md).
+
 #### Existing market replay and learning
 
 `agents/graph.py` is the section 2 loop as one LangGraph with two phases.
@@ -727,7 +738,7 @@ python -m evaluation.walkforward                  # walk-forward by month, play-
 python -m evaluation.walkforward --report-only    # re-score saved runs/walkforward and runs/holdout only
 python -m evaluation.scorer runs/<name>          # score any run folder
 python -m evaluation.scorer --policy-tests       # planted orders that must be blocked
-streamlit run app.py                             # demo: replayed night, coach, league, channel briefs, learning, safety, models
+streamlit run app.py                             # demo: live Polymarket page; replay page with replayed night, pregame loop, coach, league, briefs, learning, safety, models
 ```
 
 ### Coach: learning how the market works
