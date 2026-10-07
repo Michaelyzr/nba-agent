@@ -105,7 +105,7 @@ def test_cle_por_headline_numbers():
 
 def test_app_renders_every_scenario_and_agent():
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file(str(TRACES.parents[1] / "demo_app.py"), default_timeout=60).run()
+    at = AppTest.from_file(str(TRACES.parents[1] / "research_demo_app.py"), default_timeout=60).run()
     assert not at.exception
     at.sidebar.radio[0].set_value("Scenarios").run()
     for title in at.sidebar.selectbox[0].options:
