@@ -62,14 +62,15 @@ closing price.
 > Third, expertise. Brier score one hour before tip: market 0.164, our model 0.186. When we
 > disagree by more than five points, the market is right in both directions.
 
-### 9. Deep learning: M6 (0:45) [4:40]
+### 9. Deep learning: four neural parts, graded by the market (0:45) [4:40]
 
-> Our deep-learning model, M6, is graded by the market directly: its label is the price move to
-> tip. A 16-unit GRU reads six hours of prices, joined with 18 features such as the anchor, the
-> clock and who is out, and outputs three quantiles with pinball loss. It cannot beat "the price
-> won't move": 0.867 against 0.833 cents. A pre-declared grid of 9 configurations, 3 seeds each:
-> every one is worse, and none ever predicts the 5.5-cent move needed to pay for a trade. One line
-> on calibration: recalibrating the win model gives 0.185, still behind the market's 0.164.
+> Deep learning sits in four places. The M2 player GRU beats gradient boosting, pinball 1.55
+> against 1.59. The neural win model, M4-NN, ties logistic regression, Brier 0.184 against 0.183.
+> With 3,400 games, extra capacity doesn't pay. But as the news shift on the market anchor it
+> reaches 0.163, level with the market's 0.164. M6, a GRU over six hours of prices with quantile
+> outputs, is graded by the market directly, and all 9 configurations are worse than "the price
+> won't move". In an efficient market that null is the finding. The LLM agent is the fourth
+> neural part: a transformer used as a policy with tools.
 
 ### 10. Evidence 4: money over time, tested with CIs (0:40) [5:20]
 
@@ -95,13 +96,17 @@ closing price.
 > blocked. The Coach shows the break-even after costs. The League ranks on closing-line value, not
 > profit: our raw-model bot is up $15 with negative CLV, and the badge says "costs".
 
-### 13. Team contributions (0:20) [7:00]
+### 13. Why an agentic framework, and who built which part (0:35) [7:15]
 
-> The team built the pregame news loop, PR 7; the player-feature experiment, PR 8; in-play
+> Why an agent and not one classifier? The hard decision is *when* to act: 91% of the move comes
+> before the inactive list, two-thirds before the first official report. The agent's trigger,
+> investigate, decide loop makes that call, with as-of tools, code risk caps and a kill switch.
+> And our data answers "a classifier would do": the model alone loses $2,475 over 711 trades,
+> and the decision process around it adds $2,450, p 0.002. The team built the pregame news loop, PR 7; the player-feature experiment, PR 8; in-play
 > updates, PR 9; and live Polymarket prices, PRs 11 and 12. The replay, agent, models and
 > evaluation are on our main branch. Each part faced the same market grade.
 
-### 14. Live demo (2:15) [9:15]
+### 14. Live demo (2:00) [9:15]
 
 - Replayed night: news, then estimate against bid and ask, then usually no order, with the reason.
 - Coach: one paper call, compared with the close and the agent.

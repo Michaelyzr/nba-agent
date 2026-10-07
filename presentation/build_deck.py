@@ -78,6 +78,10 @@ K = {
     # M4 recalibration on the 501 test games, absences known (C)
     "cal_raw": "0.183", "cal_platt": "0.185", "cal_iso": "0.184", "cal_mkt": "0.164",
     "cal_slope_early": "0.78", "cal_slope_late": "1.33",
+    # M4-NN on the same 501 games, absences known, 3-seed mean (win_nn.md); M2 player GRU (m2_heldout.csv)
+    "nn_mlp": "0.184", "nn_mlp_vs_m4": "+0.0015 [−0.006, +0.008]", "nn_gru": "0.186",
+    "nn_anchor": "0.163", "nn_anchor_vs_agent": "−0.003 [−0.008, +0.001]", "nn_anchor_vs_mkt": "−0.001 [−0.006, +0.005]",
+    "agent_est": "0.166", "m2_gru": "1.55", "m2_gbm": "1.59",
     # Injury-report timing, 193 test games, key absent player (I)
     "it_before": "67%", "it_ci": "47–85%", "it_nolag": "49%", "it_lead": "6", "it_mid": "24%", "it_after": "9%",
     # cumulative P&L after fees by settlement date (evaluation/results/cumulative_pnl.csv)
@@ -583,8 +587,14 @@ def build():
 
     # 9 Deep learning: M6 -----------------------------------------------------
     n = 9
-    s = new_slide(prs, "Deep learning: a GRU trained on the market's own moves", (
-        f"Our deep-learning component is M6. Its label is the market itself: the move of the home price from the "
+    s = new_slide(prs, "Deep learning: four neural parts, graded by the market", (
+        f"Deep learning sits in four places. M2 is a GRU over each player's last 20 games giving points and minutes "
+        f"quantiles; it beats gradient boosting, pinball {K['m2_gru']} against {K['m2_gbm']}. M4-NN is a neural win "
+        f"model on M4's features and split: alone it ties logistic regression, Brier {K['nn_mlp']} against "
+        f"{K['cal_raw']}, because 3,400 games is too few for capacity to pay, but plugged into the agent's anchor "
+        f"its news shift gives {K['nn_anchor']}, level with the market, not significantly better. The LLM agent is "
+        f"a transformer used as a reasoning policy with tools and code guardrails. "
+        f"M6 is the fourth. Its label is the market itself: the move of the home price from the "
         f"decision time to tip-off, so every decision time is a training row. A 16-unit GRU reads the last six "
         f"hours of the price in 15-minute steps; it is joined with 18 static features such as the anchor, the "
         f"clock, M4's news shift and who is out, and an MLP outputs the 10th, 50th and 90th percentiles, trained "
@@ -595,24 +605,25 @@ def build():
         f"move needed to pay for a trade. Recalibrating the win model does not help either: Brier {K['cal_raw']} "
         f"raw, {K['cal_platt']} Platt, {K['cal_iso']} isotonic, against {K['cal_mkt']} for the market, because its "
         f"miscalibration flips between early and late season."), n)
-    textbox(s, MARGIN, TOP + 0.05, 5.0, 4.5, [
-        ("M6 design", {"bold": True, "color": NAVY, "heading": True}),
-        "Label = price move to tip (the market grades it)",
-        "GRU-16 over 6 h of prices, 15-min steps",
-        "+ 18 static features → MLP → 10 / 50 / 90th percentiles",
-        "Pinball loss, early stopping; leak-tested",
-        ("Result", {"bold": True, "color": RED, "heading": True}),
-        f"MAE **{K['m6_mae']}¢** vs zero move **{K['zero_mae']}¢**; agent makes 0 trades",
-    ], pt=16, bullets=True, space=4, slide_no=n, label="m6 design")
-    picture(s, "m6_robustness.png", MARGIN + 5.1, TOP + 0.05, CW - 5.1, 2.55)
-    picture(s, "m6_vs_baselines.png", MARGIN + 5.1, TOP + 2.65, CW - 5.1, 2.0)
-    textbox(s, MARGIN, 5.7, CW, 0.62, [
-        f"**Robustness:** {K['m6_cfgs']} configurations × {K['m6_seeds']} seeds, all worse than zero move "
-        f"(best {K['m6_best_gap']}); none predicts the {K['m6_need']} needed to trade"], pt=16, space=0,
-        slide_no=n, label="grid")
-    textbox(s, MARGIN, 6.33, CW, 0.62, [
-        f"**M4 recalibration:** Brier {K['cal_raw']} raw, {K['cal_platt']} Platt, {K['cal_iso']} isotonic vs market "
-        f"{K['cal_mkt']}; miscalibration changes with season phase"], pt=16, space=0, slide_no=n, label="cal")
+    rows = [["Neural part", "Design", "Market-graded result"],
+            ["M2 player GRU", "GRU over last 20 games → pts / min quantiles",
+             f"**Beats GBM:** pinball {K['m2_gru']} vs {K['m2_gbm']}"],
+            ["M4-NN win MLP", "M4's 6 features, BCE, early stop, 3 seeds",
+             f"Brier {K['nn_mlp']} vs M4 {K['cal_raw']}: tie"],
+            ["Anchor + NN shift", "24 h mid + MLP news shift",
+             f"Brier **{K['nn_anchor']}** vs market {K['cal_mkt']}: level"],
+            ["M6 impact GRU", "6 h prices + 18 features → quantiles",
+             f"**Fails:** {K['m6_cfgs']} of {K['m6_cfgs']} configs worse than zero move"],
+            ["LLM tool agent", "Transformer as policy; code guardrails", "Slide 11: helps only by trading less"]]
+    table(s, rows, MARGIN, TOP + 0.05, [2.0, 3.0, 2.9], row_h=0.62, pt=13, header_h=0.4, label="dl table")
+    picture(s, "m6_robustness.png", MARGIN + 8.1, TOP + 0.05, CW - 8.1, 3.6)
+    textbox(s, MARGIN, 5.55, CW, 0.7, [
+        "**Why small and quantile:** ~3.4k training games, 3.9M price rows but only ~600 training games of them; "
+        "GRU-8/16 with early stopping; pinball loss gives a 10–90% band, not a point bet"], pt=15, space=0,
+        slide_no=n, label="why")
+    textbox(s, MARGIN, 6.28, CW, 0.65, [
+        "**Null results are the finding:** in an efficient market, “no move” and the market's own price are "
+        "hard baselines; deep learning helps only next to the anchor"], pt=15, space=0, slide_no=n, label="null")
 
     # 10 Money over time, tested with CIs ------------------------------------
     n = 10
@@ -716,17 +727,39 @@ def build():
 
     # 13 Team contributions -------------------------------------------------------
     n = 13
-    s = new_slide(prs, "Team contributions", (
+    s = new_slide(prs, "Why an agentic framework, and who built which part", (
+        f"Why an agent and not one classifier? The problem is event-driven: news arrives at random times and "
+        f"{K['disc_share']} of the move comes before the inactive list, about two-thirds before the first official "
+        f"report, so the hard decision is when to act; the agent's trigger, investigate, decide loop makes that "
+        f"decision. It uses tools over as-of data, prices, news, rotations and models, and the tools enforce no "
+        f"look-ahead. Decisions are multi-step with code checks, risk caps and a kill switch, which matters for "
+        f"gambling harm. Learning is graded by the market through the gate, and the placebo shows honestly that it "
+        f"works by trading less. The Coach and League turn the analysis into education, and the orchestrator ties "
+        f"the team's parts together. The counter-argument, a single classifier would do, is answered by our own "
+        f"data: the model alone loses {K['wf_raw_pnl']} over {K['wf_raw_n']} trades; the decision process around "
+        f"it, anchoring, thresholds and abstention, adds {K['wf_anchor_gain']}, p {K['wf_anchor_p']}. "
         "The work is split across the team. The pregame news loop polls several news sources before a game and "
         "turns them into fair odds, pull request 7. The player-feature experiment tested isolated player features "
         "and probability calibration, pull request 8. In-play news and odds updates are pull request 9. Live, "
         "read-only Polymarket prices are pull requests 11 and 12. The replay, the agent, the models M4 and M6, "
         "the evaluation, the Coach and the League are on our main branch. Each part had to face the same market "
         "grade."), n)
-    rows = [["Work", "PR", "Who", "What it adds"]] + [list(r) for r in K["team"]]
-    table(s, rows, MARGIN, TOP + 0.15, [3.3, 1.2, 2.8, CW - 7.3], row_h=0.72, pt=16, header_h=0.48,
-          center_cols=(1,))
-    callout(s, MARGIN, 5.95, CW, 0.75, "Every part is graded the same way: by the market's closing price", pt=19, n=n)
+    textbox(s, MARGIN, TOP + 0.05, 6.3, 4.6, [
+        ("Why agentic: the problem's structure", {"bold": True, "color": NAVY, "heading": True}),
+        f"**When to act:** news is asynchronous; {K['disc_share']} of the move before the inactive list, "
+        f"~⅔ before the first report → trigger → investigate → decide",
+        "**Tools over as-of data:** prices, news, rotations, models; no look-ahead",
+        "**Multi-step + safety:** checks, risk caps, kill switch, blocked orders",
+        "**Market-graded learning:** review → gate → rules; placebo-audited",
+        "**Human in the loop:** Coach and League teach; orchestrator joins the team's parts",
+    ], pt=15, bullets=True, space=4, slide_no=n, label="why agentic")
+    rows = [["Work", "PR", "Who"]] + [[r[0], r[1], r[2]] for r in K["team"]]
+    table(s, rows, MARGIN + 6.5, TOP + 0.05, [3.0, 0.95, CW - 6.5 - 3.95], row_h=0.62, pt=12, header_h=0.4,
+          center_cols=(1,), label="team table")
+    callout(s, MARGIN, 5.75, CW, 1.05,
+            f"“A single classifier would do”? The model alone loses {K['wf_raw_pnl']} over {K['wf_raw_n']} trades; "
+            f"the decision process around it adds {K['wf_anchor_gain']} [+$854, +$3,984], p = {K['wf_anchor_p']}",
+            pt=17, n=n)
 
     # 14 Demo -----------------------------------------------------------------
     n = 14

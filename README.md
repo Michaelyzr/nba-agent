@@ -1249,6 +1249,26 @@ invisible before its game is final. The test window was not scored. To finish: `
 evaluation.memory_eval --only dev-memory`, `--only dev-memory_template`, then the matching `test-*` setups,
 then `--report-only`.
 
+### Deep learning: M4-NN and where neural models sit
+
+`python -m evaluation.win_nn_eval` (under 1 min on CPU) trains `forecast/win_nn.py`: an MLP on
+`WIN_FEATURES` and a GRU over each team's last 10 games, on M4's rows and split, with hidden
+size and learning rate chosen on a validation slice and 3 seeds each. On the 501 test games the
+MLP has Brier 0.1842 against M4's 0.1827 (difference +0.0015 [−0.0056, +0.0080]), and the market
+1 h before tip has 0.1641. As the news shift on the 24 h market anchor, the MLP gives 0.1632,
+against 0.1663 for the agent's current estimate (−0.0032 [−0.0079, +0.0013]) and the market
+(−0.0009 [−0.0063, +0.0048]). None of these differences is significant. Results are in
+`evaluation/results/win_nn.md`. `docs/deep_learning.md` maps all four neural parts (M2 GRU,
+M4-NN, M6, the LLM agent), the design choices and the limitations. The M6 uncertainty filter is
+listed there as future work.
+
+### Why an agentic framework
+
+`docs/why_agentic.md` argues from the problem's structure (asynchronous news and timing, as-of
+tools, multi-step safety, market-graded learning, human in the loop) and answers "a single
+classifier would do". The model alone loses −$2,475 over 711 trades; the decision process
+around it adds +$2,450 [+854, +3,984], p = 0.002. Hard Q&A answers are in `presentation/qa.md`.
+
 ### Testing
 
 Tests live in `tests/`. They use small hand-made tables, need no network and
