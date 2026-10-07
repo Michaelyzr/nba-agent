@@ -59,8 +59,11 @@ the forecast.
 **Why an agent:** it chooses which stats to pull, which forecasts to recompute,
 which brief and risk policy fit the channel, and which past rules apply.
 **Why not ChatGPT:** no calibrated distributions, no channel risk limits, no
-learning gate, no QA against settled outcomes. ChatGPT is still run as a
-baseline on the same inputs.
+learning gate, no QA against settled outcomes. The plain-LLM / ChatGPT-style
+baseline is arm B of the LLM tool-agent evaluation
+(`docs/preregistration_llm_agent.md`, `evaluation/llm_agent_eval.py`,
+`agents/tool_agent.py`): same news, stats and prices, one Gemini call, same
+trading rule as the deterministic agent.
 
 ## 2. System design
 
@@ -312,13 +315,15 @@ March, props are evaluated on March to April only.
 | Same agent, no learning | Value of the teaching loop |
 | Plain model, no agent: trade whenever model and price differ by a threshold | Value of the agent |
 | Fixed 60/40 minutes rule | Value of learned rules |
-| ChatGPT given the same news, stats and prices (100-trade sample) | Why not ChatGPT |
+| Plain LLM / ChatGPT-style baseline (LLM tool-agent arm B; see below) | Why not ChatGPT |
 
 **Metrics:** closing-line value (entry price vs price at tip-off; less noisy
 than profit); profit after fees; Brier score against the market price; maximum
-drawdown and kill-switch trips; reviewer blame accuracy on 30 hand-labelled
-trades; policy tests (over-cap live order blocked, retail order without
-confirm blocked, team channel cannot order).
+drawdown and kill-switch trips (enforced; see gate audit below); reviewer
+blame accuracy on 30 hand-labelled trades (sheet sampled, **pending
+annotation** — `evaluation/labels/reviewer_label_sheet.csv`, kappa via
+`evaluation/reviewer_agreement.py`); policy tests (over-cap live order
+blocked, retail order without confirm blocked, team channel cannot order).
 
 **Headline chart:** cumulative closing-line value over the test period, with
 and without learning.
@@ -719,9 +724,14 @@ python -m agents.graph --source synthetic --forecaster record --start 2026-01-01
 - **Briefs.** `agents/briefs.py` turns one forecast into the four channel
   briefs (platform, media, team, retail). Media and team briefs are checked for
   market language; retail briefs need a confirm per order.
-- **Rules.** The gate back-tests a proposed rule on up to 14 earlier days with
-  and without it, and keeps it if mean closing-line value improves by 0.005
-  over at least 3 changed trades. Expired rules can be renewed.
+- **Rules.** Default `--gate split`: the reviewer selects on the last 7 market
+  days and the gate tests the 14 before them (disjoint), keeping a rule if
+  total CLV dollars rise by ≥ $2 over at least 3 changed trades.
+  `--gate legacy` is the published overlapping-window / mean-CLV rule.
+  Expired rules can be renewed. `--kill-switch 100` stops new fills once the
+  day's realised P&L (settled games only) is below −$100.
+  `--sizing kelly --kelly-fraction 0.25` uses fee-aware fractional Kelly
+  capped by the order / game / day limits.
 - **Synthetic data.** `agents/demo_data.py` invents markets whose prices react
   10 minutes after injury news. It exists to develop the loop. Its P&L means
   nothing, so never report it.
@@ -849,8 +859,9 @@ mid at tip. Offline rules; no LLM.
 
 ![Cumulative CLV on the test period](evaluation/results/headline_clv.png)
 
-"Kill-switch trips" counts days that lost more than $100. It is measured,
-not enforced: no live daily-loss stop exists yet.
+"Kill-switch trips" in the table above counted days that lost more than $100
+after the run (measured, not enforced). The gate-audit runs below enforce a
+$100 daily realised-loss stop in `replay.py` and log every trip.
 
 What the numbers say:
 
@@ -949,6 +960,41 @@ What the tests say:
   (p = 0.999 for CLV > 0), so it is luck on outcomes, not an edge.
   Inactive-list news in the frozen data ends 7 May, so after that the agents
   trade on prices and team form only.
+
+#### Gate audit, kill switch and Kelly
+
+Pre-registered in `docs/preregistration_gate.md` before any of these runs.
+Code: `--gate {legacy,split,split-edge}`, `--kill-switch 100`,
+`--sizing kelly --kelly-fraction 0.25`. Safety invariants live in
+`tests/test_safety_properties.py`. **Window (deadline):** 1 Feb – 12 Apr 2026
+(learning arms warm up on Nov–Jan); the primary walk-forward season is
+optional via `python -m evaluation.gate_audit --period wf`.
+
+| Script | Output |
+| --- | --- |
+| `python -m evaluation.gate_audit` | `evaluation/results/gate_audit.{md,csv}` — legacy vs split gate, with/without the enforced kill switch, vs never trade |
+| `python -m evaluation.gate_placebo` | `evaluation/results/gate_placebo.{md,csv}` — reviewer vs random templates / random slices under each gate |
+| `python -m evaluation.kelly` | `evaluation/results/kelly.{md,csv}` — flat $20 vs ¼-Kelly (fee in the formula), vs never trade |
+
+Headline findings (fill in from the result files after the run):
+
+- **H1 (held-out gate days):** fewer rules should pass under `split` than under
+  `legacy`. See pass rates and `rules_active` in the result files.
+- **H2 (placebo):** under `legacy`, the reviewer's pass rate should be similar
+  to random templates / slices (learning mainly reduces exposure).
+- **H3 (kill switch):** enforced stop improves worst-day P&L without changing
+  mean CLV (CI of the paired mean-CLV difference includes 0).
+- **H4 (Kelly):** ¼-Kelly is not expected to beat flat $20 on P&L or CLV $;
+  report as a null unless the P&L CI of Kelly − flat lies above 0.
+
+**Reviewer labels (E2):** 30 losing trades sampled with seed 7606 from
+`runs/results/test-full` into `evaluation/labels/reviewer_label_sheet.csv`.
+Human label columns are empty — **pending annotation**. Do not fabricate
+labels; Cohen's kappa is `python -m evaluation.reviewer_agreement` once both
+annotators finish.
+
+**ChatGPT / plain-LLM baseline:** see the LLM tool-agent section
+(`docs/preregistration_llm_agent.md`, arm B in `evaluation/llm_agent_eval.py`).
 
 ### Testing
 
