@@ -1,0 +1,343 @@
+{
+ "agent": "tool_agent",
+ "label": "Stub LLM tool agent + sceptic: CLE @ POR",
+ "game_id": "401810565",
+ "matchup": "CLE @ POR",
+ "tip_time": "2026-02-02T02:00:00+00:00",
+ "as_of": "2026-02-02T01:30:00+00:00",
+ "llm": "stub LLM (deterministic heuristic_reply, not Gemini)",
+ "stub": true,
+ "sceptic_enabled": true,
+ "status": "order",
+ "reason": "no on POR contract at 0.55, gap +0.095",
+ "detail": null,
+ "turns": [
+  {
+   "turn": 1,
+   "reply": {
+    "tool_calls": [
+     {
+      "tool": "get_news",
+      "args": {}
+     },
+     {
+      "tool": "get_quote",
+      "args": {
+       "team": "POR"
+      }
+     },
+     {
+      "tool": "get_anchor",
+      "args": {
+       "team": "POR"
+      }
+     },
+     {
+      "tool": "get_quote",
+      "args": {
+       "team": "CLE"
+      }
+     },
+     {
+      "tool": "get_anchor",
+      "args": {
+       "team": "CLE"
+      }
+     }
+    ]
+   },
+   "tool_results": [
+    {
+     "id": "c1",
+     "tool": "get_news",
+     "args": {},
+     "output": {
+      "count": 4,
+      "items": [
+       {
+        "news_id": "espn-401810565-4594326",
+        "minutes_ago": 0.0,
+        "team": "POR",
+        "player_id": 4594326,
+        "player": "Kris Murray",
+        "status": "out",
+        "text": "Kris Murray (POR) out: Back Muscle Strain"
+       },
+       {
+        "news_id": "espn-401810565-4683021",
+        "minutes_ago": 0.0,
+        "team": "POR",
+        "player_id": 4683021,
+        "player": "Deni Avdija",
+        "status": "out",
+        "text": "Deni Avdija (POR) out: Lower Back Sprain"
+       },
+       {
+        "news_id": "espn-401810565-3907498",
+        "minutes_ago": 0.0,
+        "team": "POR",
+        "player_id": 3907498,
+        "player": "Matisse Thybulle",
+        "status": "out",
+        "text": "Matisse Thybulle (POR) out: Right Knee Tendinitis"
+       },
+       {
+        "news_id": "espn-401810565-4683678",
+        "minutes_ago": 0.0,
+        "team": "POR",
+        "player_id": 4683678,
+        "player": "Scoot Henderson",
+        "status": "out",
+        "text": "Scoot Henderson (POR) out: Left Hamstring Tear"
+       }
+      ],
+      "note": "inactive lists; out and doubtful players are not expected to play"
+     }
+    },
+    {
+     "id": "c2",
+     "tool": "get_quote",
+     "args": {
+      "team": "POR"
+     },
+     "output": {
+      "team": "POR",
+      "bid": 0.45,
+      "ask": 0.46,
+      "mid": 0.455,
+      "spread": 0.01,
+      "age_minutes": 0.0,
+      "fresh": true,
+      "volume_last_hour": 75695.0
+     }
+    },
+    {
+     "id": "c3",
+     "tool": "get_anchor",
+     "args": {
+      "team": "POR"
+     },
+     "output": {
+      "team": "POR",
+      "anchor_mid": 0.425,
+      "anchor_hours_before_tip": 24.0167,
+      "mid_now": 0.455,
+      "move_since_anchor": 0.03
+     }
+    },
+    {
+     "id": "c4",
+     "tool": "get_quote",
+     "args": {
+      "team": "CLE"
+     },
+     "output": {
+      "team": "CLE",
+      "bid": 0.55,
+      "ask": 0.56,
+      "mid": 0.555,
+      "spread": 0.01,
+      "age_minutes": 0.0,
+      "fresh": true,
+      "volume_last_hour": 56309.0
+     }
+    },
+    {
+     "id": "c5",
+     "tool": "get_anchor",
+     "args": {
+      "team": "CLE"
+     },
+     "output": {
+      "team": "CLE",
+      "anchor_mid": 0.575,
+      "anchor_hours_before_tip": 24.0167,
+      "mid_now": 0.555,
+      "move_since_anchor": -0.02
+     }
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "reply": {
+    "tool_calls": [
+     {
+      "tool": "m4_win_prob",
+      "args": {
+       "out": [
+        4594326,
+        4683021,
+        3907498,
+        4683678
+       ]
+      }
+     }
+    ]
+   },
+   "tool_results": [
+    {
+     "id": "c6",
+     "tool": "m4_win_prob",
+     "args": {
+      "out": [
+       4594326,
+       4683021,
+       3907498,
+       4683678
+      ]
+     },
+     "output": {
+      "before": {
+       "POR": 0.4164,
+       "CLE": 0.5836
+      },
+      "after": {
+       "POR": 0.3294,
+       "CLE": 0.6706
+      },
+      "shift": {
+       "POR": -0.087,
+       "CLE": 0.087
+      },
+      "out_used": [
+       3907498,
+       4594326,
+       4683021,
+       4683678
+      ],
+      "ignored": []
+     }
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "reply": {
+    "final": {
+     "decision": "buy",
+     "team": "CLE",
+     "estimate_p": 0.662,
+     "rationale": "Anchor 0.575 plus the M4 shift 0.087 gives 0.662.",
+     "citations": [
+      {
+       "call_id": "c5",
+       "field": "anchor_mid",
+       "value": 0.575
+      },
+      {
+       "call_id": "c6",
+       "field": "shift.CLE",
+       "value": 0.087
+      }
+     ]
+    }
+   },
+   "tool_results": []
+  }
+ ],
+ "proposal": {
+  "decision": "buy",
+  "team": "CLE",
+  "estimate_p": 0.662,
+  "rationale": "Anchor 0.575 plus the M4 shift 0.087 gives 0.662.",
+  "citations": [
+   {
+    "call_id": "c5",
+    "field": "anchor_mid",
+    "value": 0.575
+   },
+   {
+    "call_id": "c6",
+    "field": "shift.CLE",
+    "value": 0.087
+   }
+  ]
+ },
+ "validation": {
+  "ok": true,
+  "result": "proposal",
+  "detail": "",
+  "checks": [
+   {
+    "check": "schema and team label",
+    "pass": true
+   },
+   {
+    "check": "cites tool numbers",
+    "pass": true
+   },
+   {
+    "check": "cited numbers match tool outputs",
+    "pass": true
+   },
+   {
+    "check": "estimate grounded (within 3 pts of a tool probability)",
+    "pass": true
+   },
+   {
+    "check": "no banned wording",
+    "pass": true
+   },
+   {
+    "check": "news public at decision time",
+    "pass": true
+   }
+  ]
+ },
+ "gap_after_fees": 0.0947,
+ "order": {
+  "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+  "side": "no",
+  "price": 0.55,
+  "p_model": 0.338,
+  "gap": 0.0947
+ },
+ "sceptic": {
+  "verdict": {
+   "verdict": "approve",
+   "reason": "The move since the anchor is small relative to the news shift."
+  },
+  "reply": {
+   "verdict": "approve",
+   "reason": "The move since the anchor is small relative to the news shift."
+  }
+ },
+ "usage": {
+  "calls": 4,
+  "cached": 4,
+  "errors": 0,
+  "tokens_in": 3903,
+  "tokens_out": 174,
+  "cost": 0.0,
+  "latency": 0.0323,
+  "by_role": {
+   "sceptic": 1,
+   "analyst": 3
+  }
+ },
+ "settlement": {
+  "revealed_at": "2026-02-02T02:00:00+00:00",
+  "fills": [
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "side": "no",
+    "price": 0.55,
+    "contracts": 36,
+    "fee_dollars": 0.63,
+    "close_price": 0.625,
+    "clv": 0.075,
+    "outcome_yes": 0,
+    "pnl": 15.57
+   }
+  ],
+  "counterfactual": [],
+  "final": {
+   "home": "POR",
+   "away": "CLE",
+   "home_pts": 111,
+   "away_pts": 130,
+   "final_at": "2026-02-02T05:00:00+00:00"
+  }
+ }
+}

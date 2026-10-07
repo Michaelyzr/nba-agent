@@ -1,0 +1,471 @@
+{
+ "agent": "orchestrator",
+ "label": "One night: 2026-02-01",
+ "night": {
+  "date": "2026-02-01",
+  "games": [
+   {
+    "game_id": "401810557",
+    "matchup": "MIL@BOS",
+    "tip_time": "2026-02-01 20:30:00+00:00",
+    "as_of": "2026-02-01 20:00:00+00:00"
+   },
+   {
+    "game_id": "401810565",
+    "matchup": "CLE@POR",
+    "tip_time": "2026-02-02 02:00:00+00:00",
+    "as_of": "2026-02-02 01:30:00+00:00"
+   }
+  ],
+  "done": [
+   "pregame",
+   "trader",
+   "coach",
+   "briefs"
+  ],
+  "failed": [],
+  "messages": [
+   {
+    "sender": "user",
+    "receiver": "supervisor",
+    "kind": "route",
+    "game_id": null,
+    "as_of": null,
+    "content": "run the night of 2026-02-01: 2 games, decisions 30 minutes before tip"
+   },
+   {
+    "sender": "supervisor",
+    "receiver": "pregame",
+    "kind": "route",
+    "game_id": null,
+    "as_of": null,
+    "content": "poll news and set fair odds for each game"
+   },
+   {
+    "sender": "pregame",
+    "receiver": "trader",
+    "kind": "handoff",
+    "game_id": "401810557",
+    "as_of": "2026-02-01 20:00:00+00:00",
+    "content": {
+     "p_home": 0.815,
+     "baseline": 0.815,
+     "factors": [],
+     "news_health": "ok",
+     "seconds": 0.66
+    }
+   },
+   {
+    "sender": "pregame",
+    "receiver": "trader",
+    "kind": "handoff",
+    "game_id": "401810565",
+    "as_of": "2026-02-02 01:30:00+00:00",
+    "content": {
+     "p_home": 0.329,
+     "baseline": 0.416,
+     "factors": [
+      "Deni Avdija out"
+     ],
+     "news_health": "ok",
+     "seconds": 0.73
+    }
+   },
+   {
+    "sender": "supervisor",
+    "receiver": "trader",
+    "kind": "route",
+    "game_id": null,
+    "as_of": null,
+    "content": "decide at the decision time using the pregame factors"
+   },
+   {
+    "sender": "trader",
+    "receiver": "coach",
+    "kind": "handoff",
+    "game_id": "401810557",
+    "as_of": "2026-02-01 20:00:00+00:00",
+    "content": {
+     "input": "pregame factors",
+     "status": "brief_only",
+     "orders": [],
+     "best_gap": 0.015,
+     "seconds": 0.62
+    }
+   },
+   {
+    "sender": "trader",
+    "receiver": "coach",
+    "kind": "handoff",
+    "game_id": "401810565",
+    "as_of": "2026-02-02 01:30:00+00:00",
+    "content": {
+     "input": "pregame factors",
+     "status": "sent",
+     "orders": [
+      "no POR $20"
+     ],
+     "best_gap": 0.095,
+     "seconds": 0.03
+    }
+   },
+   {
+    "sender": "supervisor",
+    "receiver": "coach",
+    "kind": "route",
+    "game_id": null,
+    "as_of": null,
+    "content": "explain each game and the trader's decision to the user"
+   },
+   {
+    "sender": "coach",
+    "receiver": "briefs",
+    "kind": "handoff",
+    "game_id": "401810557",
+    "as_of": "2026-02-01 20:00:00+00:00",
+    "content": {
+     "coach_pick": null,
+     "lessons": [
+      "A price is a probability",
+      "The spread and the fee move your break-even",
+      "Is the news already in the price?",
+      "Long shots look cheap",
+      "The closing line is the scoreboard",
+      "Passing is a position"
+     ],
+     "agent_panel": "What the agent did: it passed (gap below threshold). Passing is a decision, not a failure.",
+     "seconds": 0.01
+    }
+   },
+   {
+    "sender": "coach",
+    "receiver": "briefs",
+    "kind": "handoff",
+    "game_id": "401810565",
+    "as_of": "2026-02-02 01:30:00+00:00",
+    "content": {
+     "coach_pick": "CLE",
+     "lessons": [
+      "A price is a probability",
+      "The spread and the fee move your break-even",
+      "How injury news moves a win probability",
+      "Is the news already in the price?",
+      "The closing line is the scoreboard"
+     ],
+     "agent_panel": "What the agent did: it proposed buying no on POR with a $20 paper stake, then passed its checks and risk limits.",
+     "seconds": 0.01
+    }
+   },
+   {
+    "sender": "supervisor",
+    "receiver": "briefs",
+    "kind": "route",
+    "game_id": null,
+    "as_of": null,
+    "content": "write the channel briefs"
+   },
+   {
+    "sender": "briefs",
+    "receiver": "user",
+    "kind": "handoff",
+    "game_id": "401810557",
+    "as_of": "2026-02-01 20:00:00+00:00",
+    "content": {
+     "retail": "MIL at BOS. No injury news yet.\nModel: BOS 81% to win (81% before the news). Market: 84%-85% (mid 84%). No order: the gap after fees is too small or the price a",
+     "seconds": 1.42
+    }
+   },
+   {
+    "sender": "briefs",
+    "receiver": "user",
+    "kind": "handoff",
+    "game_id": "401810565",
+    "as_of": "2026-02-02 01:30:00+00:00",
+    "content": {
+     "retail": "CLE at POR. Kris Murray (POR) out: Back Muscle Strain Deni Avdija (POR) out: Lower Back Sprain Matisse Thybulle (POR) out: Right Knee Tendinitis Scoot Henderson",
+     "seconds": 1.45
+    }
+   },
+   {
+    "sender": "supervisor",
+    "receiver": "user",
+    "kind": "done",
+    "game_id": null,
+    "as_of": null,
+    "content": "night complete"
+   }
+  ],
+  "trader": {
+   "401810557": {
+    "input": "pregame factors",
+    "status": "brief_only",
+    "brief": "No injury news for this game yet.\nMIL win: model 20%, market 16%-17%; already priced in, no action (gap below threshold).\nBOS win: model 82%, market 84%-85%; already priced in, no action (gap below threshold).",
+    "orders": [],
+    "candidates": [
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+      "team": "MIL",
+      "p": 0.195,
+      "bid": 0.16,
+      "ask": 0.17,
+      "side": "yes",
+      "gap": 0.0151,
+      "act": false,
+      "why_not": "gap below threshold"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+      "team": "BOS",
+      "p": 0.825,
+      "bid": 0.84,
+      "ask": 0.85,
+      "side": "no",
+      "gap": 0.0056,
+      "act": false,
+      "why_not": "gap below threshold"
+     }
+    ],
+    "citations": [],
+    "steps": [
+     "trigger",
+     "investigate",
+     "forecast",
+     "analyse",
+     "no_action",
+     "checks",
+     "deliver"
+    ],
+    "trace": [
+     {
+      "step": "trigger",
+      "detail": "MIL@BOS 20:00 UTC: 0 news items, 2 markets with fresh quotes"
+     },
+     {
+      "step": "investigate",
+      "detail": "[offline rules] out=[] rules=[]"
+     },
+     {
+      "step": "forecast",
+      "detail": "MIL 0.19->0.19, BOS 0.81->0.81"
+     },
+     {
+      "step": "analyse",
+      "detail": "[offline rules] act on nothing; MIL gap +0.015; BOS gap +0.006"
+     },
+     {
+      "step": "no_action",
+      "detail": "brief only"
+     },
+     {
+      "step": "checks",
+      "detail": "passed"
+     },
+     {
+      "step": "deliver",
+      "detail": "brief_only"
+     }
+    ]
+   },
+   "401810565": {
+    "input": "pregame factors",
+    "status": "sent",
+    "brief": "Kris Murray (POR) out: Back Muscle Strain (01:30 UTC). Deni Avdija (POR) out: Lower Back Sprain (01:30 UTC). Matisse Thybulle (POR) out: Right Knee Tendinitis (01:30 UTC). Scoot Henderson (POR) out: Left Hamstring Tear (01:30 UTC).\nPOR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance. Possible value; confirm?\nCLE win: model 66%, market 55%-56%; no action (one position per game).",
+    "orders": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "side": "no",
+      "stake": 20.0,
+      "p_model": 0.338,
+      "reason": "POR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance",
+      "citations": [
+       "espn-401810565-4594326",
+       "espn-401810565-4683021",
+       "espn-401810565-3907498",
+       "espn-401810565-4683678"
+      ]
+     }
+    ],
+    "candidates": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "p": 0.338,
+      "bid": 0.45,
+      "ask": 0.46,
+      "side": "no",
+      "gap": 0.0947,
+      "act": true,
+      "why_not": ""
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "p": 0.662,
+      "bid": 0.55,
+      "ask": 0.56,
+      "side": "yes",
+      "gap": 0.0848,
+      "act": false,
+      "why_not": "one position per game"
+     }
+    ],
+    "citations": [
+     "espn-401810565-4594326",
+     "espn-401810565-4683021",
+     "espn-401810565-3907498",
+     "espn-401810565-4683678"
+    ],
+    "steps": [
+     "trigger",
+     "investigate",
+     "pregame_handoff",
+     "forecast",
+     "analyse",
+     "propose",
+     "checks",
+     "risk",
+     "confirm",
+     "deliver"
+    ],
+    "trace": [
+     {
+      "step": "trigger",
+      "detail": "CLE@POR 01:30 UTC: 4 news items, 2 markets with fresh quotes"
+     },
+     {
+      "step": "investigate",
+      "detail": "[offline rules] out=[4594326, 4683021, 3907498, 4683678] rules=[]"
+     },
+     {
+      "step": "pregame_handoff",
+      "detail": "expected lost share {4683021: 1.0}"
+     },
+     {
+      "step": "forecast",
+      "detail": "POR 0.42->0.33, CLE 0.58->0.67"
+     },
+     {
+      "step": "analyse",
+      "detail": "[offline rules] act on ['POR']; POR gap +0.095; CLE gap +0.085"
+     },
+     {
+      "step": "propose",
+      "detail": "1 orders"
+     },
+     {
+      "step": "checks",
+      "detail": "passed"
+     },
+     {
+      "step": "risk",
+      "detail": "POR approved"
+     },
+     {
+      "step": "confirm",
+      "detail": "1 of 1 confirmed"
+     },
+     {
+      "step": "deliver",
+      "detail": "sent"
+     }
+    ]
+   }
+  },
+  "coach": {
+   "401810557": {
+    "explanation": [
+     "MIL at BOS, tip-off in 0.5 hours.",
+     "No injury news yet.",
+     "Our model gives BOS a 81% chance to win.",
+     "The market prices BOS at 84% to 85%; 24 hours before tip the mid was 82%, a move of +2.0 points.",
+     "The market is usually better informed than our model, so we start from its earlier price and add only our news shift: BOS 82%, MIL 18%.",
+     "No team clears fees by our 4% threshold (best: MIL at +1.5 points). Passing is the disciplined call."
+    ],
+    "agent_panel": [
+     "What the agent did: it passed (gap below threshold). Passing is a decision, not a failure."
+    ],
+    "lessons": [
+     "A price is a probability",
+     "The spread and the fee move your break-even",
+     "Is the news already in the price?",
+     "Long shots look cheap",
+     "The closing line is the scoreboard",
+     "Passing is a position"
+    ],
+    "coach_pick": null,
+    "banned_words": [],
+    "notice": "Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service."
+   },
+   "401810565": {
+    "explanation": [
+     "CLE at POR, tip-off in 0.5 hours.",
+     "News so far: Kris Murray is out; Deni Avdija is out; Matisse Thybulle is out; Scoot Henderson is out.",
+     "Our model gives POR a 33% chance to win, -8.7 points from 42% before the news.",
+     "The market prices POR at 45% to 46%; 24 hours before tip the mid was 42%, a move of +3.0 points.",
+     "The market is usually better informed than our model, so we start from its earlier price and add only our news shift: POR 34%, CLE 66%.",
+     "Backing CLE costs 56% plus a 1.7-cent fee, so it breaks even at 58%. We estimate 66%: an edge of +8.5 points, above our 4% threshold. On these numbers alone that is a candidate; the agent still checks its learned rules and risk limits before ordering."
+    ],
+    "agent_panel": [
+     "What the agent did: it proposed buying no on POR with a $20 paper stake, then passed its checks and risk limits."
+    ],
+    "lessons": [
+     "A price is a probability",
+     "The spread and the fee move your break-even",
+     "How injury news moves a win probability",
+     "Is the news already in the price?",
+     "The closing line is the scoreboard"
+    ],
+    "coach_pick": "CLE",
+    "banned_words": [],
+    "notice": "Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service."
+   }
+  },
+  "briefs": {
+   "401810557": {
+    "platform": "MIL at BOS. No injury news yet.\nHome win probability 81% before the news, 81% after. Biggest minutes gains: no clear minutes winner. Full distributions in the table (as of 2026-02-01 20:00 UTC; no news).",
+    "media": "MIL at BOS: nobody will not play. No injury news yet. Who gains: no clear minutes winner. Our model gives BOS a 81% chance to win, up from 81%.",
+    "team": "Internal scouting note, MIL at BOS. Out: nobody. Expected rotation shifts: no clear minutes winner. Matchup win chance for BOS: 81% (was 81%).",
+    "retail": "MIL at BOS. No injury news yet.\nModel: BOS 81% to win (81% before the news). Market: 84%-85% (mid 84%). No order: the gap after fees is too small or the price already moved."
+   },
+   "401810565": {
+    "platform": "CLE at POR. Kris Murray (POR) out: Back Muscle Strain Deni Avdija (POR) out: Lower Back Sprain Matisse Thybulle (POR) out: Right Knee Tendinitis Scoot Henderson (POR) out: Left Hamstring Tear\nHome win probability 42% before the news, 33% after. Biggest minutes gains: Thomas Bryant (CLE) 13 to 19 minutes, Larry Nance Jr. (CLE) 9 to 15 minutes, Tyrese Proctor (CLE) 9 to 15 minutes. Full distributions in the table (as of 2026-02-02 01:30 UTC; latest news 01:30 UTC).",
+    "media": "CLE at POR: Deni Avdija (POR) will not play. Kris Murray (POR) out: Back Muscle Strain Deni Avdija (POR) out: Lower Back Sprain Matisse Thybulle (POR) out: Right Knee Tendinitis Scoot Henderson (POR) out: Left Hamstring Tear Who gains: Thomas Bryant (CLE) 13 to 19 minutes, Larry Nance Jr. (CLE) 9 to 15 minutes, Tyrese Proctor (CLE) 9 to 15 minutes. Our model gives POR a 33% chance to win, down from 42%.",
+    "team": "Internal scouting note, CLE at POR. Out: Deni Avdija (POR). Expected rotation shifts: Thomas Bryant (CLE) 13 to 19 minutes, Larry Nance Jr. (CLE) 9 to 15 minutes, Tyrese Proctor (CLE) 9 to 15 minutes. Matchup win chance for POR: 33% (was 42%).",
+    "retail": "CLE at POR. Kris Murray (POR) out: Back Muscle Strain Deni Avdija (POR) out: Lower Back Sprain Matisse Thybulle (POR) out: Right Knee Tendinitis Scoot Henderson (POR) out: Left Hamstring Tear\nModel: POR 33% to win (42% before the news). Market: 45%-46% (mid 46%). POR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance Confirm to place this order; caps and a post-tip block apply."
+   }
+  },
+  "pregame_summary": {
+   "401810557": {
+    "as_of": "2026-02-01T20:00:00+00:00",
+    "p_home": 0.8146,
+    "p_home_baseline": 0.8146,
+    "delta_from_baseline": 0.0,
+    "expected_lost_share": {},
+    "factors": [],
+    "news_health": "ok",
+    "polls": 7
+   },
+   "401810565": {
+    "as_of": "2026-02-02T01:30:00+00:00",
+    "p_home": 0.3294,
+    "p_home_baseline": 0.4164,
+    "delta_from_baseline": -0.087,
+    "expected_lost_share": {
+     "4683021": 1.0
+    },
+    "factors": [
+     {
+      "player": "Deni Avdija",
+      "player_id": 4683021,
+      "status": "out",
+      "news_id": "espn-401810565-4683021",
+      "published_at": "2026-02-02T01:30:00+00:00",
+      "source": "espn_inactive"
+     }
+    ],
+    "news_health": "ok",
+    "polls": 7
+   }
+  }
+ }
+}

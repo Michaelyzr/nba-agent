@@ -1,0 +1,488 @@
+{
+ "agent": "coach",
+ "label": "Coach: CLE @ POR",
+ "game_id": "401810565",
+ "matchup": "CLE @ POR",
+ "tip_time": "2026-02-02T02:00:00+00:00",
+ "as_of": "2026-02-02T01:30:00+00:00",
+ "snapshot": {
+  "home": "POR",
+  "away": "CLE",
+  "p_home_before": 0.4164,
+  "p_home_after": 0.3294,
+  "shift": -0.087,
+  "out": [
+   "Kris Murray",
+   "Deni Avdija",
+   "Matisse Thybulle",
+   "Scoot Henderson"
+  ],
+  "pick": "CLE",
+  "as_of": "2026-02-02T01:30:00+00:00",
+  "sides": {
+   "POR": {
+    "team": "POR",
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "bid": 0.45,
+    "ask": 0.46,
+    "mid": 0.455,
+    "fee": 0.0174,
+    "breakeven": 0.4774,
+    "anchor": 0.425,
+    "move": 0.03,
+    "p_model": 0.3294,
+    "p": 0.338,
+    "gap": -0.1394
+   },
+   "CLE": {
+    "team": "CLE",
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+    "bid": 0.55,
+    "ask": 0.56,
+    "mid": 0.555,
+    "fee": 0.0172,
+    "breakeven": 0.5772,
+    "anchor": 0.575,
+    "move": -0.02,
+    "p_model": 0.6706,
+    "p": 0.662,
+    "gap": 0.0848
+   }
+  },
+  "news": [
+   {
+    "player": "Kris Murray",
+    "status": "out",
+    "published_at": "2026-02-02T01:30:00+00:00"
+   },
+   {
+    "player": "Deni Avdija",
+    "status": "out",
+    "published_at": "2026-02-02T01:30:00+00:00"
+   },
+   {
+    "player": "Matisse Thybulle",
+    "status": "out",
+    "published_at": "2026-02-02T01:30:00+00:00"
+   },
+   {
+    "player": "Scoot Henderson",
+    "status": "out",
+    "published_at": "2026-02-02T01:30:00+00:00"
+   }
+  ]
+ },
+ "explanation": [
+  "CLE at POR, tip-off in 0.5 hours.",
+  "News so far: Kris Murray is out; Deni Avdija is out; Matisse Thybulle is out; Scoot Henderson is out.",
+  "Our model gives POR a 33% chance to win, -8.7 points from 42% before the news.",
+  "The market prices POR at 45% to 46%; 24 hours before tip the mid was 42%, a move of +3.0 points.",
+  "The market is usually better informed than our model, so we start from its earlier price and add only our news shift: POR 34%, CLE 66%.",
+  "Backing CLE costs 56% plus a 1.7-cent fee, so it breaks even at 58%. We estimate 66%: an edge of +8.5 points, above our 4% threshold. On these numbers alone that is a candidate; the agent still checks its learned rules and risk limits before ordering."
+ ],
+ "picks": [
+  {
+   "team": "CLE",
+   "history": "new user",
+   "steps": [
+    {
+     "step": 1,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.56,
+      "fee": 0.0172,
+      "breakeven": 0.5772,
+      "estimate": 0.662,
+      "gap": 0.0848
+     }
+    },
+    {
+     "step": 2,
+     "check": "priced_in",
+     "why": "the CLE price moved -2.0 points since 24 hours before tip",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "anchor": 0.575,
+      "mid": 0.555,
+      "move": -0.02,
+      "news_shift": 0.087
+     }
+    },
+    {
+     "step": 3,
+     "check": "news_freshness",
+     "why": "there is injury news; how old is it relative to the price move?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "latest_news_minutes_ago": 0.0,
+      "items": 4
+     }
+    },
+    {
+     "step": 4,
+     "check": "m4_shift",
+     "why": "the model moved after the news; does it move toward or away from your side?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "p_home_before": 0.4164,
+      "p_home_after": 0.3294,
+      "news_shift": 0.087,
+      "out": [
+       "Kris Murray",
+       "Deni Avdija",
+       "Matisse Thybulle",
+       "Scoot Henderson"
+      ]
+     }
+    }
+   ],
+   "skipped": [
+    "habits",
+    "long_shot"
+   ],
+   "nudge": "none",
+   "lesson": {
+    "id": "closing_line",
+    "title": "The closing line is the scoreboard",
+    "body": "The price at tip-off reflects nearly everything public. Professionals judge a bet by whether they bought below that closing price (closing-line value), not by whether it won: one result is mostly luck, beating the close repeatedly is skill."
+   },
+   "message": "No warning signs on CLE from these checks; it is still a paper trade and one result is mostly luck. Lesson: The closing line is the scoreboard. Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 0,
+    "trades": 0,
+    "trade_rate": 0.0,
+    "chase_share": 0.0,
+    "long_shot_share": 0.0,
+    "negative_edge_share": 0.0,
+    "overtrading": false,
+    "chasing": false,
+    "long_shot_habit": false
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "CLE",
+   "history": "user who chases moves (4 earlier buys after price jumps)",
+   "steps": [
+    {
+     "step": 1,
+     "check": "habits",
+     "why": "you have made 4 calls; look for habits before judging this one",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "decisions": 4,
+      "trades": 4,
+      "trade_rate": 1.0,
+      "chase_share": 1.0,
+      "long_shot_share": 1.0,
+      "overtrading": true,
+      "chasing": true,
+      "long_shot_habit": true
+     }
+    },
+    {
+     "step": 2,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.56,
+      "fee": 0.0172,
+      "breakeven": 0.5772,
+      "estimate": 0.662,
+      "gap": 0.0848
+     }
+    },
+    {
+     "step": 3,
+     "check": "priced_in",
+     "why": "the CLE price moved -2.0 points since 24 hours before tip",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "anchor": 0.575,
+      "mid": 0.555,
+      "move": -0.02,
+      "news_shift": 0.087
+     }
+    },
+    {
+     "step": 4,
+     "check": "long_shot",
+     "why": "you often buy cheap contracts",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.56,
+      "payout_multiple": 1.7857,
+      "loses_if_price_right": 0.44
+     }
+    },
+    {
+     "step": 5,
+     "check": "news_freshness",
+     "why": "there is injury news; how old is it relative to the price move?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "latest_news_minutes_ago": 0.0,
+      "items": 4
+     }
+    },
+    {
+     "step": 6,
+     "check": "m4_shift",
+     "why": "the model moved after the news; does it move toward or away from your side?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "p_home_before": 0.4164,
+      "p_home_after": 0.3294,
+      "news_shift": 0.087,
+      "out": [
+       "Kris Murray",
+       "Deni Avdija",
+       "Matisse Thybulle",
+       "Scoot Henderson"
+      ]
+     }
+    }
+   ],
+   "skipped": [],
+   "nudge": "caution",
+   "lesson": {
+    "id": "passing",
+    "title": "Passing is a position",
+    "body": "Most decisions offer no edge after fees. Trading every game is the fastest way to lose to the spread and fees."
+   },
+   "message": "Be careful with CLE. You traded 100% of your decisions so far; most decisions have no edge after fees. 100% of your trades came after the price had moved your way. 100% of your trades were long shots. Lesson: Passing is a position. Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 4,
+    "trades": 4,
+    "trade_rate": 1.0,
+    "chase_share": 1.0,
+    "long_shot_share": 1.0,
+    "negative_edge_share": 1.0,
+    "overtrading": true,
+    "chasing": true,
+    "long_shot_habit": true
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "POR",
+   "history": "new user",
+   "steps": [
+    {
+     "step": 1,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.46,
+      "fee": 0.0174,
+      "breakeven": 0.4774,
+      "estimate": 0.338,
+      "gap": -0.1394
+     }
+    },
+    {
+     "step": 2,
+     "check": "priced_in",
+     "why": "the POR price moved +3.0 points since 24 hours before tip",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "anchor": 0.425,
+      "mid": 0.455,
+      "move": 0.03,
+      "news_shift": -0.087
+     }
+    },
+    {
+     "step": 3,
+     "check": "long_shot",
+     "why": "POR is the underdog at 46%",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.46,
+      "payout_multiple": 2.1739,
+      "loses_if_price_right": 0.54
+     }
+    },
+    {
+     "step": 4,
+     "check": "news_freshness",
+     "why": "there is injury news; how old is it relative to the price move?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "latest_news_minutes_ago": 0.0,
+      "items": 4
+     }
+    },
+    {
+     "step": 5,
+     "check": "m4_shift",
+     "why": "the model moved after the news; does it move toward or away from your side?",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "p_home_before": 0.4164,
+      "p_home_after": 0.3294,
+      "news_shift": -0.087,
+      "out": [
+       "Kris Murray",
+       "Deni Avdija",
+       "Matisse Thybulle",
+       "Scoot Henderson"
+      ]
+     }
+    }
+   ],
+   "skipped": [
+    "habits"
+   ],
+   "nudge": "pass",
+   "lesson": {
+    "id": "priced_in",
+    "title": "Is the news already in the price?",
+    "body": "The POR price has moved +3.0 points since 24 hours before tip, while our model's news shift for POR is -8.7 points. Markets react within minutes. Buying after a big move ('chasing') usually means paying for news everyone already knows."
+   },
+   "message": "Consider passing on POR. POR costs 46% plus a 1.7-cent fee, so it breaks even at 47.7%, above our estimate of 33.8%. The POR price already moved +3.0 points since 24 hours before tip, while the model's news shift for POR is -8.7 points: the news is probably priced in. The injury news moves our model -8.7 points against POR. Lesson: Is the news already in the price? Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 0,
+    "trades": 0,
+    "trade_rate": 0.0,
+    "chase_share": 0.0,
+    "long_shot_share": 0.0,
+    "negative_edge_share": 0.0,
+    "overtrading": false,
+    "chasing": false,
+    "long_shot_habit": false
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "POR",
+   "history": "user who chases moves (4 earlier buys after price jumps)",
+   "steps": [
+    {
+     "step": 1,
+     "check": "habits",
+     "why": "you have made 4 calls; look for habits before judging this one",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "decisions": 4,
+      "trades": 4,
+      "trade_rate": 1.0,
+      "chase_share": 1.0,
+      "long_shot_share": 1.0,
+      "overtrading": true,
+      "chasing": true,
+      "long_shot_habit": true
+     }
+    },
+    {
+     "step": 2,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.46,
+      "fee": 0.0174,
+      "breakeven": 0.4774,
+      "estimate": 0.338,
+      "gap": -0.1394
+     }
+    },
+    {
+     "step": 3,
+     "check": "priced_in",
+     "why": "the POR price moved +3.0 points since 24 hours before tip",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "anchor": 0.425,
+      "mid": 0.455,
+      "move": 0.03,
+      "news_shift": -0.087
+     }
+    },
+    {
+     "step": 4,
+     "check": "long_shot",
+     "why": "POR is the underdog at 46%",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.46,
+      "payout_multiple": 2.1739,
+      "loses_if_price_right": 0.54
+     }
+    },
+    {
+     "step": 5,
+     "check": "news_freshness",
+     "why": "there is injury news; how old is it relative to the price move?",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "latest_news_minutes_ago": 0.0,
+      "items": 4
+     }
+    },
+    {
+     "step": 6,
+     "check": "m4_shift",
+     "why": "the model moved after the news; does it move toward or away from your side?",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "p_home_before": 0.4164,
+      "p_home_after": 0.3294,
+      "news_shift": -0.087,
+      "out": [
+       "Kris Murray",
+       "Deni Avdija",
+       "Matisse Thybulle",
+       "Scoot Henderson"
+      ]
+     }
+    }
+   ],
+   "skipped": [],
+   "nudge": "pass",
+   "lesson": {
+    "id": "priced_in",
+    "title": "Is the news already in the price?",
+    "body": "The POR price has moved +3.0 points since 24 hours before tip, while our model's news shift for POR is -8.7 points. Markets react within minutes. Buying after a big move ('chasing') usually means paying for news everyone already knows."
+   },
+   "message": "Consider passing on POR. POR costs 46% plus a 1.7-cent fee, so it breaks even at 47.7%, above our estimate of 33.8%. The POR price already moved +3.0 points since 24 hours before tip, while the model's news shift for POR is -8.7 points: the news is probably priced in. The injury news moves our model -8.7 points against POR. You traded 100% of your decisions so far; most decisions have no edge after fees. 100% of your trades were long shots. Lesson: Is the news already in the price? Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 4,
+    "trades": 4,
+    "trade_rate": 1.0,
+    "chase_share": 1.0,
+    "long_shot_share": 1.0,
+    "negative_edge_share": 1.0,
+    "overtrading": true,
+    "chasing": true,
+    "long_shot_habit": true
+   },
+   "mode": "rules"
+  }
+ ]
+}

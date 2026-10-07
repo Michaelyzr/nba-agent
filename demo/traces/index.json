@@ -1,0 +1,95 @@
+{
+ "scenarios": [
+  {
+   "id": "cle_por",
+   "title": "CLE @ POR, 1 Feb 2026: Avdija out (trade, CLV +7.5c)",
+   "summary": "Portland's Deni Avdija is ruled out. The model shifts Portland's chance down, the agent buys POR 'no' at 55c and the close at 62.5c grades it +7.5c of closing-line value.",
+   "agents": {
+    "trader": "trader_cle_por",
+    "tool_agent": "tool_stub_cle_por",
+    "coach": "coach_cle_por",
+    "orchestrator": "orchestrator_night",
+    "pregame": "pregame_night",
+    "inplay": "inplay_cle_por",
+    "review": "review"
+   }
+  },
+  {
+   "id": "retry",
+   "title": "Planted fault: future news citation (checks -> retry -> pass)",
+   "summary": "A fault injected for the demo makes the investigator cite news published after the decision. The checks reject it, the graph loops back once, and the clean retry passes.",
+   "agents": {
+    "trader": "trader_cle_por_retry"
+   }
+  },
+  {
+   "id": "blocked",
+   "title": "Planted violation: 'lock' wording (blocked)",
+   "summary": "The brief says 'This one is a lock.' on every try. Checks fail twice, the order is blocked and logged.",
+   "agents": {
+    "trader": "trader_cle_por_blocked"
+   }
+  },
+  {
+   "id": "kill",
+   "title": "Kill switch tripped (risk blocks)",
+   "summary": "Same trade, but the day's realised losses already exceeded the limit: the risk node blocks every order.",
+   "agents": {
+    "trader": "trader_cle_por_kill"
+   }
+  },
+  {
+   "id": "pass",
+   "title": "MIL @ BOS: pass (priced in)",
+   "summary": "No edge after fees: the agent writes a brief and places nothing. Passing is a decision.",
+   "agents": {
+    "trader": "trader_pass",
+    "coach": "coach_pass",
+    "orchestrator": "orchestrator_night"
+   }
+  },
+  {
+   "id": "rule",
+   "title": "POR @ UTA: learned rule r023 vetoes a trade",
+   "summary": "The gap clears the threshold but a rule the reviewer learned and the gate accepted (valid from before this decision) says skip.",
+   "agents": {
+    "trader": "trader_rule",
+    "review": "review"
+   }
+  },
+  {
+   "id": "sceptic",
+   "title": "IND @ BKN: priced-in sceptic rejects (stub LLM)",
+   "summary": "The analyst finds an edge, code validates it, and the sceptic rejects because the price already moved.",
+   "agents": {
+    "tool_agent": "tool_stub_sceptic_reject"
+   }
+  },
+  {
+   "id": "gemini1",
+   "title": "NOP @ CHA: real Gemini tool agent (pass)",
+   "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
+   "agents": {
+    "tool_agent": "tool_gemini_1"
+   }
+  },
+  {
+   "id": "gemini2",
+   "title": "MIN @ MEM: real Gemini tool agent (pass)",
+   "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
+   "agents": {
+    "tool_agent": "tool_gemini_2"
+   }
+  },
+  {
+   "id": "gemini3",
+   "title": "UTA @ ATL: real Gemini tool agent (pass)",
+   "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
+   "agents": {
+    "tool_agent": "tool_gemini_3"
+   }
+  }
+ ],
+ "built_at": "2026-10-07T08:00:48.706800+00:00",
+ "note": "Decision steps use only data available at the decision time; settlement is revealed at tip-off."
+}
