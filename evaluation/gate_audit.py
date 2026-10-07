@@ -78,11 +78,10 @@ def _job(job: dict) -> dict:
 
 
 def run_all(workers: int, which: list | None = None, period: str = "test"):
-    from forecast.api import Forecaster
     blob = None
     if period in ("wf", "all"):
         starts = [SEASON_START] + [w[1] for w in WINDOWS]
-        print(f"training M4 for {len(starts)} window starts")
+        print(f"training M4 for {len(starts)} window starts", flush=True)
         models, _ = train_win_models(starts)
         blob = pickle.dumps(models)
     # Dev notebooks first (learning arms), then test-period jobs, then optional walk-forward.
@@ -112,13 +111,23 @@ def run_all(workers: int, which: list | None = None, period: str = "test"):
             wf.append({"name": f"gate_audit/wf-{name}", "spec": spec, "start": WF[0],
                        "end": WINDOWS[-1][2], "models": blob})
         batches.append(wf)
+
+    def _emit(r):
+        print(f"  {r['name']}: {r['fills']} fills, {r['active']}/{r['rules']} rules active, "
+              f"{r['trips']} kill trips in {r['seconds'] / 60:.1f} min", flush=True)
+
     for batch in batches:
         if not batch:
             continue
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            for r in pool.map(run_job, batch):
-                print(f"  {r['name']}: {r['fills']} fills, {r['active']}/{r['rules']} rules active, "
-                      f"{r['trips']} kill trips in {r['seconds'] / 60:.1f} min", flush=True)
+        print(f"running {len(batch)} jobs (workers={workers}): "
+              f"{[j['name'] for j in batch]}", flush=True)
+        if workers <= 1:
+            for job in batch:
+                _emit(run_job(job))
+        else:
+            with ProcessPoolExecutor(max_workers=workers) as pool:
+                for r in pool.map(run_job, batch):
+                    _emit(r)
 
 
 def score_setup(name: str, period: str, start: str, end: str, tables: dict) -> dict:
@@ -235,7 +244,8 @@ def report():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-only", action="store_true")
-    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--workers", type=int, default=1,
+                    help="1 = sequential (default; safer under machine load); >1 uses a process pool")
     ap.add_argument("--only", nargs="*", default=None, help="subset of setup ids")
     ap.add_argument("--period", choices=("test", "wf", "all"), default="test",
                     help="test = Feb–Apr only (default); wf = walk-forward; all = both")

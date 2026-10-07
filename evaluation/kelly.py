@@ -71,9 +71,14 @@ def run_all(workers: int):
     except ImportError:
         jobs = [j for j in jobs if j["name"] != "kelly/kelly_cal"]
     from evaluation.kelly import _job as run_job
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        for r in pool.map(run_job, jobs):
-            print(f"  {r}", flush=True)
+    print(f"running {len(jobs)} Kelly arms (workers={workers})", flush=True)
+    if workers <= 1:
+        for job in jobs:
+            print(f"  {run_job(job)}", flush=True)
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            for r in pool.map(run_job, jobs):
+                print(f"  {r}", flush=True)
 
 
 def report():
@@ -150,7 +155,7 @@ def main():
     global START, END
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-only", action="store_true")
-    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--start", default=START)
     ap.add_argument("--end", default=END)
     args = ap.parse_args()
