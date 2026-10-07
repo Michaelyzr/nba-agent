@@ -2,4 +2,4 @@
 import runpy
 from pathlib import Path
 
-runpy.run_path(str(Path(__file__).resolve().parents[1] / "demo_app.py"), run_name="__main__")
+runpy.run_path(str(Path(__file__).resolve().parents[1] / "research_demo_app.py"), run_name="__main__")
