@@ -1,374 +1,306 @@
-"""Polished lifecycle demo for the market-graded consumer education platform.
+"""Simple consumer-facing NBA betting research demo.
 
 Launch from the repository root:
 
     NBA_AGENT_OFFLINE=1 streamlit run demo_app.py
 
-This entry point is additive.  It reads the existing agent, replay, Coach,
-forecast and evaluation interfaces without changing their state or training.
+The page is a thin, read-only presentation layer over the existing historical
+replay, market, news and MarketAgent outputs.
 """
 from __future__ import annotations
 
-import altair as alt
-import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
-from agents import coach, coach_agent
-from demo_ui.adapters import analyse_scenario, inplay_story, load_runtime, research_inventory, scenarios
-from demo_ui.components import (
-    action_banner,
-    coach_card,
-    coach_takeaway,
-    disclosure,
-    execution_rail,
-    footer,
-    grade_cards,
-    hero,
-    inject_styles,
-    journey_bar,
-    news_panel,
-    panel,
-    phase_heading,
-    plain_language_guide,
-    probability_cards,
-    probability_gauge,
-    research_cards,
-    result_summary,
-    scoreboard,
+from data_sources.polymarket_live import PolymarketLiveProvider
+from demo_ui.adapters import (
+    analyse_live_scenario,
+    analyse_scenario,
+    live_scenarios,
+    load_runtime,
+    scenarios,
 )
-from demo_ui.lifecycle import execution_stages
+from demo_ui.components import (
+    agent_answer,
+    agent_take,
+    conclusion_path,
+    context_list,
+    footer,
+    game_intro,
+    inject_styles,
+    live_unavailable,
+    numbers_row,
+    outcome_summary,
+    page_header,
+    reason_list,
+    section_label,
+)
 
 
 st.set_page_config(
-    page_title="MarketGrade · NBA research platform",
-    page_icon="MG",
+    page_title="NBA Research Agent",
+    page_icon="🏀",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
 
 @st.cache_resource(show_spinner=False)
 def runtime():
     return load_runtime()
 
 
-def set_phase(phase: str) -> None:
-    st.session_state["lifecycle_phase"] = phase
-    st.session_state["scroll_request_id"] = st.session_state.get("scroll_request_id", 0) + 1
-    st.session_state["scroll_to_story"] = True
+@st.cache_data(ttl=30, show_spinner=False)
+def current_live_context():
+    return PolymarketLiveProvider().refresh(save_history=False)
 
 
-def scroll_to_story() -> None:
-    """Return the presenter to the active step after a Streamlit rerun."""
-    if not st.session_state.pop("scroll_to_story", False):
-        return
-    scroll_request = st.session_state.get("scroll_request_id", 1)
-    phase_key = st.session_state.get("lifecycle_phase", "Before game").lower().replace(" ", "-")
-    components.html(
-        f"""
-        <script>
-          // A changing request id forces this helper to remount after each step.
-          const scrollRequest = {scroll_request};
-          const activePhase = "{phase_key}";
-          const revealActiveStep = () => {{
-            const doc = window.parent.document;
-            const target = doc.querySelector('.mg-journey');
-            if (target) target.scrollIntoView({{behavior: 'auto', block: 'start'}});
-          }};
-          [120, 600, 1400, 2400].forEach(delay => window.setTimeout(revealActiveStep, delay));
-        </script>
-        """,
-        height=0,
+def recommendation(analysis: dict) -> str:
+    if analysis["orders"]:
+        return "CONSIDER"
+    return "WAIT" if float(analysis["edge"]) > 0 else "PASS"
+
+
+def risk_level(analysis: dict) -> str:
+    steps = analysis["coach"].get("steps", [])
+    if any(bool(step.get("severe")) for step in steps):
+        return "High"
+    if any(bool(step.get("flag")) for step in steps):
+        return "Medium"
+    return "Low"
+
+
+def confidence_level(analysis: dict) -> str:
+    edge = abs(float(analysis["edge"]))
+    if edge >= 0.08:
+        return "High"
+    if edge >= 0.03:
+        return "Medium"
+    return "Low"
+
+
+def take_message(analysis: dict, take: str) -> str:
+    team = analysis["backed_team"]
+    price_wording = "current Polymarket price" if analysis.get("is_live") else "archived market price"
+    if take == "CONSIDER":
+        return f"{team} may be worth considering at this {price_wording}."
+    if take == "WAIT":
+        return "There may be a small advantage, but it is not strong enough yet."
+    return "We don't see enough value at the current market price."
+
+
+def decision_reasons(analysis: dict, take: str) -> list[tuple[bool, str]]:
+    team = analysis["backed_team"]
+    estimate = float(analysis["agent_probability"])
+    market = float(analysis["market_mid"])
+    gap_points = (estimate - market) * 100
+    candidate = analysis["candidate"]
+    results = analysis["coach"].get("results", {})
+    reasons: list[tuple[bool, str]] = []
+
+    reasons.append(
+        (
+            gap_points > 0,
+            f"Our estimate gives {team} a {abs(gap_points):.1f}-point "
+            f"{'advantage over' if gap_points > 0 else 'shortfall versus'} the market.",
+        )
     )
-
-
-def navigation_controls(phase: str) -> None:
-    st.markdown('<div class="mg-control-label">Continue the guided story</div>', unsafe_allow_html=True)
-    if phase == "Before game":
-        _, primary = st.columns([1, 1.15], gap="medium")
-        with primary:
-            st.button(
-                "Next: see the in-play update →",
-                type="primary",
-                use_container_width=True,
-                on_click=set_phase,
-                args=("In play",),
-                key="next_inplay",
-            )
-    elif phase == "In play":
-        back, primary = st.columns([1, 1.15], gap="medium")
-        with back:
-            st.button(
-                "← Back to pregame",
-                use_container_width=True,
-                on_click=set_phase,
-                args=("Before game",),
-                key="back_before",
-            )
-        with primary:
-            st.button(
-                "Next: reveal result and grade →",
-                type="primary",
-                use_container_width=True,
-                on_click=set_phase,
-                args=("After game",),
-                key="next_after",
-            )
+    shift_points = abs(float(candidate.get("shift", 0))) * 100
+    if shift_points >= 0.5:
+        reasons.append((True, f"The latest player availability news moved our view by {shift_points:.1f} points."))
+    elif analysis.get("is_live"):
+        reasons.append((True, "The live quote passed the source freshness and moneyline mapping checks."))
+    priced_in = results.get("priced_in", {})
+    if bool(priced_in.get("flag")):
+        move = abs(float(priced_in.get("move", 0))) * 100
+        reasons.append((False, f"The market already moved {move:.1f} points after the news."))
+    net_edge = float(analysis["edge"]) * 100
+    threshold = float(candidate.get("min_edge", 0.04)) * 100
+    if take == "CONSIDER":
+        reasons.append((True, f"The remaining advantage after price and costs clears our {threshold:.0f}-point bar."))
     else:
-        back, restart = st.columns([1, 1.15], gap="medium")
-        with back:
-            st.button(
-                "← Back to in-play",
-                use_container_width=True,
-                on_click=set_phase,
-                args=("In play",),
-                key="back_inplay",
-            )
-        with restart:
-            st.button(
-                "Start this story again",
-                type="primary",
-                use_container_width=True,
-                on_click=set_phase,
-                args=("Before game",),
-                key="restart_story",
-            )
+        reasons.append((False, f"Only {net_edge:+.1f} points remain after price and costs; our bar is {threshold:.0f}."))
+    return reasons[:4]
 
 
-def price_chart(frame: pd.DataFrame, team: str, decision_time) -> alt.Chart:
-    if frame.empty:
-        return alt.Chart(pd.DataFrame({"x": [], "y": []})).mark_line()
-    line = (
-        alt.Chart(frame)
-        .mark_line(color="#0d7b72", strokeWidth=2.5)
-        .encode(
-            x=alt.X("ts:T", title=None, axis=alt.Axis(format="%H:%M", labelColor="#667673", grid=False)),
-            y=alt.Y(
-                "mid:Q",
-                title=f"P({team} wins)",
-                scale=alt.Scale(domain=[max(0, frame.mid.min() - 0.06), min(1, frame.mid.max() + 0.06)]),
-                axis=alt.Axis(format="%", labelColor="#667673", gridColor="#edf0ef"),
-            ),
-            tooltip=[alt.Tooltip("ts:T", title="UTC"), alt.Tooltip("mid:Q", title="Market", format=".1%")],
-        )
+def key_context(analysis: dict) -> list[str]:
+    if analysis.get("context_items"):
+        return list(analysis["context_items"])[:3]
+    news = analysis["news"]
+    if news.empty:
+        return ["No official player-status update was available at this decision time."]
+    latest = news.sort_values("published_at").groupby("player_id").tail(1).tail(3)
+    return [str(row.text) for row in latest.itertuples(index=False)]
+
+
+def answer_for(question: str, analysis: dict, take: str, risk: str) -> str:
+    team = analysis["backed_team"]
+    edge_points = float(analysis["edge"]) * 100
+    candidate = analysis["candidate"]
+    results = analysis["coach"].get("results", {})
+    break_even = results.get("break_even", {})
+    priced_in = results.get("priced_in", {})
+
+    if question == "Why this take?":
+        if take == "CONSIDER":
+            return f"After the current price and estimated costs, the Agent still sees about {edge_points:.1f} points of room on {team}."
+        return f"After the current price and estimated costs, only {edge_points:+.1f} points remain. That does not clear the Agent's safety bar."
+    if question == "What's the biggest risk?":
+        if bool(priced_in.get("flag")):
+            move = abs(float(priced_in.get("move", 0))) * 100
+            return f"The biggest risk is paying after the move: the market has already shifted {move:.1f} points since the earlier price."
+        if bool(break_even.get("severe")):
+            return "The current price plus estimated costs is already above the Agent's estimate, leaving no cushion."
+        return f"Risk is {risk.lower()} because the estimate can still be wrong and one game is highly uncertain."
+    if question == "What would change it?":
+        threshold = float(candidate.get("min_edge", 0.04))
+        if take == "CONSIDER":
+            return "A higher market price, a reversal in player news, or a lower estimate could turn this into WAIT or PASS."
+        needed = float(break_even.get("breakeven", analysis["market_ask"])) + threshold
+        return f"The Agent would need a better price or an estimate near {needed:.0%} for {team} before it would consider acting."
+    if question == "Is the news priced in?":
+        if analysis.get("is_live"):
+            return "This refresh contains a current quote but not enough earlier live prices to measure the move reliably. The Agent will not pretend otherwise."
+        if bool(priced_in.get("flag")):
+            move = float(priced_in.get("move", 0)) * 100
+            return f"Probably at least partly. The {team} market moved {move:+.1f} points from its earlier level after the news."
+        return "The structured checks did not flag a large prior market move, but that does not guarantee the news is unpriced."
+    estimate = float(analysis["agent_probability"])
+    market = float(analysis["market_mid"])
+    gap = (estimate - market) * 100
+    return (
+        f"Think of the percentages as two opinions about {team}: ours is {estimate:.0%}, while the market says {market:.0%}. "
+        f"The {gap:+.1f}-point gap must still be large enough to survive the price and estimated costs."
     )
-    marker = (
-        alt.Chart(pd.DataFrame({"ts": [decision_time]}))
-        .mark_rule(color="#ef735d", strokeDash=[4, 4])
-        .encode(x="ts:T")
-    )
-    return (line + marker).properties(height=225).configure_view(strokeWidth=0)
-
-
-def before_game(rt, analysis: dict) -> None:
-    phase_heading("1 / 3", "Before the game", "Question: Do the model and market disagree enough for the agent to act?")
-    st.caption("Source: HISTORICAL REPLAY · Archived prices and information available 30 minutes before tip-off.")
-    action_banner(analysis)
-    plain_language_guide()
-    probability_cards(analysis)
-
-    with st.expander("See the evidence the agent checked (optional)", expanded=False):
-        st.markdown("#### Structured execution")
-        execution_rail(
-            execution_stages(
-                analysis["decision"].get("trace", []), "Before game", bool(analysis["orders"])
-            )
-        )
-        left, right = st.columns([1.35, 1], gap="large")
-        with left:
-            st.markdown("#### Archived market movement")
-            st.altair_chart(
-                price_chart(analysis["price_frame"], analysis["backed_team"], analysis["now"]),
-                use_container_width=True,
-            )
-        with right:
-            news_panel(analysis["news"], rt.names)
-        reason = analysis["orders"][0].reason if analysis["orders"] else analysis["candidate"].get("why_not", "No action")
-        st.markdown("#### Why the agent acted—or passed")
-        st.write(reason)
-        st.caption("Structured system output. Internal model reasoning and chain-of-thought are not displayed.")
-
-
-def in_play(rt, analysis: dict) -> None:
-    phase_heading("2 / 3", "During the game", "Question: How do score and time change the win probability?")
-    story = inplay_story(rt, analysis)
-    if not story["available"]:
-        disclosure(f"In-play scene unavailable: {story['reason']}")
-        return
-    disclosure("Demo mode: this score and event sequence is synthetic. It demonstrates the existing in-play model without pretending it is the archived game feed.")
-    checkpoints = story["checkpoints"]
-    index = st.select_slider(
-        "Replay checkpoint",
-        options=list(range(len(checkpoints))),
-        value=min(5, len(checkpoints) - 1),
-        format_func=lambda i: checkpoints[i]["clock_label"],
-    )
-    point = checkpoints[index]
-    game = analysis["game"]
-    scoreboard(game.away_team, game.home_team, point["away_score"], point["home_score"], point["clock_label"])
-    probability_gauge(game.home_team, point["p_home"], story["model_name"])
-    left, right = st.columns([1, 1], gap="large")
-    with left:
-        body = (
-            f"The pregame prior was <strong>{story['prior']:.0%}</strong> for {game.home_team}. "
-            f"At {point['clock_label']}, score and time move the estimate to <strong>{point['p_home']:.0%}</strong>."
-        )
-        panel("What changed?", body, "Update")
-    with right:
-        events = point["events"]
-        if events:
-            body = "<br>".join(f"<strong>{e['status'].replace('_', ' ').title()}</strong> · {e['text']}" for e in events[-3:])
-        else:
-            body = "No synthetic context event has appeared at this checkpoint."
-        panel("Context feed", body, "Synthetic events")
-    with st.expander("See the in-play system boundary (optional)", expanded=False):
-        execution_rail(
-            [
-                {"label": "Observe", "state": "done", "detail": "score snapshot"},
-                {"label": "Forecast", "state": "done", "detail": "time + margin"},
-                {"label": "Compare market", "state": "later", "detail": "no in-play market feed"},
-                {"label": "Safety check", "state": "done", "detail": "source disclosed"},
-                {"label": "Act / pass", "state": "later", "detail": "display only"},
-                {"label": "Market grade", "state": "later", "detail": "not applicable"},
-                {"label": "Review / learn", "state": "later", "detail": "separate replay"},
-            ]
-        )
-
-
-def after_game(analysis: dict) -> None:
-    phase_heading("3 / 3", "After the game", "Question: Was the decision well-timed, regardless of one win or loss?")
-    game = analysis["game"]
-    scoreboard(game.away_team, game.home_team, game.away_pts, game.home_pts, "FINAL · HISTORICAL")
-    result_summary(analysis)
-    grade = analysis["grade"]
-    if grade.get("filled"):
-        clv = float(grade["clv"])
-        pnl = float(grade["pnl"])
-        items = [
-            ("Game result", "Won" if pnl > 0 else "Lost", "One result is mostly luck"),
-            ("Entry price", f"{grade['price']:.0%}", "Archived price when the agent acted"),
-            ("Closing price", f"{grade['close_price']:.0%}", "Market price at tip-off"),
-            ("Market grade", f"{clv * 100:+.1f}¢", "Positive means the entry beat the close"),
-        ]
-    else:
-        items = [
-            ("Agent call", "Pass", "No paper position"),
-            ("Entry → close", "—", "Nothing was purchased"),
-            ("Market grade", "No grade", "CLV requires an entry"),
-            ("Paper result", "$0.00", "Passing costs nothing"),
-        ]
-    grade_cards(items)
-    left, right = st.columns([1, 1], gap="large")
-    with left:
-        market_text = "unavailable" if analysis["market_brier"] is None else f"{analysis['market_brier']:.3f}"
-        panel(
-            "Forecasts are graded, not celebrated",
-            f"For this game, squared probability error was <strong>{analysis['model_brier']:.3f}</strong> for the raw model "
-            f"and <strong>{market_text}</strong> for the closing market. Lower is better; one game cannot establish skill.",
-            "Outcome review",
-        )
-    with right:
-        if grade.get("filled"):
-            verdict = "beat" if grade["clv"] > 0 else "trailed"
-            body = (
-                f"The paper entry {verdict} the closing price by <strong>{abs(grade['clv']) * 100:.1f} cents</strong>. "
-                "That market grade is more informative about decision quality than one win or loss."
-            )
-        else:
-            body = "The agent passed, so the honest review is simple: there is no position, CLV, fee, or simulated profit to report."
-        panel("What should we learn?", body, "Market grade")
-    with st.expander("See the completed system lifecycle (optional)", expanded=False):
-        execution_rail(
-            execution_stages(
-                analysis["decision"].get("trace", []), "After game", bool(analysis["orders"])
-            )
-        )
-        if grade.get("filled"):
-            st.caption(f"Paper settlement after archived fees: {'+' if pnl >= 0 else '−'}${abs(pnl):.2f}.")
-
-
-def coach_section(rt, analysis: dict, phase: str) -> None:
-    st.markdown("## Ask the Coach")
-    st.caption("Try a team—or choose Pass. Coach explains the decision in plain language using only information available at that moment.")
-    options = [analysis["game"].away_team, analysis["game"].home_team, "Pass"]
-    default = options.index(analysis["backed_team"]) if analysis["backed_team"] in options else 2
-    choice = st.pills("Learner's paper call", options, default=options[default], selection_mode="single") or options[default]
-    advice = coach_agent.advise(analysis["snapshot"], None if choice == "Pass" else choice, history=[], llm=False)
-    coach_takeaway(advice)
-    if phase != "After game":
-        practice = (
-            f"Your paper call is <strong>{choice}</strong>. The outcome stays hidden until After game. "
-            "The existing League interface repeats this exercise over a fixed slate and ranks sustained closing-line value, not one-game luck."
-        )
-    elif choice == "Pass":
-        practice = (
-            "Your paper call was <strong>Pass</strong>: no entry, no fee, no CLV and no profit or loss. "
-            "League records restraint as a completed decision."
-        )
-    else:
-        side = analysis["snapshot"]["sides"].get(choice)
-        trade = None if side is None else coach.paper_trade(
-            rt.replay, analysis["game"], analysis["now"], side, 10.0, analysis["snapshot"]
-        )
-        if not trade or not trade.get("filled"):
-            practice = f"The {choice} paper call could not fill at this archived snapshot; no value is fabricated."
-        else:
-            practice = (
-                f"A $10 paper call on <strong>{choice}</strong> entered at <strong>{trade['price']:.0%}</strong>, "
-                f"closed at <strong>{trade['close_price']:.0%}</strong> and earned a market grade of "
-                f"<strong>{trade['clv'] * 100:+.1f} cents</strong> per contract. League uses this same replay settlement."
-            )
-    panel("Paper practice", practice, "League preview")
-    with st.expander("Read the Coach's full explanation and checks", expanded=False):
-        coach_card(advice)
-        table = coach_agent.trace_table(advice)
-        if table.empty:
-            st.write("Passing needs no fee, price, or timing check.")
-        else:
-            st.dataframe(table, hide_index=True, use_container_width=True)
-        st.caption("Paper education only. The League module uses the same Coach snapshot and replay settlement interfaces.")
 
 
 def main() -> None:
     inject_styles()
     rt = runtime()
-    hero(rt.model_status)
-    slate = scenarios(rt)
-    labels = {item.game_id: item.label for item in slate}
-    st.session_state.setdefault("lifecycle_phase", "Before game")
-    st.markdown('<div class="mg-control-label">Start here · Choose a past game</div>', unsafe_allow_html=True)
-    selected = st.selectbox(
-        "Scenario",
-        list(labels),
-        format_func=labels.get,
-        label_visibility="collapsed",
-        key="scenario_id",
-        on_change=set_phase,
-        args=("Before game",),
-    )
-    phase = st.session_state["lifecycle_phase"]
+    page_header()
+    requested_mode = st.query_params.get("mode")
+    st.session_state.setdefault("demo_data_mode", "history" if requested_mode == "history" else "live")
+    mode = st.session_state["demo_data_mode"]
 
-    analysis = analyse_scenario(rt, selected)
-    journey_bar(phase)
-    scroll_to_story()
-    if phase == "Before game":
-        before_game(rt, analysis)
-    elif phase == "In play":
-        in_play(rt, analysis)
+    if mode == "live":
+        with st.spinner("Checking current NBA markets on Polymarket..."):
+            live_context = current_live_context()
+        slate = live_scenarios(live_context)
+        if not slate:
+            reasons = [*live_context.snapshot.quality.reasons, *live_context.agent_tables.reasons]
+            live_unavailable(live_context.snapshot.message, list(dict.fromkeys(reasons)))
+            retry, history = st.columns(2)
+            if retry.button("Retry live markets", type="primary", use_container_width=True):
+                current_live_context.clear()
+                st.rerun()
+            if history.button("View a historical example", use_container_width=True):
+                st.session_state["demo_data_mode"] = "history"
+                st.rerun()
+            footer("LIVE POLYMARKET")
+            return
+        labels = {item.game_id: item.label.split(" · ")[0].replace(" at ", " vs ") for item in slate}
+        label_col, refresh_col = st.columns([4, 1])
+        with label_col:
+            section_label("Choose a live game")
+        with refresh_col:
+            if st.button("Refresh live", use_container_width=True):
+                current_live_context.clear()
+                st.rerun()
+        selected = st.selectbox(
+            "Game",
+            list(labels),
+            format_func=labels.get,
+            label_visibility="collapsed",
+            key="live_game_selector",
+        )
+        analysis = analyse_live_scenario(rt, live_context, selected)
     else:
-        after_game(analysis)
+        top_left, top_right = st.columns([3, 1])
+        with top_left:
+            section_label("Historical example")
+            st.caption("Offline replay—not a current market.")
+        with top_right:
+            if st.button("Back to live markets", use_container_width=True):
+                st.session_state["demo_data_mode"] = "live"
+                st.query_params.clear()
+                current_live_context.clear()
+                st.rerun()
+        slate = scenarios(rt)
+        labels = {item.game_id: item.label.split(" · ")[0].replace(" at ", " vs ") for item in slate}
+        selected = st.selectbox(
+            "Historical game",
+            list(labels),
+            format_func=labels.get,
+            label_visibility="collapsed",
+            key="historical_game_selector",
+        )
+        analysis = analyse_scenario(rt, selected)
 
-    navigation_controls(phase)
-    coach_section(rt, analysis, phase)
-    with st.expander("Research Lab · core, experimental and evaluation-only", expanded=False):
-        inventory = research_inventory(rt)
-        if inventory["metrics"]:
-            cols = st.columns(len(inventory["metrics"]))
-            for column, metric in zip(cols, inventory["metrics"]):
-                column.metric(f"{metric['label']} · {metric['unit']}", metric["value"])
-        research_cards(inventory)
-        st.caption("Metrics are read from committed evaluation result files; opening this panel does not rerun experiments.")
-    footer()
+    game = analysis["game"]
+    take = recommendation(analysis)
+    risk = risk_level(analysis)
+    confidence = confidence_level(analysis)
+
+    game_intro(
+        game,
+        analysis["minutes_to_tip"],
+        analysis["provenance"],
+        analysis.get("fetched_at"),
+    )
+    agent_take(take, take_message(analysis, take), confidence, risk, analysis["backed_team"])
+    reason_list(decision_reasons(analysis, take))
+    numbers_row(
+        float(analysis["agent_probability"]),
+        float(analysis["market_mid"]),
+        (float(analysis["agent_probability"]) - float(analysis["market_mid"])) * 100,
+        analysis["backed_team"],
+        bool(analysis.get("is_live")),
+    )
+
+    section_label("Key information")
+    context_list(key_context(analysis))
+
+    section_label("Ask the Agent")
+    questions = [
+        "Why this take?",
+        "What's the biggest risk?",
+        "What would change it?",
+        "Is the news priced in?",
+        "Explain it simply",
+    ]
+    question = st.pills(
+        "Ask a question",
+        questions,
+        default=questions[0],
+        selection_mode="single",
+        label_visibility="collapsed",
+    ) or questions[0]
+    agent_answer(question, answer_for(question, analysis, take, risk))
+
+    with st.expander("See how the Agent reached this conclusion", expanded=False):
+        conclusion_path(
+            key_context(analysis),
+            float(analysis["agent_probability"]),
+            float(analysis["market_mid"]),
+            risk,
+            take,
+        )
+
+    if not analysis.get("is_live"):
+        close_for_team = analysis["close_home"]
+        if close_for_team is not None and analysis["backed_team"] != game.home_team:
+            close_for_team = 1 - float(close_for_team)
+        winner = game.home_team if game.home_pts > game.away_pts else game.away_team
+        outcome_summary(
+            winner,
+            int(game.away_pts),
+            int(game.home_pts),
+            game.away_team,
+            game.home_team,
+            close_for_team,
+            float(analysis["agent_probability"]),
+            analysis["backed_team"],
+        )
+    footer(analysis["provenance"])
 
 
 if __name__ == "__main__":
@@ -376,5 +308,4 @@ if __name__ == "__main__":
         main()
     except Exception:
         inject_styles()
-        st.error("The local demo could not assemble this scenario. Check that data/sample is present and try another replay.")
-        st.caption("The presentation UI intentionally suppresses raw stack traces. Run the test suite for diagnostics.")
+        st.error("This game could not be loaded. Please choose another game and try again.")

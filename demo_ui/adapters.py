@@ -15,7 +15,7 @@ import pandas as pd
 
 import replay
 from agents import coach, coach_agent
-from agents.graph import MarketAgent, NEWS_WINDOW, record_forecaster
+from agents.graph import DEFAULT_MIN_EDGE, MarketAgent, NEWS_WINDOW, fee_per_contract, record_forecaster
 from agents.notebook import Notebook
 from data_sources import FROZEN, ROOT
 from data_sources.inplay_demo import synthetic_game
@@ -129,6 +129,21 @@ def scenarios(runtime: Runtime) -> list[Scenario]:
     return [
         Scenario(str(g.game_id), f"{g.away_team} at {g.home_team} · {str(g.date)[:10]}", "Historical replay")
         for g in traded.itertuples(index=False)
+    ]
+
+
+def live_scenarios(live_context) -> list[Scenario]:
+    """Current, quality-gated Polymarket moneylines exposed as demo choices."""
+    if not live_context.usable_for_live_analysis:
+        return []
+    games = live_context.agent_tables.games.sort_values("tip_time")
+    return [
+        Scenario(
+            str(game.game_id),
+            f"{game.away_team} at {game.home_team} · Live Polymarket",
+            str(game.event_title or "Current NBA moneyline"),
+        )
+        for game in games.itertuples(index=False)
     ]
 
 
@@ -247,6 +262,110 @@ def analyse_scenario(runtime: Runtime, game_id: str) -> dict:
         "coach": advice,
         "lessons": coach.lessons(snapshot),
         "provenance": "HISTORICAL REPLAY",
+        "is_live": False,
+    }
+
+
+def analyse_live_scenario(runtime: Runtime, live_context, game_id: str) -> dict:
+    """Run the existing MarketAgent against one current Polymarket snapshot.
+
+    Live mode compares the Agent's statistical forecast directly with the
+    current quote because one refresh is not a 24-hour price history. No cached
+    quote, historical outcome, or synthetic news is inserted.
+    """
+    if not live_context.usable_for_live_analysis:
+        raise ValueError("live Polymarket context is not usable")
+    games = live_context.agent_tables.games
+    selected = games[games.game_id.astype(str) == str(game_id)]
+    if selected.empty:
+        raise KeyError(f"live game {game_id} is not in the current Polymarket snapshot")
+    game = next(selected.itertuples(index=False))
+    view = live_context.view(runtime.tables)
+    agent = MarketAgent(
+        Notebook(), forecaster=runtime.forecaster, learn=False, use_llm=False, anchor=False
+    )
+    decision = agent.decide(view, game, live_context.now)
+    candidates = decision.get("candidates") or []
+    orders = decision.get("orders") or []
+    chosen_ticker = orders[0].market_ticker if orders else None
+    candidate = next((row for row in candidates if row["ticker"] == chosen_ticker), None)
+    if candidate is None:
+        candidate = max(candidates, key=lambda row: float(row.get("gap", -1e9)), default=None)
+    if candidate is None:
+        raise ValueError("the live game has no fresh, model-covered moneyline")
+
+    side = orders[0].side if orders else candidate["side"]
+    backed_team = _backed_team(game, candidate["team"], side)
+    market_mid_yes = (float(candidate["bid"]) + float(candidate["ask"])) / 2
+    market_mid = _oriented(market_mid_yes, side)
+    market_bid = float(candidate["bid"]) if side == "yes" else 1 - float(candidate["ask"])
+    market_ask = float(candidate["ask"]) if side == "yes" else 1 - float(candidate["bid"])
+    agent_probability = _oriented(float(candidate["p"]), side)
+    prices = live_context.agent_tables.prices
+    quote = prices[prices.market_ticker == candidate["ticker"]].iloc[-1]
+    threshold = float(candidate.get("min_edge", DEFAULT_MIN_EDGE))
+    long_shot = market_ask <= coach.LONG_SHOT
+    break_even = market_ask + fee_per_contract(market_ask)
+    checks = {
+        "break_even": {
+            "ask": market_ask,
+            "fee": fee_per_contract(market_ask),
+            "breakeven": break_even,
+            "estimate": agent_probability,
+            "gap": float(candidate["gap"]),
+            "flag": float(candidate["gap"]) < threshold,
+            "severe": float(candidate["gap"]) < 0,
+        },
+        "long_shot": {
+            "ask": market_ask,
+            "flag": long_shot,
+            "severe": long_shot and float(candidate["gap"]) < threshold,
+        },
+        "priced_in": {"move": 0.0, "flag": False, "severe": False},
+    }
+    quality = live_context.snapshot.quality
+    context_items = [
+        f"Live Polymarket quote fetched {pd.Timestamp(quality.fetched_at):%H:%M:%S UTC}.",
+        f"Current {backed_team} market: {market_bid:.0%} bid and {market_ask:.0%} ask.",
+    ]
+    liquidity = getattr(quote, "liquidity", None)
+    if liquidity is not None and not pd.isna(liquidity):
+        context_items.append(f"Reported market liquidity: ${float(liquidity):,.0f}.")
+    else:
+        context_items.append("No verified live injury feed is attached to this market snapshot.")
+    market_row = live_context.agent_tables.markets[
+        live_context.agent_tables.markets.market_ticker == candidate["ticker"]
+    ].iloc[0]
+
+    return {
+        "game": game,
+        "now": live_context.now,
+        "minutes_to_tip": max(0, int(round((pd.Timestamp(game.tip_time) - live_context.now).total_seconds() / 60))),
+        "decision": decision,
+        "candidate": candidate,
+        "orders": orders,
+        "backed_team": backed_team,
+        "contract_team": candidate["team"],
+        "side": side,
+        "agent_probability": agent_probability,
+        "market_mid": market_mid,
+        "market_bid": market_bid,
+        "market_ask": market_ask,
+        "edge": float(candidate["gap"]),
+        "coach": {
+            "steps": [
+                {"check": name, "flag": bool(result["flag"]), "severe": bool(result["severe"])}
+                for name, result in checks.items()
+            ],
+            "results": checks,
+        },
+        "news": pd.DataFrame(columns=runtime.tables["news"].columns),
+        "context_items": context_items[:3],
+        "close_home": None,
+        "provenance": "LIVE POLYMARKET",
+        "is_live": True,
+        "fetched_at": quality.fetched_at,
+        "polymarket_url": market_row.polymarket_url,
     }
 
 
@@ -330,4 +449,3 @@ def research_inventory(runtime: Runtime) -> dict:
             },
         ],
     }
-
