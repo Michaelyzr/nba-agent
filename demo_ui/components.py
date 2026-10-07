@@ -16,15 +16,57 @@ def hero(model_status: str) -> None:
     st.markdown(
         f"""
         <section class="mg-hero">
-          <div class="mg-brand">MarketGrade &nbsp;/&nbsp; NBA research platform</div>
-          <h1>One game. Five questions. No hindsight.</h1>
-          <p>What did the model believe? What did the market believe? What did the agent do?
-          What happened next—and what should a consumer learn from it?</p>
+          <div class="mg-hero-top"><div class="mg-brand">MarketGrade &nbsp;/&nbsp; NBA research platform</div>
           <div class="mg-pills">
-            <span class="mg-pill bright">HISTORICAL REPLAY</span>
-            <span class="mg-pill">OFFLINE READY</span>
-            <span class="mg-pill">{escape(model_status)}</span>
+            <span class="mg-pill bright">GUIDED DEMO</span>
             <span class="mg-pill">PAPER PRACTICE ONLY</span>
+          </div></div>
+          <h1>Follow one decision from prediction to lesson.</h1>
+          <p>Choose a past game, move through three simple steps, and see whether the agent's decision held up afterward.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def phase_heading(step: str, title: str, question: str) -> None:
+    st.markdown(
+        f"""
+        <section class="mg-phasehead">
+          <div class="mg-stepbadge">{escape(step)}</div>
+          <div><h2>{escape(title)}</h2><p>{escape(question)}</p></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def journey_bar(current: str) -> None:
+    phases = [
+        ("Before game", "1", "Compare beliefs"),
+        ("In play", "2", "Update with score"),
+        ("After game", "3", "Grade the decision"),
+    ]
+    active = next((i for i, item in enumerate(phases) if item[0] == current), 0)
+    items = []
+    for index, (name, number, description) in enumerate(phases):
+        state = "active" if index == active else "done" if index < active else "later"
+        items.append(
+            f'<div class="mg-journey-step {state}"><div class="mg-journey-number">{number}</div>'
+            f'<div><strong>{escape(name)}</strong><span>{escape(description)}</span></div></div>'
+        )
+    st.markdown('<div class="mg-journey">' + "".join(items) + "</div>", unsafe_allow_html=True)
+
+
+def plain_language_guide() -> None:
+    st.markdown(
+        """
+        <section class="mg-guide">
+          <div class="mg-guide-title">How to read this screen</div>
+          <div class="mg-guide-grid">
+            <div><span>1</span><strong>Model</strong><p>Our statistical estimate of who wins.</p></div>
+            <div><span>2</span><strong>Market</strong><p>The probability implied by the archived price.</p></div>
+            <div><span>3</span><strong>Agent</strong><p>Compares both, checks costs and chooses act or pass.</p></div>
           </div>
         </section>
         """,
@@ -51,9 +93,9 @@ def game_header(analysis: dict, provenance: str) -> None:
 
 def probability_cards(analysis: dict) -> None:
     items = [
-        ("Model belief", analysis["raw_probability"], "Raw pregame estimate after known absences", ""),
-        ("Market belief", analysis["market_mid"], f"Archived bid–ask {analysis['market_bid']:.0%}–{analysis['market_ask']:.0%}", ""),
-        ("Agent estimate", analysis["agent_probability"], "Earlier market anchor + model news shift", "agent"),
+        ("Our model", analysis["raw_probability"], "Team history plus known absences", ""),
+        ("Market price", analysis["market_mid"], "What the archived crowd price implied", ""),
+        ("Agent's final view", analysis["agent_probability"], "Market starting point plus new information", "agent"),
     ]
     cards = []
     for label, value, note, cls in items:
@@ -72,13 +114,13 @@ def probability_cards(analysis: dict) -> None:
 def action_banner(analysis: dict) -> None:
     acted = bool(analysis["orders"])
     if acted:
-        title = f"Paper action · back {analysis['backed_team']}"
-        copy = f"Estimated edge after spread and fee: {analysis['edge']:+.1%}. Existing safety checks passed."
-        mark = "GO"
+        title = f"Agent decision · paper practice on {analysis['backed_team']}"
+        copy = f"Why: its estimate cleared the market price and costs by {analysis['edge']:+.1%}."
+        mark = "ACT"
         cls = ""
     else:
-        title = "Pass · the threshold was not cleared"
-        copy = f"Best estimated edge after costs: {analysis['edge']:+.1%}. Restraint is a valid decision."
+        title = "Agent decision · pass"
+        copy = f"Why: the best advantage after costs was only {analysis['edge']:+.1%}. No action is a valid action."
         mark = "—"
         cls = "pass"
     st.markdown(
@@ -173,6 +215,36 @@ def grade_cards(items: list[tuple[str, str, str]]) -> None:
     st.markdown('<div class="mg-gradegrid">' + cards + "</div>", unsafe_allow_html=True)
 
 
+def result_summary(analysis: dict) -> None:
+    game, grade = analysis["game"], analysis["grade"]
+    winner = game.home_team if game.home_pts > game.away_pts else game.away_team
+    if not grade.get("filled"):
+        title = "The agent passed—and there is nothing to settle."
+        copy = "No entry, fee, market grade or paper profit is invented for a pass."
+        tone = "pass"
+        label = "DISCIPLINED PASS"
+    else:
+        clv = float(grade["clv"])
+        quality = "beat" if clv > 0 else "trailed"
+        title = f"{winner} won. The decision {quality} the closing market."
+        copy = (
+            f"The paper entry moved from {grade['price']:.0%} to {grade['close_price']:.0%} at tip-off, "
+            f"for a market grade of {clv * 100:+.1f} cents per contract."
+        )
+        tone = "good" if clv > 0 else "caution"
+        label = "POSITIVE MARKET GRADE" if clv > 0 else "NEGATIVE MARKET GRADE"
+    st.markdown(
+        f"""
+        <section class="mg-result {tone}">
+          <div class="mg-result-label">{escape(label)}</div>
+          <h2>{escape(title)}</h2>
+          <p>{escape(copy)}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def coach_card(advice: dict) -> None:
     lesson = advice["lesson"]
     st.markdown(
@@ -184,6 +256,22 @@ def coach_card(advice: dict) -> None:
           <div class="mg-copy">{escape(advice['message'])}</div>
           <div class="mg-lesson"><div style="font-weight:820;font-size:13px">{escape(lesson['title'])}</div>
           <div class="mg-copy" style="font-size:12px;margin-top:5px">{escape(lesson['body'])}</div></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def coach_takeaway(advice: dict) -> None:
+    lesson = advice["lesson"]
+    tone = "Caution" if advice["nudge"] in {"pass", "caution"} else "Lesson"
+    st.markdown(
+        f"""
+        <section class="mg-takeaway">
+          <div class="mg-takeaway-icon">COACH</div>
+          <div><div class="mg-eyebrow">{escape(tone)}</div>
+          <h3>{escape(lesson['title'])}</h3>
+          <p>{escape(lesson['body'])}</p></div>
         </section>
         """,
         unsafe_allow_html=True,

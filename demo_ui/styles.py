@@ -22,22 +22,43 @@ CSS = r"""
 html, body, [class*="css"] { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 h1, h2, h3, p { letter-spacing: -0.02em; }
 .mg-hero {
-  position: relative; overflow: hidden; border-radius: 26px; padding: 30px 34px 28px;
+  position: relative; overflow: hidden; border-radius: 22px; padding: 17px 24px 18px;
   color: white; background:
     radial-gradient(circle at 82% 12%, rgba(203,243,122,.23), transparent 31%),
     linear-gradient(135deg, #0b252a 0%, #12373b 58%, #0d4948 100%);
-  box-shadow: 0 18px 55px rgba(15,44,48,.17); margin-bottom: 18px;
+  box-shadow: 0 14px 42px rgba(15,44,48,.14); margin-bottom: 14px;
 }
 .mg-hero:after { content:""; position:absolute; width:180px; height:180px; border:1px solid rgba(255,255,255,.12); border-radius:50%; right:-38px; bottom:-110px; }
 .mg-brand { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #c8ded9; font-weight: 750; }
-.mg-hero h1 { font-size: clamp(30px, 4vw, 51px); line-height: 1.02; margin: 22px 0 12px; max-width: 760px; letter-spacing: -.045em; }
-.mg-hero p { color: #d8e7e4; font-size: 16px; max-width: 760px; margin: 0; letter-spacing: -.012em; }
-.mg-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+.mg-hero-top { display:flex; align-items:center; justify-content:space-between; gap:18px; }
+.mg-hero h1 { font-size: clamp(24px, 3vw, 33px); line-height: 1.05; margin: 12px 0 5px; max-width: 820px; letter-spacing: -.04em; }
+.mg-hero p { color: #d8e7e4; font-size: 13px; max-width: 800px; margin: 0; letter-spacing: -.01em; }
+.mg-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:0; }
 .mg-pill { border: 1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); padding:7px 10px; border-radius:999px; color:#edf5f3; font-size:11px; font-weight:700; letter-spacing:.06em; }
 .mg-pill.bright { color:#17312b; background:var(--lime); border-color:var(--lime); }
 .mg-control-label { color:var(--muted); font-size:11px; font-weight:750; letter-spacing:.12em; text-transform:uppercase; margin: 12px 0 6px; }
-.mg-gamebar { background:var(--paper); border:1px solid var(--line); border-radius:20px; padding:19px 22px; margin:14px 0 16px; display:flex; align-items:center; justify-content:space-between; gap:20px; box-shadow:0 6px 24px rgba(21,48,51,.045); }
-.mg-matchup { font-size:25px; font-weight:780; letter-spacing:-.035em; }
+.mg-phasehead { display:flex; align-items:center; gap:15px; margin:10px 0 8px; }
+.mg-phasehead h2 { font-size:27px; line-height:1.05; margin:0 0 5px; letter-spacing:-.04em; }
+.mg-phasehead p { color:var(--muted); font-size:14px; margin:0; }
+.mg-stepbadge { width:46px; height:46px; border-radius:15px; background:var(--navy); color:white; display:grid; place-items:center; font-size:12px; font-weight:900; flex:0 0 auto; }
+.mg-journey { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:10px 0 17px; }
+.mg-journey-step { display:flex; gap:10px; align-items:center; padding:11px 13px; border:1px solid var(--line); background:#f8faf9; border-radius:15px; color:#73807e; }
+.mg-journey-step.active { color:var(--ink); background:#fff; border-color:#83bcb3; box-shadow:0 5px 16px rgba(21,48,51,.06); }
+.mg-journey-step.done { color:#45615d; background:#eaf5f2; border-color:#c5dfda; }
+.mg-journey-number { width:28px; height:28px; border-radius:9px; display:grid; place-items:center; background:#e6ecea; font-size:11px; font-weight:900; flex:0 0 auto; }
+.mg-journey-step.active .mg-journey-number { color:white; background:var(--teal); }
+.mg-journey-step.done .mg-journey-number { color:var(--teal); background:#d5ebe6; }
+.mg-journey-step strong { display:block; font-size:12px; line-height:1.2; }
+.mg-journey-step span { display:block; font-size:10px; margin-top:2px; }
+.mg-guide { background:#eef3f1; border:1px solid #d8e4e1; border-radius:18px; padding:15px 17px; margin:4px 0 15px; }
+.mg-guide-title { color:#304743; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; margin-bottom:11px; }
+.mg-guide-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.mg-guide-grid > div { position:relative; padding-left:34px; min-height:38px; }
+.mg-guide-grid span { position:absolute; left:0; top:0; width:24px; height:24px; border-radius:8px; display:grid; place-items:center; color:var(--teal); background:#d5ebe6; font-size:10px; font-weight:900; }
+.mg-guide-grid strong { display:block; font-size:12px; }
+.mg-guide-grid p { color:var(--muted); font-size:10px; line-height:1.35; margin:2px 0 0; }
+.mg-gamebar { background:var(--paper); border:1px solid var(--line); border-radius:17px; padding:13px 18px; margin:10px 0 13px; display:flex; align-items:center; justify-content:space-between; gap:20px; box-shadow:0 6px 24px rgba(21,48,51,.045); }
+.mg-matchup { font-size:21px; font-weight:780; letter-spacing:-.035em; }
 .mg-kicker { color:var(--teal); text-transform:uppercase; font-size:10px; letter-spacing:.14em; font-weight:800; margin-bottom:5px; }
 .mg-meta { color:var(--muted); font-size:13px; margin-top:5px; }
 .mg-source { white-space:nowrap; background:#edf3f1; color:#35504e; border-radius:999px; padding:8px 11px; font-size:10px; font-weight:800; letter-spacing:.09em; }
@@ -89,10 +110,25 @@ h1, h2, h3, p { letter-spacing: -0.02em; }
 .mg-grade-label { color:var(--muted); text-transform:uppercase; font-size:9px; letter-spacing:.12em; font-weight:800; }
 .mg-grade-value { color:var(--navy); font-size:24px; font-weight:820; margin:8px 0 3px; letter-spacing:-.04em; }
 .mg-grade-note { color:var(--muted); font-size:10px; }
+.mg-result { border-radius:22px; padding:22px 24px; margin:13px 0 15px; background:#e8f6f2; border:1px solid #b9dbd4; }
+.mg-result.caution { background:#fff8e8; border-color:#ead8aa; }
+.mg-result.pass { background:#f5f7f6; border-color:#d9dfdd; }
+.mg-result-label { color:var(--teal); font-size:10px; font-weight:900; letter-spacing:.12em; margin-bottom:8px; }
+.mg-result.caution .mg-result-label { color:#9b6a0a; }
+.mg-result.pass .mg-result-label { color:#657572; }
+.mg-result h2 { font-size:24px; line-height:1.15; margin:0 0 7px; }
+.mg-result p { color:#455754; font-size:13px; line-height:1.5; margin:0; }
 .mg-coach { border-radius:21px; padding:22px; background:#fff; border:1px solid #d9e2df; box-shadow:0 7px 24px rgba(21,48,51,.045); }
 .mg-coach-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; }
 .mg-nudge { border-radius:999px; padding:6px 9px; background:var(--teal-soft); color:var(--teal); text-transform:uppercase; letter-spacing:.1em; font-size:9px; font-weight:900; }
 .mg-lesson { margin-top:14px; border-top:1px solid #e6ecea; padding-top:14px; }
+.mg-takeaway { display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; background:#fff; border:1px solid #cfe0dc; border-radius:19px; padding:19px 21px; margin:12px 0 16px; box-shadow:0 5px 18px rgba(21,48,51,.035); }
+.mg-takeaway-icon { width:48px; height:48px; border-radius:15px; background:var(--teal-soft); color:var(--teal); display:grid; place-items:center; font-size:9px; letter-spacing:.08em; font-weight:900; }
+.mg-takeaway h3 { font-size:16px; margin:0 0 5px; }
+.mg-takeaway p { color:var(--muted); font-size:13px; line-height:1.5; margin:0; }
+.mg-plainhelp { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:8px 0 14px; }
+.mg-helpitem { background:#eef3f1; border-radius:13px; padding:11px 13px; color:#435653; font-size:11px; line-height:1.4; }
+.mg-helpitem strong { color:var(--ink); display:block; font-size:12px; margin-bottom:2px; }
 .mg-research-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .mg-research { background:#fff; border:1px solid var(--line); border-radius:17px; padding:16px; }
 .mg-status { display:inline-block; padding:5px 7px; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.1em; color:#176c64; background:#e4f3ef; margin-bottom:10px; }
@@ -106,13 +142,16 @@ h1, h2, h3, p { letter-spacing: -0.02em; }
 [data-testid="stSegmentedControl"] { background:#fff; border:1px solid var(--line); border-radius:15px; padding:4px; }
 [data-testid="stSegmentedControl"] button { min-height:38px; }
 div[data-testid="stSelectbox"] > div > div { border-radius:13px; border-color:var(--line); }
-button[kind="primary"] { background:var(--teal)!important; border-color:var(--teal)!important; border-radius:12px!important; }
+button[kind="primary"] { background:var(--teal)!important; border-color:var(--teal)!important; border-radius:12px!important; min-height:48px; font-weight:800!important; }
+button[kind="secondary"] { background:#fff!important; border:1px solid var(--line)!important; border-radius:12px!important; color:var(--navy)!important; min-height:48px; }
+button[kind="secondary"] * { color:var(--navy)!important; }
 details { border-radius:16px!important; border-color:var(--line)!important; background:#fff!important; }
 @keyframes rise { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
 @media (max-width: 760px) {
   [data-testid="stAppViewContainer"] > .main .block-container { padding: .9rem .85rem 3rem; }
   .mg-hero { padding:24px 21px; border-radius:21px; }
-  .mg-grid3, .mg-gradegrid, .mg-research-grid { grid-template-columns:1fr; }
+  .mg-hero-top { align-items:flex-start; flex-direction:column; }
+  .mg-grid3, .mg-gradegrid, .mg-research-grid, .mg-plainhelp, .mg-guide-grid, .mg-journey { grid-template-columns:1fr; }
   .mg-rail { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .mg-gamebar { align-items:flex-start; flex-direction:column; }
   .mg-score { padding:21px 15px; }
@@ -121,4 +160,3 @@ details { border-radius:16px!important; border-color:var(--line)!important; back
 }
 </style>
 """
-
