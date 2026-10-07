@@ -67,6 +67,32 @@ def test_no_lookahead_rejects_future_citation():
     assert _look_ahead({"as_of": str(AS_OF + pd.Timedelta(minutes=1))}, AS_OF, news) is not None
 
 
+def test_every_component_gets_the_same_as_of_time_never_later(tmp_path):
+    seen = []
+
+    def spy(name):
+        def fn(game, now, night):
+            seen.append((name, now, sorted(night)))
+            return {"as_of": str(now), "citations": [], "orders": []}
+        return fn
+
+    orch = NightOrchestrator(make_tables(), record_forecaster, out_dir=tmp_path,
+                             components={c: spy(c) for c in ORDER})
+    orch.run("2026-03-10")
+    assert [s[0] for s in seen] == list(ORDER)
+    assert all(now == AS_OF and now < TIP for _, now, _ in seen)
+
+
+def test_component_returning_future_data_is_rejected(tmp_path):
+    late = {"as_of": str(TIP + pd.Timedelta(minutes=5)), "citations": [], "orders": []}
+    components = {c: fake_component(c) for c in ORDER}
+    components["pregame"] = fake_component("pregame", late)
+    orch = NightOrchestrator(make_tables(), record_forecaster, out_dir=tmp_path, components=components)
+    out = orch.run("2026-03-10")
+    assert out["pregame"] == {} and "pregame" in out["failed"]
+    assert any(m["kind"] == "error" and "look-ahead" in m["content"] for m in out["messages"])
+
+
 def test_failing_component_degrades(tmp_path):
     components = {
         "pregame": fake_component("pregame", fail=True),

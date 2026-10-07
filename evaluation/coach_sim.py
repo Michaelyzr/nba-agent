@@ -237,7 +237,7 @@ def plot(summary: pd.DataFrame, path: Path):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    s = summary[summary.arm.str.startswith("with")]
+    s = summary[summary.arm.str.startswith("with c")]
     personas = list(PERSONAS)
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     panels = (("d_pnl", "P&L change (with − without), $", 1), ("fees", "fees saved (without − with), $", -1),
@@ -268,7 +268,7 @@ def report(summary: pd.DataFrame, acc: pd.DataFrame, n_slates: int, n_decisions:
                              "worst slate": summary.worst_slate_pnl.map(_money)})
     t1 = main[["persona", "arm", "trades", "P&L", "CLV $", "mean CLV", "fees", "worst slate",
                "nudged_pass", "nudged_caution", "complied"]]
-    w = summary[summary.arm.str.startswith("with")]
+    w = summary[summary.arm.str.startswith("with c")]
     t2 = pd.DataFrame({
         "persona": w.persona, "arm": w.arm,
         "Δ P&L [slate CI]": [_ci(*r) for r in zip(w.d_pnl, w.d_pnl_lo, w.d_pnl_hi)],
