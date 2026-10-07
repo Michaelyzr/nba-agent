@@ -16,8 +16,17 @@ One graph, two phases. "decide" runs at every replay decision time:
 LLM steps fall back to offline rules when no key is set or --llm is off, so the
 loop runs with no network. The LLMs choose and explain; code computes every
 number, and an LLM can only drop a candidate trade, never add one.
+
+Gate modes: "split" selects the rule on the last SELECT_DAYS market days and
+back-tests it on the GATE_DAYS before them, judged on total CLV dollars;
+"split-edge" is the same judged on edge over the entry mid; "legacy" is the
+published version (21-day selection overlapping a 14-day test, judged on mean
+CLV per trade). The command line defaults to split with the $100 kill switch;
+MarketAgent() and Replay() keep legacy and no kill switch so the published
+evaluation scripts reproduce. See docs/preregistration_gate.md.
 """
 import argparse
+import hashlib
 import json
 import math
 import operator
@@ -44,7 +53,14 @@ NO_NEWS_AGE = 9999.0             # news_age_minutes when a game has no news yet
 STALE_NEWS_MINUTES = 30.0
 ANCHOR_LEAD = pd.Timedelta(hours=24)  # market price this long before tip is the anchored base rate
 GATE_DAYS = 14
-GATE_THRESHOLD = 0.005           # mean closing-line value must improve by this much
+GATE_THRESHOLD = 0.005           # legacy: mean closing-line value must improve by this much
+GATE_DOLLARS = 2.0               # split gates: total CLV (or edge) dollars must improve by this much
+SELECT_DAYS = 7                  # split gates: the reviewer selects on these most recent market days
+GATE_MODES = ("split", "split-edge", "legacy")
+SIZINGS = ("flat", "kelly")
+DEFAULT_KELLY_FRACTION = 0.25
+DEFAULT_BANKROLL = 1000.0
+MAX_ORDER = 50.0
 BANNED = re.compile(r"\block\b|guarantee|can'?t lose|sure thing|risk[- ]free", re.I)
 PCT = re.compile(r"(\d+)%")
 FAULTS = ("future_citation", "lock_wording", "number_mismatch")
@@ -107,6 +123,21 @@ def minutes_between(a, b) -> float:
     return pd.Timedelta(b - a).total_seconds() / 60
 
 
+def placebo_bucket(ticker: str, now) -> float:
+    """Stable pseudo-random number in [0, 1) per decision, for placebo rules in the gate audit."""
+    digest = hashlib.md5(f"{ticker}|{pd.Timestamp(now).value}".encode()).hexdigest()
+    return int(digest[:12], 16) / 16 ** 12
+
+
+def kelly_fraction(p_side: float, price: float) -> float:
+    """Full-Kelly share of bankroll for buying one side at `price` (fee included), 0 if no edge.
+
+    A contract costs k = price + fee and pays 1, so the log-optimal share is (p - k) / (1 - k).
+    """
+    k = price + fee_per_contract(price)
+    return max(p_side - k, 0.0) / (1 - k) if k < 1 else 0.0
+
+
 # ---------------- placeholder forecaster (until forecast/api.py, M5) ----------------
 
 def win_rate(games: pd.DataFrame, team_id) -> float:
@@ -144,10 +175,63 @@ def record_forecaster(view, game, markets: pd.DataFrame, overrides: dict) -> dic
             for m in markets.itertuples() if m.kind == "game"}
 
 
+# ---------------- gate windows and metrics ----------------
+
+GATE_METRICS = {"legacy": ("mean_clv", GATE_THRESHOLD), "split": ("clv_dollars", GATE_DOLLARS),
+                "split-edge": ("edge_dollars", GATE_DOLLARS)}
+
+
+def market_days(rp, through: str) -> list:
+    """Dates up to and including `through` that had games with markets."""
+    games = rp.t["games"]
+    traded = games[games.game_id.isin(rp.t["markets"].game_id) & (games.date <= through)]
+    return sorted(traded.date.unique())
+
+
+def gate_windows(rp, day: str, mode: str) -> tuple:
+    """(reviewer selection days, gate test days) for the review after `day`.
+
+    legacy: selection is a 21-day time window (not a day list, so None) and the test is the
+    last GATE_DAYS market days before `day`, which overlap it. split modes: the selection is the
+    last SELECT_DAYS market days up to `day` and the test is the GATE_DAYS market days before them.
+    """
+    days = market_days(rp, day)
+    if mode == "legacy":
+        return None, [d for d in days if d < day][-GATE_DAYS:]
+    return days[-SELECT_DAYS:], days[-(SELECT_DAYS + GATE_DAYS):-SELECT_DAYS]
+
+
+def gate_totals(fills: pd.DataFrame) -> dict:
+    if fills is None or fills.empty:
+        return {"trades": 0, "mean_clv": 0.0, "clv_dollars": 0.0, "edge_dollars": 0.0, "pnl": 0.0}
+    contracts = fills["contracts"] if "contracts" in fills else pd.Series(np.nan, index=fills.index)
+    edge = fills["edge"] if "edge" in fills else pd.Series(np.nan, index=fills.index)
+    return {"trades": len(fills), "mean_clv": float(fills.clv.mean()),
+            "clv_dollars": float((fills.clv * contracts).sum()), "edge_dollars": float((edge * contracts).sum()),
+            "pnl": float(fills.pnl.sum())}
+
+
+def judge(without: pd.DataFrame, with_rule: pd.DataFrame, mode: str) -> dict:
+    """Gate verdict: enough changed trades and the mode's metric improves by its threshold."""
+    b, a = gate_totals(without), gate_totals(with_rule)
+    metric, threshold = GATE_METRICS[mode]
+    cases = abs(b["trades"] - a["trades"])
+    ok = cases >= LIMITS["min_cases"] and a[metric] - b[metric] >= threshold
+    reason = (f"mean CLV {b['mean_clv']:+.4f} -> {a['mean_clv']:+.4f}, CLV $ {b['clv_dollars']:+.2f} -> "
+              f"{a['clv_dollars']:+.2f}, edge $ {b['edge_dollars']:+.2f} -> {a['edge_dollars']:+.2f} over {cases} "
+              f"changed trades, P&L {b['pnl']:+.2f} -> {a['pnl']:+.2f}; judged on {metric}")
+    return {"result": "accepted" if ok else "rejected", "cases": cases, "before": b["mean_clv"],
+            "after": a["mean_clv"], "clv_dollars_before": b["clv_dollars"], "clv_dollars_after": a["clv_dollars"],
+            "edge_dollars_before": b["edge_dollars"], "edge_dollars_after": a["edge_dollars"],
+            "pnl_before": b["pnl"], "pnl_after": a["pnl"], "reason": reason}
+
+
 # ---------------- risk and confirmation defaults ----------------
 
-def pretrade_risk(order: Order, ctx: dict, max_order=50.0):
-    """Stateless limits checked inside the graph; replay.py enforces game and day caps again."""
+def pretrade_risk(order: Order, ctx: dict, max_order=MAX_ORDER):
+    """Limits checked inside the graph; replay.py enforces the caps and the kill switch again."""
+    if ctx.get("kill_switch_tripped"):
+        return False, "kill_switch"
     if ctx["now"] >= ctx["tip_time"]:
         return False, "post_tip"
     if order.channel in ("team", "media"):
@@ -162,17 +246,33 @@ def pretrade_risk(order: Order, ctx: dict, max_order=50.0):
 
 
 def auto_confirm(brief: str, orders: list) -> list:
-    """Replay stands in for the user and confirms every approved order."""
-    return orders
+    """Replay simplification: confirms orders for the platform's own paper account.
+
+    Retail orders are never auto-confirmed; a retail channel needs an explicit
+    confirm callable that stands for the user (the live demo waits on a click).
+    """
+    return [o for o in orders if o.channel != "retail"]
 
 
 class MarketAgent:
     def __init__(self, notebook: Notebook | None = None, forecaster: Callable = record_forecaster,
                  risk: Callable = pretrade_risk, confirm: Callable = auto_confirm, use_llm: bool = False,
                  learn: bool = True, stake: float = DEFAULT_STAKE, channel: str = "platform", plant=None,
-                 anchor: bool = True):
+                 anchor: bool = True, impact=None, min_edge: float = DEFAULT_MIN_EDGE, gate: str = "legacy",
+                 sizing: str = "flat", kelly_fraction: float = DEFAULT_KELLY_FRACTION,
+                 bankroll: float = DEFAULT_BANKROLL, forecast_cache: dict | None = None):
+        if gate not in GATE_MODES or sizing not in SIZINGS:
+            raise ValueError(f"gate must be one of {GATE_MODES} and sizing one of {SIZINGS}")
         self.notebook = notebook or Notebook()
         self.anchor = anchor
+        self.gate_mode = gate
+        self.sizing, self.kelly_fraction, self.bankroll = sizing, kelly_fraction, bankroll
+        # Forecasts per (game, decision time, overrides). Each entry was computed from the as-of view at
+        # that time, so sharing it with back-test copies of this agent saves work without leaking anything.
+        self.forecast_cache = {} if forecast_cache is None else forecast_cache
+        # M6 (forecast/impact.py): p(home) = current home mid + predicted move to tip, instead of anchor + news shift.
+        self.impact = impact
+        self.min_edge = min_edge
         self.forecaster = forecaster
         self.risk = risk
         self.confirm = confirm
@@ -246,25 +346,47 @@ class MarketAgent:
     def forecast(self, state):
         view, game, markets = state["view"], state["game"], state["markets"]
         overrides = state["investigation"]["overrides"]
-        before = self.forecaster(view, game, markets, {"out": []})
-        after = self.forecaster(view, game, markets, overrides)
+        before = self._forecast(view, game, markets, {"out": []})
+        after = self._forecast(view, game, markets, overrides)
         forecasts = {t: {"before": before[t], "after": after[t]} for t in after}
         shown = ", ".join(f"{t.rsplit('-', 1)[-1]} {f['before']:.2f}->{f['after']:.2f}" for t, f in forecasts.items())
         return {"forecasts": forecasts, "trace": log("forecast", shown or "no market the models cover")}
+
+    def _forecast(self, view, game, markets, overrides):
+        key = (game.game_id, pd.Timestamp(view.now).value, tuple(markets.market_ticker),
+               json.dumps(overrides, sort_keys=True, default=str))
+        if key not in self.forecast_cache:
+            self.forecast_cache[key] = self.forecaster(view, game, markets, overrides)
+        return dict(self.forecast_cache[key])
+
+    def _stake(self, p_side: float, price: float, scale: float) -> float:
+        """Flat stake, or fractional Kelly on a fixed bankroll capped at the order cap (stake = contract notional)."""
+        if self.sizing == "flat":
+            return round(self.stake * scale, 2)
+        outlay = self.kelly_fraction * kelly_fraction(p_side, price) * self.bankroll
+        notional = outlay * price / (price + fee_per_contract(price))
+        return round(min(notional, MAX_ORDER) * scale, 2)
 
     def analyse(self, state):
         view, game, now, news = state["view"], state["game"], state["now"], state["news"]
         markets = state["markets"].set_index("market_ticker")
         age = minutes_between(news.published_at.max(), now) if len(news) else NO_NEWS_AGE
         rows = []
+        impact = self.impact.predict(view, game, now) if self.impact is not None else None
         for ticker, f in state["forecasts"].items():
             m, q = markets.loc[ticker], self._fresh_quote(view, ticker, now)
-            if q is None:
+            if q is None or (self.impact is not None and impact is None):
                 continue
             shift = f["after"] - f["before"]
-            anchor = self._anchor_mid(view, ticker, game) if self.anchor else None
+            anchor = self._anchor_mid(view, ticker, game) if self.anchor or impact else None
+            home = m.team == game.home_team
+            if impact is not None:
+                p_home = clip(impact["mid"] + impact["move"])
+                p, base = (p_home, impact["mid"]) if home else (1 - p_home, 1 - impact["mid"])
             # Anchored: the market is the base rate and only the model's news shift is traded.
-            p = clip(anchor + shift) if anchor is not None else f["after"]
+            else:
+                p = clip(anchor + shift) if anchor is not None else f["after"]
+                base = anchor if anchor is not None else f["before"]
             yes_gap = p - q.ask - fee_per_contract(q.ask)
             no_gap = (1 - p) - (1 - q.bid) - fee_per_contract(1 - q.bid)
             side, gap = ("yes", yes_gap) if yes_gap >= no_gap else ("no", no_gap)
@@ -273,16 +395,18 @@ class MarketAgent:
                          "market_kind": m.kind, "hours_to_tip": minutes_between(now, game.tip_time) / 60,
                          "news_age_minutes": float(age), "side_price": float(q.ask if side == "yes" else 1 - q.bid),
                          "gap": float(gap), "market_move": float(moved if side == "yes" else -moved),
-                         "model_shift": float(abs(shift))}
+                         "model_shift": float(abs(shift)), "placebo_bucket": placebo_bucket(ticker, now)}
             self.situations[(ticker, now)] = situation
             rules = self.notebook.matching(situation, now, "trader")
-            min_edge = max([DEFAULT_MIN_EDGE] + [r["do"]["params"]["edge"] for r in rules
-                                                 if r["do"]["action"] == "min_edge"])
+            min_edge = max([self.min_edge] + [r["do"]["params"]["edge"] for r in rules
+                                              if r["do"]["action"] == "min_edge"])
             scale = min([1.0] + [r["do"]["params"]["scale"] for r in rules if r["do"]["action"] == "stake_scale"])
             skip = [r["rule_id"] for r in rules if r["do"]["action"] == "skip_market"]
-            rows.append({"ticker": ticker, "team": m.team, "kind": m.kind, "p": p,
-                         "before": anchor if anchor is not None else f["before"], "shift": shift,
-                         "anchored": anchor is not None,
+            price = situation["side_price"]
+            stake = self._stake(p if side == "yes" else 1 - p, price, scale)
+            rows.append({"ticker": ticker, "team": m.team, "kind": m.kind, "p": p, "stake": stake,
+                         "before": base, "shift": shift, "anchored": anchor is not None and impact is None,
+                         "impact": None if impact is None else impact["move"] * (1 if home else -1),
                          "bid": float(q.bid), "ask": float(q.ask), "side": side, "gap": float(gap),
                          "min_edge": min_edge, "scale": scale, "rules": [r["rule_id"] for r in rules],
                          "act": gap > min_edge and not skip, "why_not": "rule " + ", ".join(skip) if skip else
@@ -325,7 +449,10 @@ class MarketAgent:
     def _line(self, r):
         price = r["ask"] if r["side"] == "yes" else 1 - r["bid"]
         p_side = r["p"] if r["side"] == "yes" else 1 - r["p"]
-        if r.get("anchored"):
+        if r.get("impact") is not None:
+            basis = (f"estimate {r['p']:.0%} (market mid {r['before']:.0%} now, M6 expects "
+                     f"{r['impact'] * 100:+.1f} points by tip-off)")
+        elif r.get("anchored"):
             basis = (f"estimate {r['p']:.0%} (market {r['before']:.0%} a day earlier, news shift "
                      f"{r['shift'] * 100:+.1f} points)")
         else:
@@ -350,7 +477,7 @@ class MarketAgent:
                              f"no action ({r['why_not']}).")
                 continue
             reason = self._line(r) + (f". {r['why']}" if r.get("why") else "")
-            orders.append(Order(r["ticker"], r["side"], r["p"], round(self.stake * r["scale"], 2), reason,
+            orders.append(Order(r["ticker"], r["side"], r["p"], r["stake"], reason,
                                 list(inv["citations"]), self.channel, inv["rules_applied"] + r["rules"],
                                 self.llm_name))
             lines.append(reason + ". Possible value; confirm?")
@@ -402,7 +529,10 @@ class MarketAgent:
         return {"failures": failures, "tries": tries, "trace": log("checks", detail)}
 
     def risk_limits(self, state):
-        ctx = {"now": state["now"], "tip_time": state["game"].tip_time}
+        view = state["view"]
+        ctx = {"now": state["now"], "tip_time": state["game"].tip_time,
+               "realised_day": getattr(view, "realised_day", 0.0),
+               "kill_switch_tripped": getattr(view, "kill_switch_tripped", False)}
         kept, notes = [], []
         for o in state["orders"]:
             ok, why = self.risk(o, ctx)
@@ -419,7 +549,9 @@ class MarketAgent:
                 "trace": log("confirm", f"{len(orders)} of {len(state['orders'])} confirmed")}
 
     def blocked(self, state):
-        why = "checks failed twice" if state.get("failures") else "risk limits"
+        why = ("checks failed twice" if state.get("failures") else
+               "daily loss limit reached, no new orders today" if getattr(state.get("view"), "kill_switch_tripped", False)
+               else "risk limits")
         brief = state.get("brief", "") + f"\nOrder blocked ({why}); reason logged."
         return {"orders": [], "status": "blocked", "brief": brief, "trace": log("blocked", why)}
 
@@ -437,15 +569,20 @@ class MarketAgent:
         return {"trace": log("settle", f"{day}: {json.dumps({k: round(v, 3) for k, v in s.items()})}")}
 
     def review(self, state):
-        fills = pd.DataFrame(state["replay"].fills)
+        rp, day = state["replay"], state["day"]
+        fills = pd.DataFrame(rp.fills)
         if fills.empty:
             return {"proposal": None, "trace": log("review", "no settled trades yet")}
         fills["news_age"] = [self.situations.get((t, a), {}).get("news_age_minutes", np.nan)
                              for t, a in zip(fills.market_ticker, fills.as_of)]
-        proposal, how = self._review_offline(fills), "offline rules"
+        recent = self.selection(rp, fills, day)
+        if recent.empty:
+            return {"proposal": None, "trace": log("review", "no settled trades in the selection window")}
+        proposal, how = self._review_offline(recent), "offline rules"
         if self.use_llm:
             try:
-                proposal, how = self._review_llm(fills), self.llm_name
+                # legacy showed the LLM every losing trade so far, which overlaps the gate's test days
+                proposal, how = self._review_llm(fills if self.gate_mode == "legacy" else recent), self.llm_name
             except Exception as exc:
                 how = f"offline rules ({self.llm_name} failed: {exc.__class__.__name__})"
         games = state["replay"].t["games"]
@@ -457,25 +594,42 @@ class MarketAgent:
                                 if proposal else "no pattern worth a rule")
         return {"proposal": proposal, "trace": log("review", detail)}
 
-    def _review_offline(self, fills):
+    def selection(self, rp, fills: pd.DataFrame, day: str, mode=None) -> pd.DataFrame:
+        """Trades the reviewer may learn from: legacy, the last REVIEW_WINDOW; split, the last SELECT_DAYS market days."""
+        mode = mode or self.gate_mode
+        if mode == "legacy":
+            return fills[pd.to_datetime(fills.as_of) >= pd.to_datetime(fills.as_of).max() - REVIEW_WINDOW]
+        chosen, _ = gate_windows(rp, day, mode)
+        games = rp.t["games"]
+        return fills[fills.game_id.isin(games.loc[games.date.isin(chosen), "game_id"])]
+
+    def situation_frame(self, fills: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame([self.situations.get((t, a), {}) for t, a in zip(fills.market_ticker, fills.as_of)],
+                            index=fills.index)
+
+    @staticmethod
+    def template_mask(sit: pd.DataFrame, when: dict, do: dict) -> pd.Series:
+        """Trades a template's condition covers (min_edge: trades whose gap was below the new edge)."""
+        if do["action"] == "min_edge":
+            return sit.get("gap", pd.Series(np.nan, index=sit.index)) < do["params"]["edge"]
+        mask = pd.Series(True, index=sit.index)
+        for key, want in when.items():
+            name, end = key.rsplit("_", 1)
+            have = sit.get(name, pd.Series(np.nan, index=sit.index))
+            mask &= (have >= want) if end == "min" else (have <= want)
+        return mask
+
+    def _review_offline(self, recent):
         """Blame the slice of recent trades that lost the most closing-line value and propose a rule for it.
 
         Each template names a situation the reviewer can describe; the gate, not the
         reviewer, decides whether skipping that situation helps on earlier days.
         """
-        recent = fills[pd.to_datetime(fills.as_of) >= pd.to_datetime(fills.as_of).max() - REVIEW_WINDOW]
-        sit = pd.DataFrame([self.situations.get((t, a), {}) for t, a in zip(recent.market_ticker, recent.as_of)],
-                           index=recent.index)
+        sit = self.situation_frame(recent)
         dollars = recent.clv * recent.contracts
         best = None
         for when, do, blame, says in REVIEW_TEMPLATES:
-            mask = pd.Series(True, index=recent.index)
-            for key, want in when.items():
-                name, end = key.rsplit("_", 1)
-                have = sit.get(name, pd.Series(np.nan, index=recent.index))
-                mask &= (have >= want) if end == "min" else (have <= want)
-            if do["action"] == "min_edge":
-                mask = sit.get("gap", pd.Series(np.nan, index=recent.index)) < do["params"]["edge"]
+            mask = self.template_mask(sit, when, do)
             hit = recent[mask]
             if len(hit) < 2 * LIMITS["min_cases"] or hit.clv.mean() >= 0:
                 continue
@@ -512,34 +666,37 @@ class MarketAgent:
                 "expires_after_days": LIMITS["default_expiry_days"]}
 
     def gate(self, state):
-        rp, day, rule = state["replay"], state["day"], state["proposal"]
+        evidence = self.gate_rule(state["replay"], state["day"], state["proposal"])
+        return {"gate": evidence, "trace": log("gate", f"{evidence['result']}: {evidence['reason']}")}
+
+    def gate_rule(self, rp, day, rule, mode=None, without=None) -> dict:
+        """Back-test the notebook with and without `rule` on the gate's test days and judge it.
+
+        `mode` overrides the agent's gate mode (the placebo audit judges one rule several ways);
+        `without` reuses a back-test of the notebook without the rule on the same days.
+        """
+        mode = mode or self.gate_mode
         games = rp.t["games"]
-        traded = games[games.game_id.isin(rp.t["markets"].game_id) & (games.date < day)]
-        days = sorted(traded.date.unique())[-GATE_DAYS:]
-        decided_at = games.loc[games.date == day, "final_at"].max()
-        evidence = {"decided_at": decided_at, "backtest_days": [days[0], days[-1]] if days else [],
-                    "metric": "mean_clv", "threshold": GATE_THRESHOLD}
+        _, days = gate_windows(rp, day, mode)
+        metric, threshold = GATE_METRICS[mode]
+        evidence = {"decided_at": games.loc[games.date == day, "final_at"].max(), "mode": mode,
+                    "backtest_days": [days[0], days[-1]] if days else [], "metric": metric, "threshold": threshold}
         if len(days) < 2:
-            return {"gate": {**evidence, "result": "deferred", "reason": "not enough earlier days"},
-                    "trace": log("gate", "deferred: not enough earlier days")}
-        without = self.backtest(rp, self.notebook.without(rule), days[0], days[-1])
+            return {**evidence, "result": "deferred", "reason": "not enough earlier days"}
+        if without is None:
+            without = self.backtest(rp, self.notebook.without(rule), days[0], days[-1])
         with_rule = self.backtest(rp, self.notebook.with_candidate(rule), days[0], days[-1])
-        before = float(without.clv.mean()) if len(without) else 0.0
-        after = float(with_rule.clv.mean()) if len(with_rule) else 0.0
-        cases = abs(len(without) - len(with_rule))
-        pnl = [float(f.pnl.sum()) if len(f) else 0.0 for f in (without, with_rule)]
-        ok = cases >= LIMITS["min_cases"] and after - before >= GATE_THRESHOLD
-        reason = (f"mean CLV {before:+.4f} -> {after:+.4f} over {cases} changed trades, "
-                  f"P&L {pnl[0]:+.2f} -> {pnl[1]:+.2f}")
-        evidence.update(result="accepted" if ok else "rejected", cases=cases, before=before, after=after,
-                        pnl_before=pnl[0], pnl_after=pnl[1], reason=reason)
-        return {"gate": evidence, "trace": log("gate", ("accepted: " if ok else "rejected: ") + reason)}
+        return {**evidence, **judge(without, with_rule, mode)}
 
     def backtest(self, rp, notebook, start, end) -> pd.DataFrame:
         """Replay earlier days with an offline, non-learning copy of this agent."""
         child = MarketAgent(notebook, self.forecaster, self.risk, self.confirm, use_llm=False, learn=False,
-                            stake=self.stake, channel=self.channel, anchor=self.anchor)
-        _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee).run(start, end)
+                            stake=self.stake, channel=self.channel, anchor=self.anchor, impact=self.impact,
+                            min_edge=self.min_edge, gate=self.gate_mode, sizing=self.sizing,
+                            kelly_fraction=self.kelly_fraction, bankroll=self.bankroll,
+                            forecast_cache=self.forecast_cache)
+        _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee, kill_switch=getattr(rp, "kill_switch", None),
+                          price_index=getattr(rp, "price_index", None)).run(start, end)
         return fills
 
     def save_rule(self, state):
@@ -661,31 +818,50 @@ def main():
     ap.add_argument("--plant", choices=FAULTS, default=None)
     ap.add_argument("--forecaster", choices=["models", "record"], default="models",
                     help="trained models via forecast/api.py, or the win-rate placeholder")
+    ap.add_argument("--signal", choices=["anchor", "impact"], default="anchor",
+                    help="anchor + M4 news shift (default), or M6: current mid + predicted move to tip")
+    ap.add_argument("--impact-model", type=Path, default=None, help="M6 pickle (default models/m6/impact.pkl)")
+    ap.add_argument("--gate", choices=GATE_MODES, default="split",
+                    help="split (default): disjoint selection and test days, CLV dollars; split-edge: edge over "
+                         "the mid; legacy: the published runs (overlapping windows, mean CLV)")
+    ap.add_argument("--kill-switch", type=float, default=100.0,
+                    help="stop new orders for the day once realised losses exceed this (0 = off, as published)")
+    ap.add_argument("--sizing", choices=SIZINGS, default="flat")
+    ap.add_argument("--kelly-fraction", type=float, default=DEFAULT_KELLY_FRACTION)
+    ap.add_argument("--bankroll", type=float, default=DEFAULT_BANKROLL)
     args = ap.parse_args()
 
     forecaster = record_forecaster
     if args.forecaster == "models":
         from forecast.api import Forecaster
         forecaster = Forecaster.load()
+    impact = None
+    if args.signal == "impact":
+        from forecast.impact import MODEL_PATH, load_impact
+        impact = load_impact(args.impact_model or MODEL_PATH)
     agent = MarketAgent(Notebook.load(args.notebook) if args.notebook else Notebook(), forecaster=forecaster,
-                        use_llm=args.llm, learn=not args.no_learn, plant=args.plant)
+                        use_llm=args.llm, learn=not args.no_learn, plant=args.plant, impact=impact, gate=args.gate,
+                        sizing=args.sizing, kelly_fraction=args.kelly_fraction, bankroll=args.bankroll)
     if args.draw:
         print(agent.graph.get_graph().draw_mermaid())
         return
     tables = load_source(args.source, args.start, args.end)
-    decisions, fills = Replay(tables, agent.policy, on_day_end=agent.on_day_end).run(args.start, args.end)
-    out = save_run(args.name, decisions, fills, agent)
-    print(f"{len(decisions)} decisions, {len(fills)} fills -> {out}")
+    rp = Replay(tables, agent.policy, on_day_end=agent.on_day_end, kill_switch=args.kill_switch or None)
+    decisions, fills = rp.run(args.start, args.end)
+    out = save_run(args.name, decisions, fills, agent, rp.kill_trips)
+    print(f"{len(decisions)} decisions, {len(fills)} fills, {len(rp.kill_trips)} kill-switch trips -> {out}")
     print(replay.summary(fills))
     for r in agent.notebook.rules:
         print(f"{r['rule_id']} {r['status']}: when {r['when']} do {r['do']['action']} ({r['gate']['reason']})")
 
 
-def save_run(name, decisions, fills, agent=None) -> Path:
+def save_run(name, decisions, fills, agent=None, kill_trips=None) -> Path:
     out = replay.RUNS / name
     out.mkdir(parents=True, exist_ok=True)
     decisions.to_parquet(out / "decisions.parquet", index=False)
     fills.to_parquet(out / "fills.parquet", index=False)
+    if kill_trips is not None:
+        (out / "kill_switch.json").write_text(json.dumps(kill_trips, indent=1, default=str))
     if agent is not None:
         agent.notebook.save(out / "notebook.json")
         (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in agent.traces))

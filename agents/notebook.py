@@ -17,9 +17,10 @@ LIMITS = {"max_active_rules": 20, "min_cases": 3, "default_expiry_days": 45, "re
 
 WHEN_EQUAL = {"team", "opponent", "ruled_out_player", "status", "news_type", "market_kind", "back_to_back"}
 # side_price: price of the side the agent would buy; gap: edge after fees; market_move: how far the
-# price moved toward that side since the anchor; model_shift: size of the model's news adjustment.
+# price moved toward that side since the anchor; model_shift: size of the model's news adjustment;
+# placebo_bucket: a hash of the decision in [0, 1), used only by the gate audit's random-slice rules.
 WHEN_RANGE = {"hours_to_tip", "news_age_minutes", "losing_sessions", "side_price", "gap", "market_move",
-              "model_shift"}
+              "model_shift", "placebo_bucket"}
 WHEN_FIELDS = WHEN_EQUAL | {f"{f}_{end}" for f in WHEN_RANGE for end in ("min", "max")}
 ACTIONS = {
     "minutes_share": "forecast", "minutes_cap": "forecast", "p_play_adjust": "forecast",

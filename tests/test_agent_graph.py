@@ -130,7 +130,11 @@ def test_notebook_vocabulary_and_matching():
 
 
 def gate_setup(with_rule_clv):
-    """Three traded days; the reviewer sees six stale trades with negative closing-line value."""
+    """Three traded days; the reviewer sees six stale trades with negative closing-line value.
+
+    Uses gate='legacy' so the published mean-CLV acceptance rule still applies. The split gate
+    is covered by test_split_gate_windows_are_disjoint_and_judge_clv_dollars.
+    """
     days = ["2026-01-29", "2026-01-30", "2026-01-31"]
     tips = [pd.Timestamp(f"{d}T00:30:00Z") for d in days]
     games = pd.DataFrame({"game_id": ["a", "b", "c"], "date": days, "tip_time": tips,
@@ -139,10 +143,11 @@ def gate_setup(with_rule_clv):
     fills = [{"decision_id": f"x{i}", "market_ticker": f"T{i}", "as_of": tips[0], "game_id": "c", "side": "yes",
               "p_model": 0.6, "price": 0.5, "contracts": 40, "fee": 0.7, "outcome": 0, "clv": -0.01, "pnl": -20.7}
              for i in range(6)]
-    agent = MarketAgent()
+    agent = MarketAgent(gate="legacy")
     agent.situations = {(f"T{i}", tips[0]): {"news_age_minutes": 9999.0} for i in range(6)}
-    without = pd.DataFrame({"clv": [-0.01] * 4 + [0.05], "pnl": [-5.0] * 4 + [10.0]})
-    with_rule = pd.DataFrame({"clv": [with_rule_clv], "pnl": [10.0]})
+    without = pd.DataFrame({"clv": [-0.01] * 4 + [0.05], "pnl": [-5.0] * 4 + [10.0], "contracts": [1] * 5,
+                            "edge": [-0.005] * 4 + [0.05]})
+    with_rule = pd.DataFrame({"clv": [with_rule_clv], "pnl": [10.0], "contracts": [1], "edge": [with_rule_clv]})
     agent.backtest = lambda rp, nb, start, end: with_rule if len(nb.rules) else without
     rp = SimpleNamespace(t=tables, fills=fills)
     return agent, rp
@@ -157,3 +162,21 @@ def test_gate_keeps_only_rules_that_help_on_earlier_days(with_rule_clv, status):
     assert rule["status"] == status and rule["do"]["action"] == "skip_market"
     assert rule["gate"]["backtest_days"] == ["2026-01-29", "2026-01-30"]       # earlier days only
     assert (rule["valid_from"] is not None) == (status == "active")
+
+
+def test_split_gate_windows_are_disjoint_and_judge_clv_dollars():
+    from agents.graph import gate_windows, judge
+
+    days = [f"2026-01-{d:02d}" for d in range(1, 29)]
+    games = pd.DataFrame({"game_id": [f"g{i}" for i in range(len(days))], "date": days})
+    rp = SimpleNamespace(t={"games": games, "markets": pd.DataFrame({"game_id": games.game_id})})
+    select, test = gate_windows(rp, "2026-01-28", "split")
+    assert select == days[-7:] and test == days[-21:-7]
+    assert not set(select) & set(test)
+    without = pd.DataFrame({"clv": [-0.02] * 5, "contracts": [20] * 5, "pnl": [-10.0] * 5, "edge": [-0.01] * 5})
+    # Gain of only $1.20 CLV (< GATE_DOLLARS=2) → reject
+    with_small = pd.DataFrame({"clv": [-0.01] * 2, "contracts": [20] * 2, "pnl": [-5.0] * 2, "edge": [0.0] * 2})
+    assert judge(without, with_small, "split")["result"] == "rejected"
+    # CLV $ −2.00 → +0.20 (gain 2.20) and 4 changed trades → accept
+    with_big = pd.DataFrame({"clv": [0.01], "contracts": [20], "pnl": [5.0], "edge": [0.02]})
+    assert judge(without, with_big, "split")["result"] == "accepted"

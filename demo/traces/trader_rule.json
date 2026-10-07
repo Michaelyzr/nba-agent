@@ -1,0 +1,372 @@
+{
+ "agent": "trader",
+ "label": "Rule applied: a learned rule vetoes a trade",
+ "game_id": "401810645",
+ "matchup": "POR @ UTA",
+ "tip_time": "2026-02-13T02:00:00+00:00",
+ "as_of": "2026-02-13T01:30:00+00:00",
+ "plant": null,
+ "kill_switch_tripped": false,
+ "status": "brief_only",
+ "brief": "Deni Avdija (POR) out: Lower Back Injury Management (01:30 UTC). Robert Williams III (POR) out: Left Knee Injury Management (01:30 UTC). Shaedon Sharpe (POR) out: Strained Left Calf (01:30 UTC).\nUTA win: model 44%, market 31%-32%; already priced in, no action (rule r023).\nPOR win: model 58%, market 68%-69%; already priced in, no action (rule r023).",
+ "path": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "no_action",
+  "checks",
+  "deliver"
+ ],
+ "steps": [
+  {
+   "node": "trigger",
+   "log": [
+    "POR@UTA 01:30 UTC: 3 news items, 2 markets with fresh quotes"
+   ],
+   "news": [
+    {
+     "news_id": "espn-401810645-4683021",
+     "published_at": "2026-02-13T01:30:00+00:00",
+     "player": "Deni Avdija",
+     "player_id": 4683021,
+     "status": "out",
+     "text": "Deni Avdija (POR) out: Lower Back Injury Management"
+    },
+    {
+     "news_id": "espn-401810645-4066211",
+     "published_at": "2026-02-13T01:30:00+00:00",
+     "player": "Robert Williams III",
+     "player_id": 4066211,
+     "status": "out",
+     "text": "Robert Williams III (POR) out: Left Knee Injury Management"
+    },
+    {
+     "news_id": "espn-401810645-4914336",
+     "published_at": "2026-02-13T01:30:00+00:00",
+     "player": "Shaedon Sharpe",
+     "player_id": 4914336,
+     "status": "out",
+     "text": "Shaedon Sharpe (POR) out: Strained Left Calf"
+    }
+   ],
+   "markets_with_fresh_quotes": [
+    "KXNBAGAME-26FEB12PORUTA-UTA",
+    "KXNBAGAME-26FEB12PORUTA-POR"
+   ],
+   "status": "running"
+  },
+  {
+   "node": "investigate",
+   "log": [
+    "[offline rules] out=[4683021, 4066211, 4914336] rules=[]"
+   ],
+   "players_out": [
+    {
+     "player_id": 4683021,
+     "player": "Deni Avdija"
+    },
+    {
+     "player_id": 4066211,
+     "player": "Robert Williams III"
+    },
+    {
+     "player_id": 4914336,
+     "player": "Shaedon Sharpe"
+    }
+   ],
+   "citations": [
+    "espn-401810645-4683021",
+    "espn-401810645-4066211",
+    "espn-401810645-4914336"
+   ],
+   "rules_applied": [],
+   "note": "official statuses"
+  },
+  {
+   "node": "forecast",
+   "log": [
+    "UTA 0.46->0.62, POR 0.54->0.38"
+   ],
+   "m4": {
+    "UTA": {
+     "before_news": 0.4579,
+     "after_news": 0.6204,
+     "shift": 0.1625
+    },
+    "POR": {
+     "before_news": 0.5421,
+     "after_news": 0.3796,
+     "shift": -0.1625
+    }
+   }
+  },
+  {
+   "node": "analyse",
+   "log": [
+    "[offline rules] act on nothing; UTA gap +0.102; POR gap +0.087"
+   ],
+   "candidates": [
+    {
+     "team": "UTA",
+     "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+     "anchor_24h": 0.275,
+     "news_shift": 0.1625,
+     "estimate_p": 0.4375,
+     "bid": 0.31,
+     "ask": 0.32,
+     "side": "yes",
+     "price_paid": 0.32,
+     "fee": 0.0152,
+     "gap_after_fees": 0.1023,
+     "min_edge": 0.04,
+     "rules": [
+      "r023"
+     ],
+     "act": false,
+     "why_not": "rule r023",
+     "stake": 20.0
+    },
+    {
+     "team": "POR",
+     "ticker": "KXNBAGAME-26FEB12PORUTA-POR",
+     "anchor_24h": 0.74,
+     "news_shift": -0.1625,
+     "estimate_p": 0.5775,
+     "bid": 0.68,
+     "ask": 0.69,
+     "side": "no",
+     "price_paid": 0.32,
+     "fee": 0.0152,
+     "gap_after_fees": 0.0873,
+     "min_edge": 0.04,
+     "rules": [
+      "r023"
+     ],
+     "act": false,
+     "why_not": "rule r023",
+     "stake": 20.0
+    }
+   ]
+  },
+  {
+   "node": "no_action",
+   "log": [
+    "brief only"
+   ],
+   "orders": [],
+   "brief": "Deni Avdija (POR) out: Lower Back Injury Management (01:30 UTC). Robert Williams III (POR) out: Left Knee Injury Management (01:30 UTC). Shaedon Sharpe (POR) out: Strained Left Calf (01:30 UTC).\nUTA win: model 44%, market 31%-32%; already priced in, no action (rule r023).\nPOR win: model 58%, market 68%-69%; already priced in, no action (rule r023)."
+  },
+  {
+   "node": "checks",
+   "log": [
+    "passed"
+   ],
+   "checks": [
+    {
+     "check": "citation_after_decision",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "number_mismatch",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "missing_reason",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "banned_wording",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "rule_not_active",
+     "pass": true,
+     "detail": ""
+    }
+   ],
+   "tries": 0
+  },
+  {
+   "node": "deliver",
+   "log": [
+    "brief_only"
+   ],
+   "status": "brief_only"
+  }
+ ],
+ "proposed_orders": [],
+ "nodes": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "propose",
+  "no_action",
+  "checks",
+  "risk",
+  "confirm",
+  "blocked",
+  "deliver"
+ ],
+ "edges": [
+  [
+   "START",
+   "trigger"
+  ],
+  [
+   "trigger",
+   "investigate"
+  ],
+  [
+   "trigger",
+   "END"
+  ],
+  [
+   "investigate",
+   "forecast"
+  ],
+  [
+   "forecast",
+   "analyse"
+  ],
+  [
+   "analyse",
+   "propose"
+  ],
+  [
+   "analyse",
+   "no_action"
+  ],
+  [
+   "propose",
+   "checks"
+  ],
+  [
+   "no_action",
+   "checks"
+  ],
+  [
+   "checks",
+   "risk"
+  ],
+  [
+   "checks",
+   "deliver"
+  ],
+  [
+   "checks",
+   "investigate"
+  ],
+  [
+   "checks",
+   "blocked"
+  ],
+  [
+   "risk",
+   "confirm"
+  ],
+  [
+   "risk",
+   "blocked"
+  ],
+  [
+   "confirm",
+   "deliver"
+  ],
+  [
+   "blocked",
+   "deliver"
+  ],
+  [
+   "deliver",
+   "END"
+  ]
+ ],
+ "settlement": {
+  "revealed_at": "2026-02-13T02:00:00+00:00",
+  "fills": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "side": "yes",
+    "price": 0.32,
+    "contracts": 62,
+    "fee_dollars": 0.95,
+    "close_price": 0.325,
+    "clv": 0.005,
+    "outcome_yes": 0,
+    "pnl": -20.79
+   }
+  ],
+  "final": {
+   "home": "UTA",
+   "away": "POR",
+   "home_pts": 119,
+   "away_pts": 135,
+   "final_at": "2026-02-13T05:00:00+00:00"
+  }
+ },
+ "game_outcome": {
+  "game_id": "401810645",
+  "matchup": "POR @ UTA",
+  "home": "UTA",
+  "away": "POR",
+  "home_pts": 119,
+  "away_pts": 135,
+  "winner": "POR",
+  "margin": 16,
+  "overtime_periods": 0,
+  "final_at": "2026-02-13T05:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-POR",
+    "team": "POR",
+    "settled_yes": 1,
+    "settled_at": "2026-02-13T04:43:01.150877+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "team": "UTA",
+    "settled_yes": 0,
+    "settled_at": "2026-02-13T04:43:01.150877+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "team": "UTA",
+    "side": "yes",
+    "price": 0.32,
+    "contracts": 62,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -20.79,
+    "clv": 0.005
+   }
+  ],
+  "note": null,
+  "headline": "POR 135 @ UTA 119: POR won by 16. Counterfactual (not traded): UTA 'yes' at 32c settled $0, lost, P&L -$20.79."
+ },
+ "rule": {
+  "rule_id": "r023",
+  "when": {
+   "market_kind": "game",
+   "side_price_max": 0.35
+  },
+  "do": {
+   "action": "skip_market",
+   "params": {}
+  },
+  "rationale": "10 recent trades where the agent bought an underdog (price 35% or less) averaged -0.014 closing-line value (-9.81 dollars).",
+  "blame_category": "model_wrong",
+  "valid_from": "2026-02-11 06:30:00+00:00",
+  "status": "active"
+ }
+}

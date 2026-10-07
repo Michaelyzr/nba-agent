@@ -1,0 +1,311 @@
+{
+ "agent": "trader",
+ "label": "Pass: already priced in",
+ "game_id": "401810557",
+ "matchup": "MIL @ BOS",
+ "tip_time": "2026-02-01T20:30:00+00:00",
+ "as_of": "2026-02-01T19:30:00+00:00",
+ "plant": null,
+ "kill_switch_tripped": false,
+ "status": "brief_only",
+ "brief": "No injury news for this game yet.\nMIL win: model 20%, market 15%-16%; already priced in, no action (gap below threshold).\nBOS win: model 82%, market 84%-85%; already priced in, no action (gap below threshold).",
+ "path": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "no_action",
+  "checks",
+  "deliver"
+ ],
+ "steps": [
+  {
+   "node": "trigger",
+   "log": [
+    "MIL@BOS 19:30 UTC: 0 news items, 2 markets with fresh quotes"
+   ],
+   "news": [],
+   "markets_with_fresh_quotes": [
+    "KXNBAGAME-26FEB01MILBOS-MIL",
+    "KXNBAGAME-26FEB01MILBOS-BOS"
+   ],
+   "status": "running"
+  },
+  {
+   "node": "investigate",
+   "log": [
+    "[offline rules] out=[] rules=[]"
+   ],
+   "players_out": [],
+   "citations": [],
+   "rules_applied": [],
+   "note": "official statuses"
+  },
+  {
+   "node": "forecast",
+   "log": [
+    "MIL 0.19->0.19, BOS 0.81->0.81"
+   ],
+   "m4": {
+    "MIL": {
+     "before_news": 0.1854,
+     "after_news": 0.1854,
+     "shift": 0.0
+    },
+    "BOS": {
+     "before_news": 0.8146,
+     "after_news": 0.8146,
+     "shift": 0.0
+    }
+   }
+  },
+  {
+   "node": "analyse",
+   "log": [
+    "[offline rules] act on nothing; MIL gap +0.026; BOS gap +0.006"
+   ],
+   "candidates": [
+    {
+     "team": "MIL",
+     "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+     "anchor_24h": 0.195,
+     "news_shift": 0.0,
+     "estimate_p": 0.195,
+     "bid": 0.15,
+     "ask": 0.16,
+     "side": "yes",
+     "price_paid": 0.16,
+     "fee": 0.0094,
+     "gap_after_fees": 0.0256,
+     "min_edge": 0.04,
+     "rules": [],
+     "act": false,
+     "why_not": "gap below threshold",
+     "stake": 20.0
+    },
+    {
+     "team": "BOS",
+     "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+     "anchor_24h": 0.825,
+     "news_shift": 0.0,
+     "estimate_p": 0.825,
+     "bid": 0.84,
+     "ask": 0.85,
+     "side": "no",
+     "price_paid": 0.16,
+     "fee": 0.0094,
+     "gap_after_fees": 0.0056,
+     "min_edge": 0.04,
+     "rules": [],
+     "act": false,
+     "why_not": "gap below threshold",
+     "stake": 20.0
+    }
+   ]
+  },
+  {
+   "node": "no_action",
+   "log": [
+    "brief only"
+   ],
+   "orders": [],
+   "brief": "No injury news for this game yet.\nMIL win: model 20%, market 15%-16%; already priced in, no action (gap below threshold).\nBOS win: model 82%, market 84%-85%; already priced in, no action (gap below threshold)."
+  },
+  {
+   "node": "checks",
+   "log": [
+    "passed"
+   ],
+   "checks": [
+    {
+     "check": "citation_after_decision",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "number_mismatch",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "missing_reason",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "banned_wording",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "rule_not_active",
+     "pass": true,
+     "detail": ""
+    }
+   ],
+   "tries": 0
+  },
+  {
+   "node": "deliver",
+   "log": [
+    "brief_only"
+   ],
+   "status": "brief_only"
+  }
+ ],
+ "proposed_orders": [],
+ "nodes": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "propose",
+  "no_action",
+  "checks",
+  "risk",
+  "confirm",
+  "blocked",
+  "deliver"
+ ],
+ "edges": [
+  [
+   "START",
+   "trigger"
+  ],
+  [
+   "trigger",
+   "investigate"
+  ],
+  [
+   "trigger",
+   "END"
+  ],
+  [
+   "investigate",
+   "forecast"
+  ],
+  [
+   "forecast",
+   "analyse"
+  ],
+  [
+   "analyse",
+   "propose"
+  ],
+  [
+   "analyse",
+   "no_action"
+  ],
+  [
+   "propose",
+   "checks"
+  ],
+  [
+   "no_action",
+   "checks"
+  ],
+  [
+   "checks",
+   "risk"
+  ],
+  [
+   "checks",
+   "deliver"
+  ],
+  [
+   "checks",
+   "investigate"
+  ],
+  [
+   "checks",
+   "blocked"
+  ],
+  [
+   "risk",
+   "confirm"
+  ],
+  [
+   "risk",
+   "blocked"
+  ],
+  [
+   "confirm",
+   "deliver"
+  ],
+  [
+   "blocked",
+   "deliver"
+  ],
+  [
+   "deliver",
+   "END"
+  ]
+ ],
+ "settlement": {
+  "revealed_at": "2026-02-01T20:30:00+00:00",
+  "fills": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "side": "yes",
+    "price": 0.16,
+    "contracts": 125,
+    "fee_dollars": 1.18,
+    "close_price": 0.165,
+    "clv": 0.005,
+    "outcome_yes": 0,
+    "pnl": -21.18
+   }
+  ],
+  "final": {
+   "home": "BOS",
+   "away": "MIL",
+   "home_pts": 107,
+   "away_pts": 79,
+   "final_at": "2026-02-01T23:30:00+00:00"
+  }
+ },
+ "game_outcome": {
+  "game_id": "401810557",
+  "matchup": "MIL @ BOS",
+  "home": "BOS",
+  "away": "MIL",
+  "home_pts": 107,
+  "away_pts": 79,
+  "winner": "BOS",
+  "margin": 28,
+  "overtime_periods": 0,
+  "final_at": "2026-02-01T23:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+    "team": "BOS",
+    "settled_yes": 1,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "team": "MIL",
+    "settled_yes": 0,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "team": "MIL",
+    "side": "yes",
+    "price": 0.16,
+    "contracts": 125,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -21.18,
+    "clv": 0.005
+   }
+  ],
+  "note": null,
+  "headline": "MIL 79 @ BOS 107: BOS won by 28. Counterfactual (not traded): MIL 'yes' at 16c settled $0, lost, P&L -$21.18."
+ }
+}

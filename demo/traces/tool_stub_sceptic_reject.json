@@ -1,0 +1,392 @@
+{
+ "agent": "tool_agent",
+ "label": "Stub LLM tool agent: sceptic rejects (already priced in)",
+ "game_id": "401810634",
+ "matchup": "IND @ BKN",
+ "tip_time": "2026-02-12T00:30:00+00:00",
+ "as_of": "2026-02-12T00:00:00+00:00",
+ "llm": "stub LLM (deterministic heuristic_reply, not Gemini)",
+ "stub": true,
+ "sceptic_enabled": true,
+ "status": "sceptic_reject",
+ "reason": "The price already moved toward the trade since the anchor.",
+ "detail": null,
+ "turns": [
+  {
+   "turn": 1,
+   "reply": {
+    "tool_calls": [
+     {
+      "tool": "get_news",
+      "args": {}
+     },
+     {
+      "tool": "get_quote",
+      "args": {
+       "team": "BKN"
+      }
+     },
+     {
+      "tool": "get_anchor",
+      "args": {
+       "team": "BKN"
+      }
+     },
+     {
+      "tool": "get_quote",
+      "args": {
+       "team": "IND"
+      }
+     },
+     {
+      "tool": "get_anchor",
+      "args": {
+       "team": "IND"
+      }
+     }
+    ]
+   },
+   "tool_results": [
+    {
+     "id": "c1",
+     "tool": "get_news",
+     "args": {},
+     "output": {
+      "count": 5,
+      "items": [
+       {
+        "news_id": "espn-401810634-3149673",
+        "minutes_ago": 0.0,
+        "team": "IND",
+        "player_id": 3149673,
+        "player": "Pascal Siakam",
+        "status": "out",
+        "text": "Pascal Siakam (IND) out: Sore Left Hamstring"
+       },
+       {
+        "news_id": "espn-401810634-2530530",
+        "minutes_ago": 0.0,
+        "team": "IND",
+        "player_id": 2530530,
+        "player": "T.J. McConnell",
+        "status": "out",
+        "text": "T.J. McConnell (IND) out: Sore Right Hamstring"
+       },
+       {
+        "news_id": "espn-401810634-4395712",
+        "minutes_ago": 0.0,
+        "team": "IND",
+        "player_id": 4395712,
+        "player": "Andrew Nembhard",
+        "status": "out",
+        "text": "Andrew Nembhard (IND) out: Back"
+       },
+       {
+        "news_id": "espn-401810634-4396909",
+        "minutes_ago": 0.0,
+        "team": "IND",
+        "player_id": 4396909,
+        "player": "Aaron Nesmith",
+        "status": "out",
+        "text": "Aaron Nesmith (IND) out: Low Back Soreness"
+       },
+       {
+        "news_id": "espn-401810634-4712896",
+        "minutes_ago": 0.0,
+        "team": "BKN",
+        "player_id": 4712896,
+        "player": "Noah Clowney",
+        "status": "out",
+        "text": "Noah Clowney (BKN) out: Sprained Left Ankle"
+       }
+      ],
+      "note": "inactive lists; out and doubtful players are not expected to play"
+     }
+    },
+    {
+     "id": "c2",
+     "tool": "get_quote",
+     "args": {
+      "team": "BKN"
+     },
+     "output": {
+      "team": "BKN",
+      "bid": 0.67,
+      "ask": 0.68,
+      "mid": 0.675,
+      "spread": 0.01,
+      "age_minutes": 0.0,
+      "fresh": true,
+      "volume_last_hour": 9927.0
+     }
+    },
+    {
+     "id": "c3",
+     "tool": "get_anchor",
+     "args": {
+      "team": "BKN"
+     },
+     "output": {
+      "team": "BKN",
+      "anchor_mid": 0.625,
+      "anchor_hours_before_tip": 24.2667,
+      "mid_now": 0.675,
+      "move_since_anchor": 0.05
+     }
+    },
+    {
+     "id": "c4",
+     "tool": "get_quote",
+     "args": {
+      "team": "IND"
+     },
+     "output": {
+      "team": "IND",
+      "bid": 0.32,
+      "ask": 0.33,
+      "mid": 0.325,
+      "spread": 0.01,
+      "age_minutes": 0.0,
+      "fresh": true,
+      "volume_last_hour": 30213.0
+     }
+    },
+    {
+     "id": "c5",
+     "tool": "get_anchor",
+     "args": {
+      "team": "IND"
+     },
+     "output": {
+      "team": "IND",
+      "anchor_mid": 0.385,
+      "anchor_hours_before_tip": 24.3833,
+      "mid_now": 0.325,
+      "move_since_anchor": -0.06
+     }
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "reply": {
+    "tool_calls": [
+     {
+      "tool": "m4_win_prob",
+      "args": {
+       "out": [
+        3149673,
+        2530530,
+        4395712,
+        4396909,
+        4712896
+       ]
+      }
+     }
+    ]
+   },
+   "tool_results": [
+    {
+     "id": "c6",
+     "tool": "m4_win_prob",
+     "args": {
+      "out": [
+       3149673,
+       2530530,
+       4395712,
+       4396909,
+       4712896
+      ]
+     },
+     "output": {
+      "before": {
+       "BKN": 0.5706,
+       "IND": 0.4294
+      },
+      "after": {
+       "BKN": 0.7078,
+       "IND": 0.2922
+      },
+      "shift": {
+       "BKN": 0.1372,
+       "IND": -0.1372
+      },
+      "out_used": [
+       2530530,
+       3149673,
+       4395712,
+       4396909,
+       4712896
+      ],
+      "ignored": []
+     }
+    }
+   ]
+  },
+  {
+   "turn": 3,
+   "reply": {
+    "final": {
+     "decision": "buy",
+     "team": "BKN",
+     "estimate_p": 0.7622,
+     "rationale": "Anchor 0.625 plus the M4 shift 0.1372 gives 0.7622.",
+     "citations": [
+      {
+       "call_id": "c3",
+       "field": "anchor_mid",
+       "value": 0.625
+      },
+      {
+       "call_id": "c6",
+       "field": "shift.BKN",
+       "value": 0.1372
+      }
+     ]
+    }
+   },
+   "tool_results": []
+  }
+ ],
+ "proposal": {
+  "decision": "buy",
+  "team": "BKN",
+  "estimate_p": 0.7622,
+  "rationale": "Anchor 0.625 plus the M4 shift 0.1372 gives 0.7622.",
+  "citations": [
+   {
+    "call_id": "c3",
+    "field": "anchor_mid",
+    "value": 0.625
+   },
+   {
+    "call_id": "c6",
+    "field": "shift.BKN",
+    "value": 0.1372
+   }
+  ]
+ },
+ "validation": {
+  "ok": true,
+  "result": "proposal",
+  "detail": "",
+  "checks": [
+   {
+    "check": "schema and team label",
+    "pass": true
+   },
+   {
+    "check": "cites tool numbers",
+    "pass": true
+   },
+   {
+    "check": "cited numbers match tool outputs",
+    "pass": true
+   },
+   {
+    "check": "estimate grounded (within 3 pts of a tool probability)",
+    "pass": true
+   },
+   {
+    "check": "no banned wording",
+    "pass": true
+   },
+   {
+    "check": "news public at decision time",
+    "pass": true
+   }
+  ]
+ },
+ "gap_after_fees": 0.067,
+ "order": null,
+ "sceptic": {
+  "verdict": {
+   "verdict": "reject",
+   "reason": "The price already moved toward the trade since the anchor."
+  },
+  "reply": {
+   "verdict": "reject",
+   "reason": "The price already moved toward the trade since the anchor."
+  }
+ },
+ "usage": {
+  "calls": 4,
+  "cached": 4,
+  "errors": 0,
+  "tokens_in": 4078,
+  "tokens_out": 176,
+  "cost": 0.0,
+  "latency": 0.0298,
+  "by_role": {
+   "sceptic": 1,
+   "analyst": 3
+  }
+ },
+ "settlement": {
+  "revealed_at": "2026-02-12T00:30:00+00:00",
+  "fills": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+    "side": "no",
+    "price": 0.68,
+    "contracts": 29,
+    "fee_dollars": 0.45,
+    "close_price": 0.675,
+    "clv": -0.005,
+    "outcome_yes": 1,
+    "pnl": -20.17
+   }
+  ],
+  "final": {
+   "home": "BKN",
+   "away": "IND",
+   "home_pts": 110,
+   "away_pts": 115,
+   "final_at": "2026-02-12T03:30:00+00:00"
+  }
+ },
+ "game_outcome": {
+  "game_id": "401810634",
+  "matchup": "IND @ BKN",
+  "home": "BKN",
+  "away": "IND",
+  "home_pts": 110,
+  "away_pts": 115,
+  "winner": "IND",
+  "margin": 5,
+  "overtime_periods": 0,
+  "final_at": "2026-02-12T03:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB11INDBKN-BKN",
+    "team": "BKN",
+    "settled_yes": 0,
+    "settled_at": "2026-02-12T03:09:30.167327+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+    "team": "IND",
+    "settled_yes": 1,
+    "settled_at": "2026-02-12T03:09:30.167327+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+    "team": "IND",
+    "side": "no",
+    "price": 0.68,
+    "contracts": 29,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -20.17,
+    "clv": -0.005
+   }
+  ],
+  "note": null,
+  "headline": "IND 115 @ BKN 110: IND won by 5. Counterfactual (not traded): IND 'no' at 68c settled $0, lost, P&L -$20.17."
+ }
+}

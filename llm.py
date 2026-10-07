@@ -10,7 +10,7 @@ try:
 except ImportError:
     pass
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 
 def available():

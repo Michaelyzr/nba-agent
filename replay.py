@@ -10,6 +10,12 @@ for "no") plus fees, capped by recent volume. After each game settles the
 replay records profit and closing-line value; after each day it calls
 on_day_end, where the reviewer and gate plug in.
 
+Kill switch (kill_switch=100): once the day's realised P&L is below -$100, no
+further order fills that day. Realised means games with final_at <= now; the
+P&L stored on a fill is computed at fill time from the outcome, so it is only
+counted once that game is final. Trips are logged in kill_trips. Off by default
+so the published runs reproduce.
+
 Policies, risk functions and day-end hooks are plain callables so the agents
 subgroup can swap in forecast/api.py, policy/risk.py and the gate.
 """
@@ -57,10 +63,14 @@ def no_fee(contracts: int, price: float) -> float:
 class AsOf:
     """Read-only view of the frozen tables at one moment. Settlements are not reachable."""
 
-    def __init__(self, tables: dict, now: pd.Timestamp, price_index: dict):
+    def __init__(self, tables: dict, now: pd.Timestamp, price_index: dict, realised_day: float = 0.0,
+                 kill_switch_tripped: bool = False):
         self.now = now
         self._t = tables
         self._prices = price_index
+        # Account state known at `now`: P&L of today's fills on games already final.
+        self.realised_day = realised_day
+        self.kill_switch_tripped = kill_switch_tripped
 
     def games(self) -> pd.DataFrame:
         """Schedule for every game; scores only for games already final."""
@@ -95,7 +105,9 @@ class AsOf:
 
 
 def basic_risk(order: Order, ctx: dict, max_order=50.0, max_game=100.0, max_day=300.0):
-    """Placeholder until policy/risk.py: caps, cited reason, channel permissions."""
+    """Placeholder until policy/risk.py: caps, cited reason, channel permissions, kill switch."""
+    if ctx.get("kill_switch_tripped"):
+        return False, "kill_switch"
     if order.channel in ("team", "media"):
         return False, "channel_cannot_order"
     if not order.reason.strip():
@@ -119,17 +131,27 @@ def cited_after_decision(decision: dict, news: pd.DataFrame) -> list:
 
 class Replay:
     def __init__(self, tables: dict, policy, risk=basic_risk, fee=kalshi_fee, on_day_end=None,
-                 one_fill_per_market=True):
+                 one_fill_per_market=True, kill_switch: float | None = None, price_index: dict | None = None):
         self.t = tables
         self.policy = policy
         self.risk = risk
         self.fee = fee
         self.on_day_end = on_day_end
         self.one_fill_per_market = one_fill_per_market
-        prices = tables["prices"].sort_values("ts")
-        self.price_index = {k: v.reset_index(drop=True) for k, v in prices.groupby("market_ticker")}
+        self.kill_switch = kill_switch
+        if price_index is None:
+            prices = tables["prices"].sort_values("ts")
+            price_index = {k: v.reset_index(drop=True) for k, v in prices.groupby("market_ticker")}
+        self.price_index = price_index
         self.outcomes = dict(zip(tables["settlements"].market_ticker, tables["settlements"].outcome))
-        self.decisions, self.fills = [], []
+        self.final_at = dict(zip(tables["games"].game_id, tables["games"].final_at))
+        self.decisions, self.fills, self.kill_trips = [], [], []
+
+    def realised(self, day_fills: list, now) -> float:
+        """P&L of today's fills on games final by `now`; unsettled games count as zero."""
+        return float(sum(f["pnl"] for f in day_fills
+                         if self.final_at.get(f["game_id"]) is not None and self.final_at[f["game_id"]] <= now
+                         and not pd.isna(f["pnl"])))
 
     def decision_times(self, game) -> list:
         tip = game.tip_time
@@ -154,8 +176,9 @@ class Replay:
         contracts = min(math.floor(order.stake / price + 1e-9), cap)
         if contracts < 1:
             return None, "no_liquidity"
+        mid = float((q.bid + q.ask) / 2)
         return {"price": float(price), "contracts": contracts, "fee": self.fee(contracts, float(price)),
-                "quote_ts": q.ts}, "filled"
+                "quote_ts": q.ts, "entry_mid": mid if order.side == "yes" else 1 - mid}, "filled"
 
     def _settle(self, fill: dict, tip):
         view = AsOf(self.t, tip, self.price_index)
@@ -165,24 +188,32 @@ class Replay:
         outcome = self.outcomes.get(fill["market_ticker"])
         won = None if outcome is None else (outcome == 1) == (fill["side"] == "yes")
         pnl = np.nan if won is None else fill["contracts"] * (float(won) - fill["price"]) - fill["fee"]
-        return {**fill, "close_price": close, "clv": close - fill["price"], "outcome": outcome, "pnl": pnl}
+        # edge: the move of the mid toward the trade, i.e. CLV without the half-spread paid at entry.
+        return {**fill, "close_price": close, "clv": close - fill["price"], "outcome": outcome, "pnl": pnl,
+                "edge": close - fill["entry_mid"] if "entry_mid" in fill else np.nan}
 
     def run(self, start: str, end: str):
         games = self.t["games"]
         days = games[(games.date >= start) & (games.date <= end)].dropna(subset=["tip_time"])
         for day, today in days.groupby("date", sort=True):
-            spent_day, spent_game, filled_markets, day_fills = 0.0, {}, set(), []
+            spent_day, spent_game, filled_markets, day_fills, tripped = 0.0, {}, set(), [], False
             events = sorted((t, g.game_id) for g in today.itertuples() for t in self.decision_times(g))
             by_id = {g.game_id: g for g in today.itertuples()}
             for now, game_id in events:
                 game = by_id[game_id]
-                view = AsOf(self.t, now, self.price_index)
+                realised = self.realised(day_fills, now)
+                if self.kill_switch is not None and not tripped and realised < -self.kill_switch:
+                    tripped = True
+                    self.kill_trips.append({"date": day, "at": now, "realised_day": realised,
+                                            "fills_before": len(day_fills)})
+                view = AsOf(self.t, now, self.price_index, realised, tripped)
                 for order in self.policy(view, game, now) or []:
                     if self.one_fill_per_market and order.market_ticker in filled_markets:
                         continue
                     ctx = {"now": now, "tip_time": game.tip_time, "game_id": game_id,
-                           "spent_game": spent_game.get(game_id, 0.0), "spent_day": spent_day}
-                    ok, risk_result = self.risk(order, ctx)
+                           "spent_game": spent_game.get(game_id, 0.0), "spent_day": spent_day,
+                           "realised_day": realised, "kill_switch_tripped": tripped}
+                    ok, risk_result = (False, "kill_switch") if tripped else self.risk(order, ctx)
                     fill, fill_result = self._fill(order, now, game.tip_time) if ok else (None, "blocked")
                     decision = {**asdict(order), "decision_id": f"{game_id}-{len(self.decisions)}",
                                 "as_of": now, "game_id": game_id, "risk_result": risk_result,
