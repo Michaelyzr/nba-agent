@@ -97,26 +97,41 @@ def _fit(choice: dict, train: pd.DataFrame):
     return PolicyModel(choice["family"], choice["params"]).fit(train)
 
 
-def run_period(period: str):
+def _replay_arm(job: dict) -> str:
     from agents.graph import save_run
     from replay import Replay, load_tables
 
+    pol = LearnedPolicy(job["span"], job["model"], job["tau"])
+    t0 = time.time()
+    decisions, fills = Replay(load_tables(), pol.policy).run(job["start"], job["end"])
+    save_run(f"learned_policy/{job['period']}-{job['arm']}", decisions, fills)
+    return f"{job['period']} {job['arm']} ({pol.name}): {len(fills)} fills in {(time.time() - t0) / 60:.1f} min"
+
+
+def run_period(period: str, workers: int = 3):
     start, end = TEST if period == "test" else HOLDOUT
     marker = OUT / "holdout_done.json"
     if period == "holdout" and marker.exists():
         raise SystemExit(f"the holdout was already scored once ({marker}); use 'report' to re-score saved runs")
-    rows, tables = load_rows(), load_tables()
+    rows = load_rows()
     train = split(rows, *TRAIN)
     chosen = json.loads((OUT / "selected.json").read_text())
     span = split(rows, start, end)
-    models = {}
+    models, jobs = {}, []
     for arm in ("learned", "forced", "mlp"):
         models[arm] = _fit(chosen[arm], train)
-        tau = math.inf if chosen[arm] is None or chosen[arm]["family"] == "never" else float(chosen[arm]["tau"])
-        pol = LearnedPolicy(span, models[arm], tau)
-        decisions, fills = Replay(tables, pol.policy).run(start, end)
-        save_run(f"learned_policy/{period}-{arm}", decisions, fills)
-        print(f"{period} {arm} ({pol.name}): {len(fills)} fills")
+        folder = OUT / f"{period}-{arm}"
+        if models[arm] is None:                       # never trade: no replay needed, no fills = $0
+            if (folder / "fills.parquet").exists():
+                (folder / "fills.parquet").unlink()
+            print(f"{period} {arm}: never trade (validation chose abstention)")
+            continue
+        jobs.append({"period": period, "arm": arm, "span": span, "model": models[arm],
+                     "tau": float(chosen[arm]["tau"]), "start": start, "end": end})
+    from evaluation.learned_policy import _replay_arm as job_fn  # picklable under "python -m"
+    with ProcessPoolExecutor(max_workers=max(1, min(workers, len(jobs)))) as pool:
+        for line in pool.map(job_fn, jobs):
+            print(line, flush=True)
     with open(OUT / f"{period}_models.pkl", "wb") as f:
         pickle.dump(models, f)
     if period == "holdout":
@@ -324,7 +339,7 @@ def main():
     elif args.step == "select":
         run_select()
     elif args.step in ("test", "holdout"):
-        run_period(args.step)
+        run_period(args.step, args.workers)
         report()
     else:
         report()
