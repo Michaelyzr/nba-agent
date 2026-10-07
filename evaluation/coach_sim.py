@@ -186,6 +186,10 @@ def nudge_accuracy(d: pd.DataFrame, n_slates: int, reps=REPS, seed=SEED) -> pd.D
         row["ci_low"], row["ci_high"] = ((float(np.quantile(draws, 0.025)), float(np.quantile(draws, 0.975)))
                                          if len(draws) else (np.nan, np.nan))
         row["pass trades with CLV < 0"] = float((g[g.nudge == "pass"].clv < 0).mean()) if row["pass trades"] else np.nan
+        flagged = g[g.nudge.isin(["pass", "caution"])]
+        row["flagged share"] = len(flagged) / len(g) if len(g) else np.nan
+        row["flagged with CLV < 0"] = float((flagged.clv < 0).mean()) if len(flagged) else np.nan
+        row["all trades with CLV < 0"] = float((g.clv < 0).mean()) if len(g) else np.nan
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -281,7 +285,27 @@ def report(summary: pd.DataFrame, acc: pd.DataFrame, n_slates: int, n_decisions:
         "Δ worst slate": w.d_worst_slate_pnl.map(_money)})
     t3 = acc.assign(**{c: acc[c].map(_cents) for c in ("pass mean CLV", "caution mean CLV", "none mean CLV",
                                                       "pass - none", "ci_low", "ci_high")})
-    t3["pass trades with CLV < 0"] = acc["pass trades with CLV < 0"].map(lambda v: "-" if pd.isna(v) else f"{v:.0%}")
+    pct = lambda v: "-" if pd.isna(v) else f"{v:.0%}"  # noqa: E731
+    for c in ("pass trades with CLV < 0", "flagged share", "flagged with CLV < 0", "all trades with CLV < 0"):
+        t3[c] = acc[c].map(pct)
+    a = acc.iloc[0]
+    w1 = summary[summary.arm == "with c=1"].set_index("persona")
+    lsl, ovt = w1.loc["long-shot lover"], w1.loc["overtrader"]
+    reading = (
+        f"## Reading\n\n"
+        f"- **Fees fall for every persona (H1 supported)** and **CLV $ rises** at c = 1 for the long-shot lover "
+        f"({_ci(lsl.d_clv_dollars, lsl.d_clv_dollars_lo, lsl.d_clv_dollars_hi)}), the overtrader "
+        f"({_ci(ovt.d_clv_dollars, ovt.d_clv_dollars_lo, ovt.d_clv_dollars_hi)}) and also the cautious persona; "
+        f"the price chaser's CI includes 0 at c = 1 (H2 partly supported; H3 not supported).\n"
+        f"- **The gain comes from trading less, not trading better.** Mean CLV per contract does not improve "
+        f"(every Δ mean CLV CI includes or is below 0). Every persona's trades lose about the half-spread plus fee, "
+        f"so any rule that removes trades raises CLV $ toward never trading ($0).\n"
+        f"- **How often was the nudge right?** {pct(a['flagged with CLV < 0'])} of trades the Coach flagged "
+        f"(pass or caution) had negative CLV, but so did {pct(a['all trades with CLV < 0'])} of all trades: the Coach "
+        f"flags {pct(a['flagged share'])} of trades, so it is barely discriminating. Only "
+        f"{int(a['none trades'])} trades got no nudge, too few to test H4 (pass-nudged CLV below un-nudged CLV).\n"
+        f"- So the Coach is a well-behaved brake: it never encouraged a trade, its advice is correct on average "
+        f"because almost every retail trade here has negative CLV, and it cannot (and does not claim to) find edges.\n\n")
     return (f"# Coach agent: simulated users with and without the Coach\n\n"
             f"**This is a simulation of compliance, not a user study.** Rule-based personas stand in for biased "
             f"users and follow the Coach's nudge with probability c. Design, personas and hypotheses were "
@@ -294,7 +318,9 @@ def report(summary: pd.DataFrame, acc: pd.DataFrame, n_slates: int, n_decisions:
             f"## Totals per persona and arm\n\n{markdown(t1)}\n"
             f"## Paired differences: with Coach − without Coach\n\n{markdown(t2)}\n"
             f"## Was the nudge right? (without-Coach trades, labelled by the nudge the Coach would have given)\n\n"
-            f"Mean CLV per contract; 'pass − none' with a slate-bootstrap CI.\n\n{markdown(t3)}\n"
+            f"Mean CLV per contract; 'pass − none' with a slate-bootstrap CI. 'Flagged' = pass or caution.\n\n"
+            f"{markdown(t3)}\n"
+            f"{reading}"
             f"## Limitations\n\n"
             f"- Personas are fixed rules; they do not learn across slates, and real users may ignore or "
             f"over-follow the Coach. Compliance is assumed, not measured.\n"
@@ -302,7 +328,10 @@ def report(summary: pd.DataFrame, acc: pd.DataFrame, n_slates: int, n_decisions:
             f"is by construction; outcomes are therefore judged by market CLV, not by the Coach's own estimate.\n"
             f"- P&L over 200 decisions is mostly luck; CLV and fees are the more reliable outcomes.\n"
             f"- Slates may share games; the day-clustered CI accounts for shared nights.\n"
-            f"- The optional LLM wording is not evaluated: it never changes the nudge.\n")
+            f"- The optional LLM wording is not evaluated: it never changes the nudge.\n\n"
+            f"## Deviations from the pre-registration\n\n"
+            f"- None in design, personas, slates or metrics. Added after the run (descriptive only): the share of "
+            f"flagged trades with negative CLV against the base rate, because H4 could not be tested.\n")
 
 
 def main(argv=None):
