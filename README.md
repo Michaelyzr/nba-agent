@@ -1135,7 +1135,19 @@ trace is saved to `runs/orchestrator/<date>.json`.
 
 #### Learned trade/pass policy
 
-_Results pending: `python -m evaluation.learned_policy {extract,select,test,holdout}`._
+**Evaluation not run (time); pre-registered design only.** The design is in
+`docs/preregistration_learned_policy.md`. The code is `forecast/policy.py` and
+`evaluation/learned_policy.py`, with unit tests in `tests/test_policy.py`.
+The policy learns the value of every option from as-of features, with closing-line
+value after fees as the label. It trains on Nov–Jan, selects hyper-parameters on 15–31
+Jan, tests on 1 Feb–12 Apr and runs the play-off holdout once.
+
+Only the selection step ran. Validation chose **never trade**, because no ridge,
+gradient-boosting or MLP configuration had positive validation net CLV
+(`learned_policy_selection.csv`). The test window and the holdout were **not scored**,
+so there is no comparison with CIs against the agents or never trade.
+To finish: `python -m evaluation.learned_policy extract`, then `test`, then `holdout`.
+Extraction is resumable by month.
 
 ### Testing
 
