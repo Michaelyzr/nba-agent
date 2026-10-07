@@ -1,0 +1,417 @@
+{
+ "agent": "trader",
+ "label": "Kill switch tripped: risk blocks the order",
+ "game_id": "401810565",
+ "matchup": "CLE @ POR",
+ "tip_time": "2026-02-02T02:00:00+00:00",
+ "as_of": "2026-02-02T01:30:00+00:00",
+ "plant": null,
+ "kill_switch_tripped": true,
+ "status": "blocked",
+ "brief": "Kris Murray (POR) out: Back Muscle Strain (01:30 UTC). Deni Avdija (POR) out: Lower Back Sprain (01:30 UTC). Matisse Thybulle (POR) out: Right Knee Tendinitis (01:30 UTC). Scoot Henderson (POR) out: Left Hamstring Tear (01:30 UTC).\nPOR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance. Possible value; confirm?\nCLE win: model 66%, market 55%-56%; no action (one position per game).\nOrder blocked (daily loss limit reached, no new orders today); reason logged.",
+ "path": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "propose",
+  "checks",
+  "risk",
+  "blocked",
+  "deliver"
+ ],
+ "steps": [
+  {
+   "node": "trigger",
+   "log": [
+    "CLE@POR 01:30 UTC: 4 news items, 2 markets with fresh quotes"
+   ],
+   "news": [
+    {
+     "news_id": "espn-401810565-4594326",
+     "published_at": "2026-02-02T01:30:00+00:00",
+     "player": "Kris Murray",
+     "player_id": 4594326,
+     "status": "out",
+     "text": "Kris Murray (POR) out: Back Muscle Strain"
+    },
+    {
+     "news_id": "espn-401810565-4683021",
+     "published_at": "2026-02-02T01:30:00+00:00",
+     "player": "Deni Avdija",
+     "player_id": 4683021,
+     "status": "out",
+     "text": "Deni Avdija (POR) out: Lower Back Sprain"
+    },
+    {
+     "news_id": "espn-401810565-3907498",
+     "published_at": "2026-02-02T01:30:00+00:00",
+     "player": "Matisse Thybulle",
+     "player_id": 3907498,
+     "status": "out",
+     "text": "Matisse Thybulle (POR) out: Right Knee Tendinitis"
+    },
+    {
+     "news_id": "espn-401810565-4683678",
+     "published_at": "2026-02-02T01:30:00+00:00",
+     "player": "Scoot Henderson",
+     "player_id": 4683678,
+     "status": "out",
+     "text": "Scoot Henderson (POR) out: Left Hamstring Tear"
+    }
+   ],
+   "markets_with_fresh_quotes": [
+    "KXNBAGAME-26FEB01CLEPOR-POR",
+    "KXNBAGAME-26FEB01CLEPOR-CLE"
+   ],
+   "status": "running"
+  },
+  {
+   "node": "investigate",
+   "log": [
+    "[offline rules] out=[4594326, 4683021, 3907498, 4683678] rules=[]"
+   ],
+   "players_out": [
+    {
+     "player_id": 4594326,
+     "player": "Kris Murray"
+    },
+    {
+     "player_id": 4683021,
+     "player": "Deni Avdija"
+    },
+    {
+     "player_id": 3907498,
+     "player": "Matisse Thybulle"
+    },
+    {
+     "player_id": 4683678,
+     "player": "Scoot Henderson"
+    }
+   ],
+   "citations": [
+    "espn-401810565-4594326",
+    "espn-401810565-4683021",
+    "espn-401810565-3907498",
+    "espn-401810565-4683678"
+   ],
+   "rules_applied": [],
+   "note": "official statuses"
+  },
+  {
+   "node": "forecast",
+   "log": [
+    "POR 0.42->0.33, CLE 0.58->0.67"
+   ],
+   "m4": {
+    "POR": {
+     "before_news": 0.4164,
+     "after_news": 0.3294,
+     "shift": -0.087
+    },
+    "CLE": {
+     "before_news": 0.5836,
+     "after_news": 0.6706,
+     "shift": 0.087
+    }
+   }
+  },
+  {
+   "node": "analyse",
+   "log": [
+    "[offline rules] act on ['POR']; POR gap +0.095; CLE gap +0.085"
+   ],
+   "candidates": [
+    {
+     "team": "POR",
+     "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+     "anchor_24h": 0.425,
+     "news_shift": -0.087,
+     "estimate_p": 0.338,
+     "bid": 0.45,
+     "ask": 0.46,
+     "side": "no",
+     "price_paid": 0.55,
+     "fee": 0.0173,
+     "gap_after_fees": 0.0947,
+     "min_edge": 0.04,
+     "rules": [],
+     "act": true,
+     "why_not": "",
+     "stake": 20.0
+    },
+    {
+     "team": "CLE",
+     "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+     "anchor_24h": 0.575,
+     "news_shift": 0.087,
+     "estimate_p": 0.662,
+     "bid": 0.55,
+     "ask": 0.56,
+     "side": "yes",
+     "price_paid": 0.56,
+     "fee": 0.0172,
+     "gap_after_fees": 0.0848,
+     "min_edge": 0.04,
+     "rules": [],
+     "act": false,
+     "why_not": "one position per game",
+     "stake": 20.0
+    }
+   ]
+  },
+  {
+   "node": "propose",
+   "log": [
+    "1 orders"
+   ],
+   "orders": [
+    {
+     "market_ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+     "side": "no",
+     "p_model": 0.338,
+     "stake": 20.0,
+     "reason": "POR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance",
+     "citations": [
+      "espn-401810565-4594326",
+      "espn-401810565-4683021",
+      "espn-401810565-3907498",
+      "espn-401810565-4683678"
+     ],
+     "channel": "platform",
+     "rules_applied": [],
+     "llm": "offline"
+    }
+   ],
+   "brief": "Kris Murray (POR) out: Back Muscle Strain (01:30 UTC). Deni Avdija (POR) out: Lower Back Sprain (01:30 UTC). Matisse Thybulle (POR) out: Right Knee Tendinitis (01:30 UTC). Scoot Henderson (POR) out: Left Hamstring Tear (01:30 UTC).\nPOR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance. Possible value; confirm?\nCLE win: model 66%, market 55%-56%; no action (one position per game)."
+  },
+  {
+   "node": "checks",
+   "log": [
+    "passed"
+   ],
+   "checks": [
+    {
+     "check": "citation_after_decision",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "number_mismatch",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "missing_reason",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "banned_wording",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "rule_not_active",
+     "pass": true,
+     "detail": ""
+    }
+   ],
+   "tries": 0
+  },
+  {
+   "node": "risk",
+   "log": [
+    "POR kill_switch"
+   ],
+   "kept_orders": []
+  },
+  {
+   "node": "blocked",
+   "log": [
+    "daily loss limit reached, no new orders today"
+   ],
+   "status": "blocked",
+   "brief": "Kris Murray (POR) out: Back Muscle Strain (01:30 UTC). Deni Avdija (POR) out: Lower Back Sprain (01:30 UTC). Matisse Thybulle (POR) out: Right Knee Tendinitis (01:30 UTC). Scoot Henderson (POR) out: Left Hamstring Tear (01:30 UTC).\nPOR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance. Possible value; confirm?\nCLE win: model 66%, market 55%-56%; no action (one position per game).\nOrder blocked (daily loss limit reached, no new orders today); reason logged."
+  },
+  {
+   "node": "deliver",
+   "log": [
+    "blocked"
+   ],
+   "status": "blocked"
+  }
+ ],
+ "proposed_orders": [
+  {
+   "market_ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+   "side": "no",
+   "p_model": 0.338,
+   "stake": 20.0,
+   "reason": "POR win: estimate 34% (market 42% a day earlier, news shift -8.7 points), market 45%-46%; buying no at 55% for a 66% chance",
+   "citations": [
+    "espn-401810565-4594326",
+    "espn-401810565-4683021",
+    "espn-401810565-3907498",
+    "espn-401810565-4683678"
+   ],
+   "channel": "platform",
+   "rules_applied": [],
+   "llm": "offline"
+  }
+ ],
+ "nodes": [
+  "trigger",
+  "investigate",
+  "forecast",
+  "analyse",
+  "propose",
+  "no_action",
+  "checks",
+  "risk",
+  "confirm",
+  "blocked",
+  "deliver"
+ ],
+ "edges": [
+  [
+   "START",
+   "trigger"
+  ],
+  [
+   "trigger",
+   "investigate"
+  ],
+  [
+   "trigger",
+   "END"
+  ],
+  [
+   "investigate",
+   "forecast"
+  ],
+  [
+   "forecast",
+   "analyse"
+  ],
+  [
+   "analyse",
+   "propose"
+  ],
+  [
+   "analyse",
+   "no_action"
+  ],
+  [
+   "propose",
+   "checks"
+  ],
+  [
+   "no_action",
+   "checks"
+  ],
+  [
+   "checks",
+   "risk"
+  ],
+  [
+   "checks",
+   "deliver"
+  ],
+  [
+   "checks",
+   "investigate"
+  ],
+  [
+   "checks",
+   "blocked"
+  ],
+  [
+   "risk",
+   "confirm"
+  ],
+  [
+   "risk",
+   "blocked"
+  ],
+  [
+   "confirm",
+   "deliver"
+  ],
+  [
+   "blocked",
+   "deliver"
+  ],
+  [
+   "deliver",
+   "END"
+  ]
+ ],
+ "settlement": {
+  "revealed_at": "2026-02-02T02:00:00+00:00",
+  "fills": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "side": "no",
+    "price": 0.55,
+    "contracts": 36,
+    "fee_dollars": 0.63,
+    "close_price": 0.625,
+    "clv": 0.075,
+    "outcome_yes": 0,
+    "pnl": 15.57
+   }
+  ],
+  "final": {
+   "home": "POR",
+   "away": "CLE",
+   "home_pts": 111,
+   "away_pts": 130,
+   "final_at": "2026-02-02T05:00:00+00:00"
+  }
+ },
+ "game_outcome": {
+  "game_id": "401810565",
+  "matchup": "CLE @ POR",
+  "home": "POR",
+  "away": "CLE",
+  "home_pts": 111,
+  "away_pts": 130,
+  "winner": "CLE",
+  "margin": 19,
+  "overtime_periods": 0,
+  "final_at": "2026-02-02T05:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+    "team": "CLE",
+    "settled_yes": 1,
+    "settled_at": "2026-02-02T04:27:06.985559+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "team": "POR",
+    "settled_yes": 0,
+    "settled_at": "2026-02-02T04:27:06.985559+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "team": "POR",
+    "side": "no",
+    "price": 0.55,
+    "contracts": 36,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 15.57,
+    "clv": 0.075
+   }
+  ],
+  "note": null,
+  "headline": "CLE 130 @ POR 111: CLE won by 19. Counterfactual (not traded): POR 'no' at 55c settled $1, won, P&L +$15.57."
+ }
+}

@@ -1,0 +1,10 @@
+window,setup,label,days,trades,mean_clv,mean_clv_lo,mean_clv_hi,clv_dollars,clv_dollars_lo,clv_dollars_hi,pnl,pnl_lo,pnl_hi,roi,roi_lo,roi_hi,kind,a,b,metric,estimate,ci_low,ci_high,p_a_gt_b,decision_points,considered,llm_decisions,tool_calls_per_decision,turns_per_decision,buy_proposals,invalid,invalid_rate,invalid_by_reason,llm_errors,gap_fail,agent_pass,sceptic_calls,sceptic_rejects,sceptic_reject_rate,sceptic_invalid,vetoed_mean_clv,kept_mean_clv,orders,fills,share_trades_not_in_anchor_games,tools_used,llm_calls,cache_hits,tokens_in,tokens_out,cost_usd,latency_per_call_s,latency_per_llm_decision_s
+dev-check,plain,"B. Plain LLM, one call (no tools)",2.0,0.0,,,,0.0,0.0,0.0,0.0,0.0,0.0,,,,setup,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,tool_sceptic,D. Tool agent + priced-in sceptic,2.0,0.0,,,,0.0,0.0,0.0,0.0,0.0,0.0,,,,setup,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,never,Never trade,2.0,0.0,,,,0.0,0.0,0.0,0.0,0.0,0.0,,,,setup,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,,,,,,,,,,,,,,,,,paired,plain,never,clv_dollars,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,,,,,,,,,,,,,,,,,paired,plain,never,pnl,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,,,,,,,,,,,,,,,,,paired,tool_sceptic,never,clv_dollars,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,,,,,,,,,,,,,,,,,paired,tool_sceptic,never,pnl,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+dev-check,plain,,,,,,,,,,,,,,,,diagnostics,,,,,,,,20.0,20.0,20.0,0.0,1.0,16.0,0.0,0.0,{},4.0,16.0,0.0,0.0,0.0,,0.0,,,0.0,0.0,,{},20.0,0.0,8507.0,852.0,0.0046821,0.9763174533843995,0.9763174533843995
+dev-check,tool_sceptic,,,,,,,,,,,,,,,,diagnostics,,,,,,,,20.0,20.0,20.0,2.4,1.45,0.0,0.0,0.0,{},13.0,0.0,7.0,0.0,0.0,,0.0,,,0.0,0.0,,"{'get_quote': 16, 'get_anchor': 13, 'get_news': 8, 'm6_predicted_move': 7, 'm4_win_prob': 3, 'edge': 1}",29.0,0.0,15768.0,2131.0,0.0100579,0.931388180831383,1.3505128622055054

@@ -1,0 +1,11 @@
+period,setup,comparison,pnl_diff,lo,hi,p_one_sided
+Test 1 Feb–12 Apr,"Raw model, no agent",Platt M4 − never trade,-2346.2699999999995,-3461.0129999999995,-1263.2145000000019,1.0
+Test 1 Feb–12 Apr,"Raw model, no agent",Platt M4 − same setup with raw M4,-259.00999999999976,-664.144750000001,251.12350000000006,0.8785607196401799
+Test 1 Feb–12 Apr,"Raw model, no agent",isotonic M4 − never trade,-1829.7599999999998,-2771.8289999999993,-868.5947500000004,1.0
+Test 1 Feb–12 Apr,"Raw model, no agent",isotonic M4 − same setup with raw M4,257.5,-145.15549999999962,696.4370000000006,0.12193903048475763
+Test 1 Feb–12 Apr,"Anchor agent, no learning",Platt M4 − never trade,-250.57999999999998,-720.2634999999993,254.3915000000001,0.8385807096451774
+Test 1 Feb–12 Apr,"Anchor agent, no learning",Platt M4 − same setup with raw M4,-3.309999999999974,-118.23999999999984,84.2700000000001,0.6101949025487257
+Walk-forward 1 Nov–12 Apr,"Raw model, no agent",Platt M4 − never trade,-2732.2199999999993,-4378.720749999998,-1010.3174999999997,0.999000499750125
+Walk-forward 1 Nov–12 Apr,"Raw model, no agent",Platt M4 − same setup with raw M4,-256.87000000000035,-746.4214999999989,330.83874999999813,0.809095452273863
+Walk-forward 1 Nov–12 Apr,"Anchor agent, no learning",Platt M4 − never trade,-400.7099999999999,-1314.804499999999,559.2434999999956,0.8045977011494253
+Walk-forward 1 Nov–12 Apr,"Anchor agent, no learning",Platt M4 − same setup with raw M4,6.420000000000073,-98.82200000000005,101.67775000000026,0.45327336331834084

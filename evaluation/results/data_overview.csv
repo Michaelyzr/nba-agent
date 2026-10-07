@@ -1,0 +1,13 @@
+table,rows,first,last,note
+prices,3938368,2025-10-20,2026-06-14,"2632 markets, 1316 games"
+markets,2632,,,"1316 games, kind=game"
+settlements,2634,2025-10-22,2026-06-14,outcome 0/1
+games,3962,2023-10-24,2026-06-13,3 seasons
+player_games,85422,,,811 players
+players,818,,,
+news,3371,2023-10-25,2026-05-07,1772 games; source=espn_inactive
+priced games: regular,1229,,,split
+priced games: play-in + play-offs,87,,,split
+test games 1 Feb - 12 Apr,501,,,split
+holdout games after 12 Apr (priced),87,,,split
+news 2025-26 last date,2026-05-07,,,split
