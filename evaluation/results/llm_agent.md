@@ -58,6 +58,10 @@ Gemini plain run as a secondary row (B′):
     mkdir -p runs/llm_agent/test-deepseek && cp -R runs/llm_agent/test/anchor runs/llm_agent/test-deepseek/ && cp -R runs/llm_agent/test/plain runs/llm_agent/test-deepseek/plain_gemini
     python -m evaluation.llm_agent_eval --window test --name test-deepseek --backend deepseek --subsample 0.4 --setups plain,tool,tool_sceptic --workers 4 --report test-deepseek
 
+**Gemini fallback (7 Oct): pending (API quota).** DeepSeek still returned 402 on 7 Oct. A tool agent with the sceptic (D) run on
+`gemini-3.5-flash` over a nested ~53-point subsample (fraction 0.07, seed 7606, nested in the 40% sample) was stopped
+after 13 minutes before it scored any decisions: the free tier was too slow for the deadline. No result.
+
 ![Cumulative P&L and CLV by setup](llm_agent.png)
 
 Costs are estimates from token counts at the list prices in `agents/llm_client.PRICES` (Gemini 3.5 Flash-Lite assumed at the 2.5 Flash-Lite price, $0.10 / $0.40 per million input / output tokens; the runs themselves used the free tier) and include calls served from the cache, i.e. the cost of a fresh run. Latency is per API call as measured when the response was first fetched.
