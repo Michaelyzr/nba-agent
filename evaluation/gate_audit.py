@@ -167,13 +167,16 @@ def score_setup(name: str, period: str, start: str, end: str, tables: dict) -> d
     metrics = trading_metrics(fills, decisions, games)
     table = day_table(fills, games, days)
     boot = bootstrap(table)
-    worst = float(fills.merge(games[["game_id", "date"]], on="game_id").groupby("date").pnl.sum().min()) if len(fills) else 0.0
+    by_day = fills.merge(games[["game_id", "date"]], on="game_id").groupby("date").pnl.sum() if len(fills) else pd.Series(dtype=float)
+    worst = float(by_day.min()) if len(by_day) else 0.0
     trips_file = folder / "kill_switch.json"
     enforced = len(json.loads(trips_file.read_text())) if trips_file.exists() else 0
     nb = notebook_metrics(json.loads((folder / "notebook.json").read_text())) if (folder / "notebook.json").exists() else {}
     row = {"period": period, "setup": LABELS[name], "setup_id": name, "trades": int(table.trades.sum()),
            "worst_day": worst, "kill_switch_trips_enforced": enforced,
            "kill_switch_trips_measured": metrics.get("kill_switch_trips", 0), **nb}
+    row["rules_accepted"] = row.get("rules_proposed", 0) - row.get("rules_rejected", 0)
+    row["days_below_100"] = int((by_day < -100).sum())
     for m in boot.index:
         row[m] = boot.loc[m, "estimate"]
         row[f"{m}_lo"] = boot.loc[m, "ci_low"]
@@ -186,13 +189,16 @@ def report():
     tables = load_tables()
     rows, tabs = [], {}
     for period, (start, end) in (("wf", WF), ("test", TEST)):
+        if not any((RUNS / "gate_audit" / f"{period}-{n}" / "fills.parquet").exists() for n in SETUPS):
+            continue
         for name in list(SETUPS) + ["never"]:
             if name == "never":
                 days = market_days(tables, start, end)
                 table = day_table(pd.DataFrame(), tables["games"], days)
                 boot = bootstrap(table)
                 row = {"period": period, "setup": LABELS["never"], "setup_id": "never", "trades": 0,
-                       "worst_day": 0.0, "kill_switch_trips_enforced": 0, "kill_switch_trips_measured": 0}
+                       "worst_day": 0.0, "kill_switch_trips_enforced": 0, "kill_switch_trips_measured": 0,
+                       "rules_proposed": 0, "rules_accepted": 0, "days_below_100": 0}
                 for m in boot.index:
                     row[m] = boot.loc[m, "estimate"]
                     row[f"{m}_lo"] = boot.loc[m, "ci_low"]
@@ -237,16 +243,17 @@ def report():
              f"(not clean; learning arms start empty unless `--warm-dev`). Walk-forward "
              f"{WF[0]}–{WF[1]} is optional via `--period wf`.", "",
              "## Summaries", "",
-             "| Period | Setup | Trades | Rules active | Mean CLV [95% CI] | CLV $ [95% CI] | P&L [95% CI] | "
-             "Worst day | Kill trips (enforced / measured) |",
-             "|" + " --- |" * 9]
+             "| Period | Setup | Rules proposed / accepted | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | "
+             "P&L after fees [95% CI] | Worst day | Days < −$100 | Kill-switch trips (enforced) |",
+             "|" + " --- |" * 10]
     for r in frame.itertuples():
         lines.append(
-            f"| {r.period} | {r.setup} | {r.trades} | {getattr(r, 'rules_active', 0) or 0} | "
+            f"| {r.period} | {r.setup} | {int(getattr(r, 'rules_proposed', 0) or 0)} / "
+            f"{int(getattr(r, 'rules_accepted', 0) or 0)} | {r.trades} | "
             f"{fmt(r.mean_clv, r.mean_clv_lo, r.mean_clv_hi, 'clv')} | "
             f"{fmt(r.clv_dollars, r.clv_dollars_lo, r.clv_dollars_hi, '$')} | "
-            f"{fmt(r.pnl, r.pnl_lo, r.pnl_hi, '$')} | {r.worst_day:+.0f} | "
-            f"{r.kill_switch_trips_enforced} / {r.kill_switch_trips_measured} |")
+            f"{fmt(r.pnl, r.pnl_lo, r.pnl_hi, '$')} | {r.worst_day:+.0f} | {int(r.days_below_100)} | "
+            f"{r.kill_switch_trips_enforced} |")
     lines += ["", "## Paired comparisons", "",
               "| Period | Comparison | Metric | Difference [95% CI] | p (one-sided) |",
               "| --- | --- | --- | --- | --- |"]
@@ -255,11 +262,27 @@ def report():
         p = "–" if pd.isna(r.p_one_sided) else f"{r.p_one_sided:.3f}"
         lines.append(f"| {r.period} | {r.comparison} | {r.metric} | "
                      f"{fmt(r.estimate, r.ci_low, r.ci_high, kind)} | {p} |")
-    lines += ["", "## Hypotheses", "",
-              "- **H1** (held-out gate days → fewer rules pass): compare `rules_active` for split_full vs "
-              "legacy_full.",
-              "- **H3** (kill switch cuts worst-day loss, mean CLV unchanged): compare split_kill vs "
-              "split_full on worst_day and mean_clv.", ""]
+    lines += ["", "## Hypotheses", ""]
+    t = frame[frame.period == "test"].set_index("setup_id")
+    if {"split_full", "legacy_full"} <= set(t.index):
+        a, b = t.loc["split_full"], t.loc["legacy_full"]
+        lines.append(f"- **H1** (held-out gate days → fewer rules pass): split accepted "
+                     f"{int(a.rules_accepted)}/{int(a.rules_proposed)} proposed rules, legacy "
+                     f"{int(b.rules_accepted)}/{int(b.rules_proposed)}. See `gate_placebo.md` for the pass-rate CI.")
+    if {"split_kill", "split_full"} <= set(t.index):
+        a, b = t.loc["split_kill"], t.loc["split_full"]
+        d = sig[(sig.period == "test") & (sig.comparison == f"{LABELS['split_kill']} − {LABELS['split_full']}")
+                & (sig.metric == "mean_clv")]
+        ci = (f"mean-CLV difference {d.estimate.iloc[0]:+.4f} [{d.ci_low.iloc[0]:+.4f}, {d.ci_high.iloc[0]:+.4f}]"
+              if len(d) and not pd.isna(d.estimate.iloc[0]) else "mean-CLV difference not defined")
+        lines.append(f"- **H3** (kill switch cuts the worst day, mean CLV unchanged): worst day "
+                     f"{a.worst_day:+.0f} with the switch vs {b.worst_day:+.0f} without; days below −$100 "
+                     f"{int(a.days_below_100)} vs {int(b.days_below_100)}; {int(a.kill_switch_trips_enforced)} "
+                     f"enforced trips; {ci}.")
+    lines += ["", "The kill switch counts only games already final when an order is placed, so a day can still "
+              "end below −$100 when games tip together and lose after the last order. The replay confirms "
+              "platform paper orders automatically (a replay simplification); retail orders need an explicit "
+              "confirmation callable.", ""]
     (RESULTS / "gate_audit.md").write_text("\n".join(lines) + "\n")
     print((RESULTS / "gate_audit.md").read_text())
 
