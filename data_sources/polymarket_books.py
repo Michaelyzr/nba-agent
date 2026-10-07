@@ -7,6 +7,7 @@ Explicit CLI rule verification requires reviewing the exact market description.
 """
 import argparse
 import json
+import math
 import re
 import time
 from pathlib import Path
@@ -86,6 +87,43 @@ def standard_rules(market):
             and bool(re.search(r"resolve (?:to )?50[-/]50", text)))
 
 
+def bet_contract_spec(market, game):
+    """Recognize observed standard full-game NBA half-point contracts only."""
+    try:
+        kind = {'moneyline': 'moneyline', 'spreads': 'spread', 'totals': 'total'}.get(market.get('sportsMarketType'))
+        labels, tokens = array(market['outcomes']), array(market['clobTokenIds'])
+        if kind is None or len(labels) != 2 or len(tokens) != 2 or len(set(tokens)) != 2 or not market.get('conditionId'):
+            return None
+        if abs((utc(market['gameStartTime'])-utc(game.tip_time)).total_seconds()) > 60:
+            return None
+        if kind == 'moneyline':
+            if not standard_rules(market): return None
+            _, mapping = match_market({'markets': [market]}, game)
+            return {'kind': kind, 'line': None, 'tokens': mapping}
+        description = str(market.get('description', '')).lower()
+        if ('postponed' not in description or 'completed' not in description or 'cancel' not in description
+                or not re.search(r'resolve (?:to )?50[-/]50', description)
+                or re.search(r'half|quarter|regulation only', description)):
+            return None
+        line = float(market['line'])
+        if not (abs(line) < 400 and abs(line % 1-.5) < 1e-8): return None
+        if kind == 'total':
+            if {str(x).lower() for x in labels} != {'over', 'under'} or line <= 0: return None
+            if not re.search(r'combine to score '+str(math.floor(line)+1)+r' or more points in this game', description): return None
+            mapping = {str(label).lower(): str(token) for label,token in zip(labels,tokens)}
+        else:
+            codes = [team_code(x) for x in labels]
+            if set(codes) != {game.home_team, game.away_team}: return None
+            match = re.fullmatch(r'Spread: (.+?) \(([+-]?\d+(?:\.\d+)?)\)', str(market.get('question', '')))
+            if not match or team_code(match[1]) != codes[0] or float(match[2]) != line or line >= 0: return None
+            if not re.search(r'win the game by '+str(math.floor(-line)+1)+r' or more points', description): return None
+            if codes[0] != game.home_team: line = -line
+            mapping = {'home': str(tokens[codes.index(game.home_team)]), 'away': str(tokens[codes.index(game.away_team)])}
+        return {'kind': kind, 'line': line, 'tokens': mapping}
+    except (ValueError, TypeError, KeyError):
+        return None
+
+
 def normalize_book(book, token, condition, observed_at):
     if str(book.get("asset_id")) != str(token) or book.get("market") != condition:
         raise ValueError("CLOB token or condition does not match Gamma")
@@ -123,7 +161,7 @@ class PolymarketReader:
         event = self._get(GAMMA+"/events/slug/"+slug)
         return self._fetch_event(event, game, slug, rules_verified)
 
-    def fetch_game(self, game):
+    def _discover_game_event(self, game):
         """Automatically find the exact scheduled matchup; never reuse another game."""
         key = (str(game.game_id), str(game.tip_time), game.home_team, game.away_team)
         cached = self.discovery.get(key)
@@ -155,7 +193,60 @@ class PolymarketReader:
                     raise ValueError("No unique Polymarket winner market matches this game yet")
                 event = matched[0]
             self.discovery[key] = (time.monotonic(), event)
-        return self._fetch_event(event, game, event.get("slug", ""), None)
+        return event
+
+    def fetch_game(self, game):
+        event = self._discover_game_event(game)
+        return self._fetch_event(event, game, event.get('slug', ''), None)
+
+    def fetch_bet_contracts(self, game):
+        """Full-game winner/spread/total references. /books POST is read-only batch data."""
+        from concurrent.futures import ThreadPoolExecutor
+        event = self._discover_game_event(game)
+        specs = []
+        for market in event.get('markets', []):
+            spec = bet_contract_spec(market, game)
+            if spec:
+                specs.append((market, spec))
+        # One most-liquid exact full-game line per type; no fuzzy quarter/half matches.
+        selected = []
+        for kind in ('moneyline', 'spread', 'total'):
+            candidates = [(m,s) for m,s in specs if s['kind'] == kind and m.get('active') is True and m.get('closed') is False and m.get('acceptingOrders') is True]
+            if candidates:
+                selected.append(max(candidates, key=lambda item: float(item[0].get('liquidityNum') or item[0].get('liquidity') or 0)))
+        tokens = [token for _, spec in selected for token in spec['tokens'].values()]
+        if not tokens:
+            return {'contracts': [], 'errors': ['No open matching full-game markets.']}
+        response = self.session.post(CLOB+'/books', json=[{'token_id': t} for t in tokens], timeout=10,
+                                     headers={'User-Agent': 'nba-agent/0.1 read-only'})
+        response.raise_for_status()
+        raw_books = response.json()
+        if not isinstance(raw_books, list):
+            raise ValueError('Invalid batch book response')
+        books = {str(b.get('asset_id')): b for b in raw_books}
+        def read_contract(item):
+            market, spec = item
+            condition = market['conditionId']
+            try:
+                info = self._get(CLOB+'/clob-markets/'+condition)
+            except requests.RequestException:
+                info = {}
+            fees = fee_parameters(market, info)
+            quotes = {}
+            for side, token in spec['tokens'].items():
+                try:
+                    b = normalize_book(books[token], token, condition, utc(self.clock()))
+                    quotes[side] = {**b, **fees, 'game_id': str(game.game_id), 'side': side,
+                        'kind': spec['kind'], 'condition_id': condition, 'token_id': token, 'synthetic': False,
+                        'rules_verified': True, 'includes_overtime': True, 'active': True,
+                        'url': 'https://polymarket.com/event/'+event['slug'], 'rules': market.get('description', '')}
+                except (ValueError, TypeError, KeyError):
+                    continue
+            return {'id': condition, 'kind': spec['kind'], 'line': spec['line'], 'quotes': quotes}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            contracts = list(pool.map(read_contract, selected))
+        return {'contracts': contracts, 'errors': [], 'captured_at': utc(self.clock()).isoformat()}
+
 
     def _fetch_event(self, event, game, slug, rules_verified):
         market, tokens = match_market(event, game)

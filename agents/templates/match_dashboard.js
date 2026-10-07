@@ -1,62 +1,186 @@
-(()=>{'use strict';const D=JSON.parse(document.getElementById('loop-data').textContent),$=id=>document.getElementById(id);let mode='demo',index=Math.min(21,D.steps.length-1),playTimer=null,liveTimer=null,busy=false,requestVersion=0,current=null;
-const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;},money=v=>v==null?'—':'$'+v.toFixed(2),pct=v=>v==null?'—':(v*100).toFixed(1)+'%',odds=v=>v==null?'—':v.toFixed(2),signed=v=>v==null?'—':(v>=0?'+':'')+v.toFixed(1);
-function position(){if(!$('position-enabled').checked)return null;const side=$('position-side').value,n=Number($('position-shares').value),cost=Number($('position-cost').value);if(!['home','away'].includes(side)||!Number.isFinite(n)||!Number.isFinite(cost)||n<=0||cost<0||cost>n)throw Error('Check your shares and original cost.');return{side,shares:n,cost};}
-function hedgeOptions(s,q,pos,budget){const own=q[pos.side],other=q[pos.side==='home'?'away':'home'],options=[{kind:'hold',side:pos.side,shares:0,added_cost:0,if_held_wins:pos.shares-pos.cost,if_other_wins:-pos.cost,floor:-pos.cost}];if(s.quote_state==='final'||!own||!other||own.condition_id!==other.condition_id||own.token_id===other.token_id)return options;const usable=side=>!window.newsLoopAnalysis.quoteProblems(q[side],s,side).length;const opposite=pos.side==='home'?'away':'home';if(usable(opposite)){const f=window.newsLoopAnalysis.walk(other,budget,.002,pos.shares);if(f.shares&&f.cost>=(other.minimum_notional||0)&&f.shares>=(other.minimum_shares||0)){const a=pos.shares-pos.cost-f.cost,b=f.shares-pos.cost-f.cost;options.push({kind:'hedge',side:opposite,shares:f.shares,added_cost:f.cost,if_held_wins:a,if_other_wins:b,floor:Math.min(a,b),balanced:Math.abs(f.shares-pos.shares)<1e-6});}}if(usable(pos.side)){let remaining=pos.shares,proceeds=0,filled=0;const levels=(own.bids||[]).map(r=>({price:Number(r.price),size:Number(r.size)}));if(!levels.some(r=>!Number.isFinite(r.price)||r.price<=0||r.price>=1||!Number.isFinite(r.size)||r.size<0)){levels.sort((a,b)=>b.price-a.price);for(const r of levels){const n=Math.min(remaining,r.size),fee=own.fee_rate*Math.pow(r.price*(1-r.price),own.fee_exponent||1);proceeds+=n*(r.price-fee-.002);filled+=n;remaining-=n;if(remaining<=1e-8)break;}if(filled&&filled>=(own.minimum_shares||0)&&proceeds>=(own.minimum_notional||0)){const a=remaining+proceeds-pos.cost,b=proceeds-pos.cost;options.push({kind:'reduce',side:pos.side,shares:filled,added_cost:0,proceeds,if_held_wins:a,if_other_wins:b,floor:Math.min(a,b)});}}}return options;}
-window.matchMath={hedgeOptions};
-function demoView(){const item=D.steps[index],s=item.snapshot,budget=Number($('budget').value),q=s.market_quotes||{},names={home:D.home_team,away:D.away_team};if(!Number.isFinite(budget)||budget<1||budget>100000)throw Error('Choose a budget between $1 and $100,000.');const r=window.newsLoopAnalysis.compare(s,q,budget,2,.002),view=JSON.parse(JSON.stringify(item.view));view.teams=r.routes.map(row=>{const fill=row.fill||{},quote=q[row.side]||{};return{side:row.side,team:names[row.side],probability:row.p,model_odds:row.p?1/row.p:null,market_odds:fill.shares?1/fill.effective_price:null,edge_pp:row.edge,quote_available:!row.problems.length};});const pos=position();let action={title:'Wait for a better entry',kind:'wait',reason:'No clear advantage after costs. Keep your budget available.',amount:0,options:[]};if(s.quote_state==='final'){action={title:'Game finished',kind:'finished',reason:'The final score is confirmed. No new game-winner action.',amount:0,options:[]};}else if(pos){const options=hedgeOptions(s,q,pos,budget),best=[...options].sort((a,b)=>b.floor-a.floor||a.added_cost-b.added_cost)[0];action={...best,amount:best.added_cost,options,title:best.kind==='hedge'?'Hedge with '+names[best.side]:best.kind==='reduce'?'Reduce '+names[best.side]:'Hold your position',reason:best.kind==='hedge'?'Buy '+best.shares.toFixed(1)+' opposite shares. Lower game-result P/L improves to '+money(best.floor)+'.':best.kind==='reduce'?'Selling '+best.shares.toFixed(1)+' shares improves the lower game-result P/L to '+money(best.floor)+'.':'No available hedge improves the lower of the two game-result payouts.'};}else if(r.candidate!=='wait'){const best=r.routes.find(row=>row.side===r.candidate);action={title:'Buy '+names[r.candidate],kind:'buy',reason:'The estimated win chance is '+best.edge.toFixed(1)+' percentage points above the all-in entry cost.',amount:best.fill.cost,ev:best.ev,shares:best.fill.shares,options:[]};}view.action=action;return view;}
-function svg(tag,attrs){const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs||{}))el.setAttribute(k,String(v));return el;}function textSVG(root,value,x,y,attrs={}){const el=svg('text',{x,y,'font-size':11,fill:'#657981',...attrs});el.textContent=value;root.appendChild(el);}
-function draw(view){const host=$('probchart');host.replaceChildren();const rows=view.curve||[],W=Math.max(310,host.clientWidth),H=245,L=39,R=10,T=30,B=28,end=Math.max(48,...rows.map(r=>r.minute)),x=t=>L+t/end*(W-L-R),y=p=>H-B-p*(H-T-B);const root=svg('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Model and market win chance through four quarters'});for(let q=0;q<4;q++){root.appendChild(svg('rect',{x:x(q*12),y:T,width:x((q+1)*12)-x(q*12),height:H-T-B,fill:q%2?'#f0f5f6':'#f8fafb'}));textSVG(root,'Q'+(q+1),x(q*12+6),18,{'text-anchor':'middle'});}for(const p of [0,.5,1]){root.appendChild(svg('line',{x1:L,x2:W-R,y1:y(p),y2:y(p),stroke:'#dbe5e7'}));textSVG(root,Math.round(p*100)+'%',L-6,y(p)+4,{'text-anchor':'end'});}for(const min of [0,12,24,36,48])textSVG(root,String(min),x(min),H-6,{'text-anchor':'middle'});for(const [key,color,dash]of [['probability','#067565',''],['market','#8056b1','4 4']]){const valid=rows.filter(r=>r[key]!=null);root.appendChild(svg('path',{d:valid.map((r,i)=>(i?'L':'M')+x(r.minute)+','+y(r[key])).join(' '),fill:'none',stroke:color,'stroke-width':2.2,'stroke-dasharray':dash}));if(valid.length){const last=valid[valid.length-1];root.appendChild(svg('circle',{cx:x(last.minute),cy:y(last[key]),r:3.5,fill:color}));}}
-for(const event of view.events||[]){const at=rows.find(r=>r.clock===event.clock);if(!at)continue;const marker=svg('circle',{cx:x(at.minute),cy:y(at.probability),r:4,fill:'#fff',stroke:'#067565','stroke-width':1.5}),title=svg('title');title.textContent=event.clock+' · '+event.headline+' · '+signed(event.impact_pp)+' percentage points';marker.appendChild(title);root.appendChild(marker);}host.appendChild(root);}
-function render(view){current=view;$('awayname').textContent=$('awaylogo').textContent=view.away_team;$('homename').textContent=$('homelogo').textContent=view.home_team;const s=view.score;$('score').textContent=s?s.away_score+' – '+s.home_score:'— – —';$('clock').textContent=view.quote_state==='final'?'Final':['stale_score','score_unavailable','invalid_final_tie'].includes(view.quote_state)?'Last known · '+view.clock:view.clock;$('modebadge').textContent=mode==='demo'?'SIMULATION':'LIVE';$('updatestatus').textContent=mode==='demo'?'Simulated match & Polymarket prices':'Auto-refresh · every 5 seconds';$('matchdate').textContent=mode==='demo'?'Replay, not a live NBA game':'Updated '+new Date(view.as_of).toLocaleTimeString();$('quarters').replaceChildren();if(mode==='demo')for(let q=1;q<=4;q++){const end=D.steps.slice(0,index+1).map(r=>r.snapshot.score).filter(s=>s&&s.period===q&&s.clock_seconds===0).pop();$('quarters').appendChild(node('span','Q'+q+(end?'  '+end.away_score+'–'+end.home_score:'')));}
-$('oddsrows').replaceChildren();for(const row of view.teams){const tr=node('tr');for(const value of [row.team,pct(row.probability),odds(row.model_odds),odds(row.market_odds),row.edge_pp==null?'—':signed(row.edge_pp)+' pp'])tr.appendChild(node('td',value));if(row.price_status==='Last seen')tr.children[3].appendChild(node('small','Last seen'));tr.children[4].className=row.edge_pp>=0?'positive':'negative';$('oddsrows').appendChild(tr);}
-const a=view.action;$('actionlabel').textContent=mode==='demo'?'Simulated next step':a.options&&a.options.length?'Position protection':'Suggested next step';$('actiontitle').textContent=a.title;$('actionreason').textContent=a.reason;$('amountlabel').textContent=a.kind==='reduce'?'Estimated sale proceeds':'Suggested spend';$('actionamount').textContent=money(a.kind==='reduce'?a.proceeds:a.amount);$('resultlabel').textContent=a.floor!=null?'Lower game-result P/L':'Estimated net return';$('actionresult').textContent=a.floor!=null?money(a.floor):a.ev!=null?money(a.ev):'—';$('why').textContent=a.options&&a.options.length?'Compare the lower payout across two completed-game results, after costs. Canceled-game payouts follow market rules. A buying edge alone is not a hedge.':'We compare buying either team with waiting, after estimated fees, depth and a 2 percentage-point model stress buffer. Estimates are being validated.';$('hedgeoutcomes').replaceChildren();if(a.options&&a.options.length){const table=node('table');table.className='outcomes';const head=node('tr');['Option','Held team wins','Other team wins'].forEach(v=>head.appendChild(node('th',v)));table.appendChild(head);for(const o of a.options){const tr=node('tr');[o.kind==='hedge'?'Buy opposite':o.kind==='reduce'?'Reduce':'Hold',money(o.if_held_wins),money(o.if_other_wins)].forEach(v=>tr.appendChild(node('td',v)));table.appendChild(tr);}$('hedgeoutcomes').appendChild(table);}
-$('events').replaceChildren();if(!view.events.length)$('events').appendChild(node('p','No new player alerts at this point. Score and market monitoring continue.'));for(const event of [...view.events].reverse().slice(0,4)){const el=node('div');el.className='feed-item';const stamp=node('div',event.clock+(event.synthetic?' · Simulated update':''));stamp.className='feed-time';el.appendChild(stamp);if(!event.synthetic&&event.source){const source=node(event.url&&event.url.startsWith('https://')?'a':'span',event.source.replace(/^x:/,'@').replace(/_/g,' '));source.className='subtle';if(source.tagName==='A'||source.tag==='a'){source.href=event.url;source.target='_blank';source.rel='noopener noreferrer';}el.appendChild(source);}el.appendChild(node('p',event.headline));const impact=node('div',!event.selected?'Unconfirmed update · no additional change':view.home_team+' win chance '+signed(event.impact_pp)+' pp');impact.className='feed-impact '+(event.impact_pp>=0?'positive':'negative');el.appendChild(impact);$('events').appendChild(el);}
-$('connection').textContent=mode==='demo'?'Prices update with every replay step.':view.connection_note||(view.market_connected?'Polymarket connected · '+(view.market_updated_at?'checked '+new Date(view.market_updated_at).toLocaleTimeString():'monitoring'):'Looking for a matching Polymarket market…');$('marketlink').href=view.market_url||'https://polymarket.com/sports/nba';$('footnote').textContent=mode==='demo'?'Demo uses simulated scores, news and prices. Model estimates are still being validated.':'Live game updates and public market prices. Prices can change; model estimates are being validated.';if(mode==='live'&&view.news_health==='degraded')$('footnote').textContent+=' Player-news coverage is incomplete.';if(mode==='live'&&view.freshness==='source_timestamp_unverified')$('footnote').textContent+=' Score source time is unverified.';$('replaycontrols').hidden=mode!=='demo';$('seek').max=D.steps.length-1;$('seek').value=index;$('progress').textContent=(index+1)+' / '+D.steps.length;$('next').disabled=index===D.steps.length-1;$('play').textContent=playTimer?'Pause':'Play';draw(view);}
-function stop(){if(playTimer)clearInterval(playTimer);playTimer=null;}function showDemo(){try{render(demoView());}catch(e){$('actiontitle').textContent='Check your inputs';$('actionreason').textContent=e.message;$('actionamount').textContent='$0.00';$('actionresult').textContent='—';}}
-const base=location.protocol==='file:'?'http://127.0.0.1:8766':'';async function api(path){const response=await fetch(base+path,{cache:'no-store'});const data=await response.json();if(!response.ok)throw Error(data.error||'Live data is unavailable.');return data;}
-function clearLive(message) {
-  current=null;
-  $('modebadge').textContent='CONNECTING'; $('updatestatus').textContent='Auto-refresh · every 5 seconds';
-  $('score').textContent='— – —'; $('clock').textContent='Waiting for current data'; $('matchdate').textContent='';
-  $('homename').textContent=$('homelogo').textContent='Home'; $('awayname').textContent=$('awaylogo').textContent='Away';
-  for(const id of ['oddsrows','events','quarters','probchart','hedgeoutcomes']) $(id).replaceChildren();
-  $('actionlabel').textContent='Suggested next step'; $('actiontitle').textContent='Waiting for live data';
-  $('actionreason').textContent='Game and market data must be current before comparing an action.';
-  $('actionamount').textContent='$0.00'; $('actionresult').textContent='—'; $('connection').textContent=message;
-  $('why').textContent='Monitoring the live connection. No current action is available.';
-  $('footnote').textContent='Live data connection pending. The demo remains available.';
-  $('marketlink').href='https://polymarket.com/sports/nba';
-}
-let catalogAt=0;
-async function refreshLive() {
-  if(mode!=='live'||busy)return;
-  busy=true; const version=requestVersion;
-  try {
-    if(!$('games').value || Date.now()-catalogAt>=30000) {
-      const data=await api('/api/games');
-      if(mode!=='live'||version!==requestVersion)return;
-      const previous=$('games').value;
-      $('games').replaceChildren();
-      for(const game of data.games) {const option=node('option',game.label);option.value=game.game_id;$('games').appendChild(option);}
-      $('games').value=data.games.some(g=>g.game_id===previous)?previous:data.games.length?data.games[0].game_id:'';
-      catalogAt=Date.now();
-      if(!$('games').value){clearLive('No NBA games are listed right now. Monitoring the schedule automatically.');return;}
-      if(previous && previous!==$('games').value) $('position-enabled').checked=false;
+(() => {
+  'use strict';
+  const D=JSON.parse(document.getElementById('loop-data').textContent),$=id=>document.getElementById(id),M=window.bettingMath;
+  let source='demo',phase='pregame',category='all',style='single',stepIndex=0,selected=[],slate=[],current=null;
+  let replayTimer=null,refreshTimer=null,busy=false,version=0,catalog=[],catalogAt=0,poolInitialized=false,slipMessage=null;
+  const included=new Set(),money=x=>x==null?'—':'$'+x.toFixed(2),pct=x=>x==null?'—':(100*x).toFixed(1)+'%',odds=x=>x==null?'—':x.toFixed(2);
+  const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
+  function stake(){const s=Number($('stake').value);if(!Number.isFinite(s)||s<1||s>100000)throw Error('Enter a stake between $1 and $100,000.');return s;}
+  const timeline=[...D.pregame_steps,...D.steps],frames=()=>timeline,index=()=>stepIndex;
+  function stopReplay(){if(replayTimer)clearInterval(replayTimer);replayTimer=null;}
+  function activeRows(){return current?(current.bets||[]).filter(r=>category==='all'||r.kind===category):[];}
+  function allRows(){return slate.filter(g=>included.has(g.game_id)).flatMap(g=>g.bets||[]).filter(r=>category==='all'||r.kind===category);}
+  function chosenRows(){return selected.map(id=>slate.flatMap(g=>g.bets||[]).find(r=>r.id===id)).filter(Boolean);}
+  function setMessage(title,reason){slipMessage={title,reason};$('actiontitle').textContent=title;$('actionreason').textContent=reason;}
+  function fillGames(games,desired){
+    $('games').replaceChildren();
+    for(const game of games){const o=node('option',game.away_team+' @ '+game.home_team);o.value=game.game_id;$('games').appendChild(o);}
+    $('games').value=games.some(g=>g.game_id===desired)?desired:games.length?games[0].game_id:'';
+  }
+  function draw(){
+    const host=$('probchart');host.replaceChildren();if(!current)return;
+    if(phase==='pregame')return;
+    const rows=current.curve.map(r=>({minute:r.minute,p:r.probability}));
+    const W=Math.max(310,host.clientWidth),H=210,L=36,T=25,B=25,end=Math.max(48,...rows.map(r=>r.minute));
+    const x=m=>L+m/end*(W-L-12),y=p=>H-B-p*(H-T-B),svg=(tag,attrs)=>{const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs||{}))e.setAttribute(k,String(v));return e;};
+    const root=svg('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Our model win chance over time'});
+    const text=(value,xx,yy)=>{const e=svg('text',{x:xx,y:yy,'font-size':11,fill:'#70817c'});e.textContent=value;root.appendChild(e);};
+    for(const p of [0,.5,1]){root.appendChild(svg('line',{x1:L,x2:W-12,y1:y(p),y2:y(p),stroke:'#dbe5df'}));text(Math.round(p*100)+'%',0,y(p)+4);}
+    if(phase==='inplay')for(let q=0;q<4;q++)text('Q'+(q+1),x(q*12+6)-8,15);
+    const valid=rows.filter(r=>r.p!=null);
+    root.appendChild(svg('path',{d:valid.map((r,i)=>(i?'L':'M')+x(r.minute)+','+y(r.p)).join(' '),fill:'none',stroke:'#08775c','stroke-width':2.4}));
+    for(const event of current.events||[]){const at=current.curve.find(r=>r.clock===event.clock);if(!at||phase==='pregame')continue;const dot=svg('circle',{cx:x(at.minute),cy:y(at.probability),r:4,fill:'#fff',stroke:'#08775c'}),title=svg('title');title.textContent=event.clock+' · '+event.headline;dot.appendChild(title);root.appendChild(dot);}
+    host.appendChild(root);
+  }
+  function renderMarkets(){
+    $('betoptions').replaceChildren();
+    const types=['moneyline','spread','total'];
+    for(const kind of types){const rows=activeRows().filter(r=>r.kind===kind);if(!rows.length)continue;
+      const group=node('div');group.className='bet-group';group.appendChild(node('h3',{moneyline:'Winner · full game',spread:'Point spread · full game',total:'Total points · full game'}[kind]));
+      const choices=node('div');choices.className='choices';
+      for(const row of rows){const r=M.evaluate(row,stake()),button=node('button');button.className='choice'+(selected.includes(row.id)?' selected':'');button.setAttribute('aria-pressed',selected.includes(row.id));
+        button.disabled=row.probability==null;
+        const head=node('div');head.className='choice-head';head.appendChild(node('span',row.label));head.appendChild(node('span',pct(row.probability)+' chance'));button.appendChild(head);
+        const prices=node('div');prices.className='comparison-values';
+        const own=node('div');own.appendChild(node('small','Our model odds'));own.appendChild(node('strong',odds(r.model_odds)));prices.appendChild(own);
+        const ref=node('div');ref.appendChild(node('small','Polymarket odds'));ref.appendChild(node('strong',odds(row.reference_quote?.ask?1/row.reference_quote.ask:null)));prices.appendChild(ref);button.appendChild(prices);
+        const detail=node('div');detail.className='helper';detail.textContent=!r.reference_current&&row.reference_quote?'Last seen · waiting for a fresh price':row.reference_status;button.appendChild(detail);
+        button.onclick=()=>{selectPick(row);};choices.appendChild(button);
+      }
+      group.appendChild(choices);$('betoptions').appendChild(group);
     }
-    const pos=position(), params=new URLSearchParams({game_id:$('games').value,budget:$('budget').value});
-    if(pos){params.set('position_side',pos.side);params.set('position_shares',pos.shares);params.set('position_cost',pos.cost);}
-    const view=await api('/api/match?'+params);
-    if(mode==='live'&&version===requestVersion)render(view);
-  } catch(e) {
-    if(mode==='live'&&version===requestVersion)clearLive(e.message+' Retrying automatically.');
-  } finally {busy=false;}
-}
-async function chooseLive() {
-  stop(); mode='live'; requestVersion++; catalogAt=0; $('position-enabled').checked=false;
-  $('demo').setAttribute('aria-selected',false);$('live').setAttribute('aria-selected',true);
-  $('games').hidden=false;$('replaycontrols').hidden=true;
-  clearLive('Finding today’s NBA games and matching Polymarket prices…');
-  if(!liveTimer)liveTimer=setInterval(refreshLive,5000);
-  await refreshLive();
-}
-$('demo').onclick=()=>{requestVersion++;mode='demo';$('position-enabled').checked=false;if(liveTimer)clearInterval(liveTimer);liveTimer=null;$('games').hidden=true;$('demo').setAttribute('aria-selected',true);$('live').setAttribute('aria-selected',false);showDemo();};$('live').onclick=chooseLive;$('games').onchange=()=>{requestVersion++;$('position-enabled').checked=false;clearLive('Connecting to the selected match…');refreshLive();};$('seek').oninput=e=>{stop();index=+e.target.value;showDemo();};$('next').onclick=()=>{stop();index=Math.min(D.steps.length-1,index+1);showDemo();};$('restart').onclick=()=>{stop();index=0;showDemo();};$('play').onclick=()=>{if(playTimer){stop();showDemo();return;}if(index===D.steps.length-1)index=0;playTimer=setInterval(()=>{index=Math.min(index+1,D.steps.length-1);if(index===D.steps.length-1)stop();showDemo();},1100);showDemo();};for(const id of ['budget','position-enabled','position-side','position-shares','position-cost'])$(id).onchange=()=>{if(mode==='demo')showDemo();else{requestVersion++;clearLive('Updating your comparison…');refreshLive();}};window.addEventListener('resize',()=>{if(current)draw(current);});showDemo();})();
+    if(!activeRows().length)$('betoptions').appendChild(node('p','Waiting for model and market options.'));
+  }
+  function selectPick(row){
+    if(row.probability==null){setMessage('Waiting for our model','Current game data is required before evaluating this pick.');return;}
+    if(style==='single')selected=[row.id];else{
+      if(selected.includes(row.id))selected=selected.filter(id=>id!==row.id);
+      else{selected=selected.filter(id=>!slate.flatMap(g=>g.bets).some(r=>r.id===id&&r.game_id===row.game_id));if(selected.length>=4){setMessage('Four picks maximum','Remove one pick before adding another game.');return;}selected.push(row.id);}
+    }
+    slipMessage=null;renderMarkets();renderSlip();
+  }
+  function renderPool(){
+    $('gamepool').replaceChildren();
+    for(const game of slate){const button=node('button',game.away_team+' @ '+game.home_team);button.setAttribute('aria-selected',included.has(game.game_id));button.onclick=()=>{if(included.has(game.game_id))included.delete(game.game_id);else included.add(game.game_id);renderPool();};$('gamepool').appendChild(button);}
+  }
+  function renderSlip(){
+    $('picks').replaceChildren();const rows=chosenRows();
+    for(const row of rows){const p=node('div');p.className='pick';const label=node('div',row.label);label.appendChild(node('small',row.match+' · '+row.market));p.appendChild(label);const remove=node('button','×');remove.className='remove';remove.setAttribute('aria-label','Remove '+row.label);remove.onclick=()=>{selected=selected.filter(id=>id!==row.id);slipMessage=null;renderMarkets();renderSlip();};p.appendChild(remove);$('picks').appendChild(p);}
+    if(!rows.length)$('picks').appendChild(Object.assign(node('p','Tap a betting option, or find the best match for your goal.'),{className:'empty'}));
+    let result=null;
+    if(style==='single'&&rows.length)result=M.evaluate(rows[0],stake());
+    if(style==='parlay'&&rows.length>=2)result=M.parlay(rows,stake());
+    $('slipchance').textContent=pct(result?.probability);$('slipodds').textContent=odds(style==='parlay'?result?.combined_odds:result?.reference_odds);
+    $('slipreturn').textContent=money(result?.estimated_return);$('slipev').textContent=money(result?.expected_profit);
+    $('oddslabel').textContent=style==='parlay'?'Combined reference odds':'Polymarket reference odds';$('returnlabel').textContent=style==='parlay'?'Illustrative return if all win':'Return if it wins';
+    $('recommend').textContent=style==='parlay'?'Find my best parlay':'Find my best single bet';$('parlaycontrols').hidden=style!=='parlay';
+    $('recommend').disabled=!current||current.quote_state==='final';
+    if(!slipMessage){
+      let title='Choose your bet',reason='Tap an option yourself, or let our model compare the available choices.';
+      if(style==='parlay'&&rows.length<2&&rows.length){title='Add another game';reason='A parlay needs at least two picks from different games.';}
+      else if(result){title=result.stress_profit>0?'Model value pick':'Wait or choose another bet';reason=result.stress_profit>0?'Our estimated chance beats the reference price after costs and a model stress buffer.':'The current reference price does not show positive value after costs and a model stress buffer.';if(result.reference_current===false){title='Waiting for a current reference';reason='Our probability is available; the reference is older or missing. No current betting recommendation.';}}
+      else if(rows.length){title='Waiting for a current reference';reason='The selected picks need matching, current prices before we can estimate a return.';}
+      if(current?.quote_state==='final'){title='Game finished';reason='Betting is closed. Replay an earlier update or choose another game.';}
+      $('actiontitle').textContent=title;$('actionreason').textContent=reason;
+    }else{$('actiontitle').textContent=slipMessage.title;$('actionreason').textContent=slipMessage.reason;}
+    $('slipnote').textContent=style==='parlay'?'Different games assumed independent. This return uses reference odds, not an actual parlay quote. Confirm the combined price before betting.':'Return includes your stake; average profit is a model estimate, not a guaranteed outcome.';
+    if(result&&result.unused_stake>1e-6)$('slipnote').textContent+=' Available reference depth covers only '+money(result.cost)+' of your stake.';
+    if(result?.research_only!==false&&rows.length)$('slipnote').textContent+=' Research model; estimates are not yet calibrated for betting.';
+  }
+  function render(view){
+    $('hedgeresult').textContent='';
+    current=view;$('awayname').textContent=view.away_team;$('homename').textContent=view.home_team;$('score').replaceChildren();
+    const score=view.score;$('score').appendChild(node('span',score?score.away_score+' – '+score.home_score:'vs'));
+    $('score').appendChild(node('small',view.quote_state==='final'?'Final':view.clock));
+    $('updatestatus').textContent=source==='demo'?'Demo · simulated scores and reference prices':'Live data · refresh target 5 seconds · '+new Date(view.as_of).toLocaleTimeString();
+    $('slipbadge').textContent=source==='demo'?'DEMO':'MODEL ESTIMATE';
+    $('matchstage').textContent=view.quote_state==='final'?'Final':phase==='pregame'?'Pre-game · auto-updating':'In-play · auto-updating';
+    $('forecasttitle').textContent=phase==='pregame'?'Our estimated win chance':'Our live win chance';
+    $('tipstatus').textContent=phase==='pregame'?'Tip-off '+(view.tip_time?new Date(view.tip_time).toLocaleString():'pending')+' · switches automatically when the game starts.':'The page follows the score, clock and latest match news automatically.';
+    $('awayforecastname').textContent=view.away_team;$('homeforecastname').textContent=view.home_team;
+    const win=view.bets.find(r=>r.kind==='moneyline'&&r.side==='home')?.probability;
+    $('homechance').textContent=pct(win);$('awaychance').textContent=pct(win==null?null:1-win);
+    $('forecastnote').textContent=phase==='pregame'?'Estimated from our historical model and retrieved pre-game news.':'Estimated from our model using the current score, time remaining and retrieved news.';
+    if(view.quote_state==='final')$('forecastnote').textContent='Final score confirmed. Forecasts and betting recommendations are closed.';
+    $('chartcard').hidden=phase==='pregame';
+    $('connection').textContent=view.connection_note||(source==='demo'?'Polymarket-format prices are simulated.':'Model predictions are independent of Polymarket reference prices.');
+    $('footnote').textContent=source==='demo'?'Synthetic replay. Our model supplies all probabilities; market prices are simulated references.':'Our model supplies all probabilities. Polymarket is a price reference. Research estimates; no bets are placed.';
+    if(view.news_health==='degraded')$('footnote').textContent+=' Player-news coverage is incomplete.';
+    $('marketlink').href=(view.bets.find(r=>r.reference_quote?.url)?.reference_quote.url)||'https://polymarket.com/sports/nba';
+    $('modelscore').textContent=view.own_model?'Projected total '+view.own_model.total_mean.toFixed(1):'Model data pending';
+    $('charttitle').textContent='Win chance · Q1–Q4';
+    $('chartnote').textContent='Home-team win chance from our score, clock and news model. Incident markers show the first observed game clock.';
+    $('newsstatus').textContent=(view.news_health==='degraded'?'Some news feeds are unavailable. ':'')+'News checked '+new Date(view.as_of).toLocaleTimeString()+'.';
+    $('events').replaceChildren();for(const e of [...view.events].reverse().slice(0,20)){
+      const item=node('div');item.className='feed-item';
+      const when=e.published_at?new Date(e.published_at).toLocaleString():'';
+      item.appendChild(node('small',(e.clock||'Pre-game')+' · '+(e.synthetic?'Simulated update':e.source)+(when?' · '+when:'')));
+      item.appendChild(node('p',e.headline));
+      if(e.selected&&e.impact_pp!=null)item.appendChild(node('small',view.home_team+' win chance '+(e.impact_pp>=0?'+':'')+e.impact_pp.toFixed(2)+' pp'));
+      else item.appendChild(node('small',e.news_only?'Retrieved news · no automatic probability adjustment':'No additional model change'));
+      if(!e.synthetic&&/^https:\/\//.test(e.url||'')){const link=node('a','Read source ↗');link.href=e.url;link.target='_blank';link.rel='noopener noreferrer';item.appendChild(node('div')).appendChild(link);}
+      $('events').appendChild(item);
+    }
+    if(!view.events.length)$('events').appendChild(node('p','No new match news retrieved yet. Monitoring continues.'));
+    $('replaycontrols').hidden=source!=='demo';$('seek').max=frames().length-1;$('seek').value=index();$('progress').textContent=(index()+1)+' / '+frames().length;$('next').disabled=index()===frames().length-1;$('play').textContent=replayTimer?'Pause demo':'Play demo';
+    $('hedgesection').hidden=view.quote_state==='final';
+    const held=$('heldpick').value;$('heldpick').replaceChildren();const empty=node('option','Choose your original bet');empty.value='';$('heldpick').appendChild(empty);
+    for(const row of view.bets){const o=node('option',row.label);o.value=row.id;$('heldpick').appendChild(o);}$('heldpick').value=view.bets.some(r=>r.id===held)?held:'';
+    renderPool();renderMarkets();renderSlip();draw();
+  }
+  function showDemo(){
+    try{const previous=$('games').value;slate=frames()[index()].slate;phase=frames()[index()].view.phase;fillGames(slate,previous);if(!poolInitialized){slate.forEach(g=>included.add(g.game_id));poolInitialized=true;}
+      const valid=new Set(slate.flatMap(g=>g.bets).map(r=>r.id));selected=selected.filter(id=>valid.has(id));render(slate.find(g=>g.game_id===$('games').value)||slate[0]);
+    }catch(e){setMessage('Check your inputs',e.message);}
+  }
+  function recommend(){
+    try{if(style==='single'){const pick=M.single(activeRows(),stake(),$('goal').value);if(!pick){setMessage('No clear value yet','No positive-value choice in this market after costs. Try another bet type or wait.');return;}selected=[pick.id];slipMessage={title:'Your model pick: '+pick.label,reason:'Best '+($('goal').value==='chance'?'win chance':'estimated profit')+' among the positive-value options in your chosen market.'};}
+      else{const result=M.bestParlay(allRows(),stake(),Number($('legs').value),$('goal').value);if(!result){setMessage('No suitable parlay yet','Choose more games or fewer legs. Each pick needs a current reference and positive model value.');return;}selected=result.picks.map(r=>r.id);slipMessage={title:result.picks.length+'-leg model parlay',reason:'Best '+($('goal').value==='chance'?'estimated win chance':'estimated profit')+' within your selected games, bet types and leg count.'};}renderMarkets();renderSlip();
+    }catch(e){setMessage('Check your choices',e.message);}
+  }
+  function clearLive(message){current=null;slate=[];$('hedgeresult').textContent='';$('recommend').disabled=true;$('betoptions').replaceChildren();$('score').replaceChildren(node('small','Waiting for current data'));$('probchart').replaceChildren();$('homechance').textContent=$('awaychance').textContent='—';$('awayname').textContent=$('homename').textContent='—';$('homeforecastname').textContent=$('awayforecastname').textContent='Model data pending';$('events').replaceChildren(node('p','Waiting for the latest match news.'));$('newsstatus').textContent='News refresh interrupted; retrying automatically.';$('picks').replaceChildren(node('p','Waiting for current betting options.'));for(const id of ['slipchance','slipodds','slipreturn','slipev'])$(id).textContent='—';$('connection').textContent=message;setMessage('Waiting for live updates','Refreshing our model and the reference prices.');}
+  const base=location.protocol==='file:'?'http://127.0.0.1:8766':'';
+  async function api(path){const response=await fetch(base+path,{cache:'no-store'}),data=await response.json();if(!response.ok)throw Error(data.error||'Live data unavailable.');return data;}
+  async function refresh(){
+    if(source!=='live')return;
+    if(current){slipMessage=null;try{renderMarkets();renderSlip();}catch(e){setMessage('Check your stake',e.message);}}
+    if(busy)return;busy=true;const epoch=version;
+    try{
+      if(Date.now()-catalogAt>=30000||!catalog.length){catalog=(await api('/api/games')).games;catalogAt=Date.now();}
+      if(source!=='live'||epoch!==version)return;
+      const available=catalog;
+      const previous=$('games').value;fillGames(available,previous);
+      if(!available.length){clearLive('No NBA games available right now. Try the demo; discovery will retry automatically.');return;}
+      if(previous&&previous!==$('games').value){selected=[];slipMessage=null;}
+      // For a parlay, refresh a bounded slate rather than relying on saved quotes.
+      const chosen=available.find(g=>g.game_id===$('games').value);
+      const wanted=style==='parlay'?[chosen,...available.filter(g=>g!==chosen).slice(0,11)]:[chosen];
+      const boards=await Promise.all(wanted.map(g=>api('/api/betting?game_id='+encodeURIComponent(g.game_id))));
+      if(source!=='live'||epoch!==version)return;
+      const view=boards.find(g=>g.game_id===$('games').value)||boards[0];
+      phase=view.phase;
+      slate=boards;if(!poolInitialized){slate.forEach(g=>included.add(g.game_id));poolInitialized=true;}
+      const ids=new Set(slate.flatMap(g=>g.bets).map(r=>r.id));selected=selected.filter(id=>ids.has(id));
+      slipMessage=null;render(view);
+    }catch(e){if(source==='live'&&epoch===version)clearLive(e.message+' Retrying automatically.');}finally{busy=false;}
+  }
+  for(const kind of ['all','moneyline','spread','total'])$(kind).onclick=()=>{category=kind;for(const k of ['all','moneyline','spread','total'])$(k).setAttribute('aria-selected',k===kind);slipMessage=null;try{renderMarkets();renderSlip();}catch(e){setMessage('Check your inputs',e.message);}};
+  for(const s of ['single','parlay'])$(s).onclick=()=>{style=s;selected=[];slipMessage=null;version++;if(s==='parlay'){included.clear();poolInitialized=false;}for(const k of ['single','parlay'])$(k).setAttribute('aria-selected',k===s);if(source==='demo')showDemo();else{refresh();renderSlip();}};
+  $('games').onchange=()=>{slipMessage=null;if(style==='single')selected=[];if(source==='demo')showDemo();else{version++;clearLive('Updating this match…');refresh();}};
+  $('stake').oninput=()=>{slipMessage=null;try{renderMarkets();renderSlip();}catch(e){setMessage('Check your stake',e.message);for(const id of ['slipchance','slipodds','slipreturn','slipev'])$(id).textContent='—';}};
+  for(const n of [10,20,50])$('stake'+n).onclick=()=>{$('stake').value=n;$('stake').oninput();};
+  $('goal').onchange=()=>{slipMessage=null;renderSlip();};$('recommend').onclick=recommend;
+  $('protect').onclick=()=>{try{const result=M.hedge(current?.bets||[],$('heldpick').value,Number($('heldstake').value),Number($('heldodds').value),stake());$('hedgeresult').textContent=result.floor>result.before?'Consider '+result.label+' for '+money(result.amount)+'. Lower game-result profit improves from '+money(result.before)+' to '+money(result.floor)+'. '+(result.balanced?'The two completed-game payouts are balanced.':'This is a partial hedge; some exposure remains.')+' Confirm the final fill and cancellation rules.':'Keeping your current bet has a better lower payout at these prices.';}catch(e){$('hedgeresult').textContent=e.message;}};
+  function startReplay(){
+    if(replayTimer)return;
+    replayTimer=setInterval(()=>{stepIndex=Math.min(stepIndex+1,timeline.length-1);if(stepIndex===timeline.length-1)stopReplay();slipMessage=null;showDemo();},1400);
+  }
+  $('seek').oninput=e=>{stopReplay();stepIndex=Number(e.target.value);slipMessage=null;showDemo();};
+  $('next').onclick=()=>{stopReplay();stepIndex=Math.min(stepIndex+1,timeline.length-1);slipMessage=null;showDemo();};
+  $('restart').onclick=()=>{stopReplay();stepIndex=0;slipMessage=null;showDemo();};
+  $('play').onclick=()=>{if(replayTimer){stopReplay();showDemo();return;}if(stepIndex===timeline.length-1)stepIndex=0;startReplay();showDemo();};
+  $('demo').onclick=()=>{stopReplay();stepIndex=0;version++;source='demo';selected=[];slipMessage=null;included.clear();poolInitialized=false;if(refreshTimer)clearInterval(refreshTimer);refreshTimer=null;$('demo').setAttribute('aria-selected',true);$('live').setAttribute('aria-selected',false);startReplay();showDemo();};
+  $('live').onclick=async()=>{stopReplay();version++;source='live';catalogAt=0;catalog=[];selected=[];slipMessage=null;included.clear();poolInitialized=false;$('demo').setAttribute('aria-selected',false);$('live').setAttribute('aria-selected',true);$('replaycontrols').hidden=true;clearLive('Connecting to our model and live reference prices…');if(!refreshTimer)refreshTimer=setInterval(refresh,5000);await refresh();};
+  window.addEventListener('resize',draw);window.courtside={recommend,chosenRows};
+  if(location.protocol==='file:'){startReplay();showDemo();}else{$('live').click();}
+})();

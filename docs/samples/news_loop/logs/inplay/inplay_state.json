@@ -179,6 +179,7 @@
     "odds_basis": "fair decimal odds, no bookmaker margin",
     "score_observation_age_seconds": 0.0,
     "score_source_age_seconds": 0.0,
+    "retrieved_news": [],
     "report": {
       "report_id": "392babcb0f28a492779610f2",
       "pipeline": "inplay",

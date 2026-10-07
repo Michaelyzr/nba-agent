@@ -780,12 +780,16 @@ Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.
 
 
-The English customer dashboard keeps scores, one win-chance chart, market odds,
-recent incidents and a next action visible. Detailed forecast inputs, same-state
-incident effects and model research remain in exported reports and JSON. Live
-Polymarket books are fetched automatically by `python -m agents.dashboard_server`;
-replay prices remain explicitly simulated. With a held position, actions compare
-holding, buying opposite shares and selling owned shares using current depth,
-verified fees and game-result P/L. Without one, the page compares buying either
-team with waiting. See [the dashboard guide](docs/sample_loop.md) for the live API
-connection, position examples and model validation limits.
+The English Courtside dashboard follows each match automatically from Pre-game
+to In-play, with
+moneyline, spread and total selections, a stake-based bet slip and two- to four-leg
+parlay recommendations. All probabilities come from our models; Polymarket's
+exact full-game order books provide reference prices. Users can rank positive-value
+choices by estimated profit or win chance, build their own picks, and compare an
+opposite-outcome hedge using the original bet amount and placed odds. Before tip-off it shows estimated win
+chances and both odds; the live probability chart appears after tip-off. Latest
+match updates include retrieved news with source links. The offline
+website includes a four-game synthetic slate for the parlay demo. Live data refreshes
+automatically through `python -m agents.dashboard_server`. See the
+[dashboard guide](docs/sample_loop.md) for model assumptions, read-only APIs,
+replay instructions and combined-quote limitations.

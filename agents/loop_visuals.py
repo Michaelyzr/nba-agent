@@ -9,16 +9,62 @@ def export_visuals(payload, output):
     output = Path(output)
     template = (Path(__file__).parent / "templates" / "loop_demo.html").read_text()
     from agents.match_view import match_view
-    raw = [r for r in payload["steps"] if r["phase"] == "inplay"]
-    def compact(s):
-        fields = ('game_id', 'as_of', 'p_home', 'quote_state', 'score', 'market_quotes',
-                  'model_trained', 'calibration_status', 'heldout_validation', 'errors', 'news_health', 'quote_quality', 'freshness')
-        return {**{k: s.get(k) for k in fields}, 'report': {k: s.get('report', {}).get(k) for k in ('synthetic', 'news_effect')}}
-
-    data_payload = {"home_team": payload["home_team"], "away_team": payload["away_team"],
-                    "steps": [{"snapshot": compact(r["snapshot"]), "view": match_view(payload, raw[:i+1], r["snapshot"])} for i, r in enumerate(raw)]}
+    from agents.betting import make_board, simulated_contracts
+    from forecast.betting import historical_distribution, distribution
+    from forecast.inplay import InPlayWinModel
+    from agents.graph import log5_home, win_rate, clip
+    from data_sources import read_table, ROOT
+    from types import SimpleNamespace
+    import pandas as pd
+    games = read_table('games', ROOT/'data'/'sample')
+    selected = games[games.game_id.astype(str) == payload['game_id']].iloc[0]
+    same_tip = games[games.tip_time == selected.tip_time]
+    slate_games = [SimpleNamespace(**selected.to_dict())]+[SimpleNamespace(**r) for r in same_tip.to_dict('records') if str(r['game_id']) != payload['game_id']][:3]
+    bases = {str(g.game_id): historical_distribution(games, g, payload['steps'][0]['snapshot']['as_of']) for g in slate_games}
+    cutoff = pd.to_datetime(payload['steps'][0]['snapshot']['as_of'], utc=True)
+    done = games.dropna(subset=['home_pts', 'away_pts'])
+    done = done[pd.to_datetime(done.final_at, utc=True) < cutoff]
+    priors = {str(g.game_id): clip(log5_home(win_rate(done, g.home_team_id), win_rate(done, g.away_team_id))) for g in slate_games}
+    data_payload = {'home_team': payload['home_team'], 'away_team': payload['away_team'],
+                    'steps': [], 'pregame_steps': []}
+    histories, previous, lines_models = {}, {}, {}
+    for step in payload['steps']:
+        phase, actual = step['phase'], step['snapshot']
+        slate = []
+        for g in slate_games:
+            gid = str(g.game_id)
+            if gid == payload['game_id']:
+                snapshot = dict(actual)
+                if phase == 'pregame': snapshot['quote_state'] = 'pregame'
+            else:
+                snapshot = {'game_id': gid, 'as_of': actual['as_of'], 'p_home': priors[gid],
+                    'quote_state': 'pregame' if phase == 'pregame' else actual['quote_state'],
+                    'report': {'new_evidence': [], 'synthetic': True}, 'model_trained': False,
+                    'baseline': {'p_home': priors[gid]}, 'news_health': 'ok'}
+                if phase == 'inplay':
+                    score = dict(actual['score'])
+                    fraction = min(1, max(0, (score['period']-1)*12/48+(720-score['clock_seconds'])/2880))
+                    total = bases[gid]['total_mean']
+                    margin = (priors[gid]-.5)*28
+                    score.update(home_score=round((total+margin)/2*fraction), away_score=round((total-margin)/2*fraction))
+                    snapshot['score'] = score
+                    if snapshot['quote_state'] == 'live':
+                        snapshot['p_home'] = InPlayWinModel().predict(score, priors[gid])
+                    else:
+                        snapshot['p_home'] = float(score['home_score'] > score['away_score'])
+            own = distribution(bases[gid], snapshot)
+            if own and gid not in lines_models: lines_models[gid] = own
+            contracts = simulated_contracts(g, own, snapshot, previous.get((gid, phase)), lines_models.get(gid))
+            history = histories.setdefault((gid, phase), [])
+            history.append({'phase': phase, 'snapshot': snapshot})
+            view = match_view({'home_team': g.home_team, 'away_team': g.away_team}, history, snapshot)
+            view.update(make_board(g, snapshot, own, contracts, True), phase=phase, tip_time=pd.Timestamp(g.tip_time).isoformat())
+            slate.append(view)
+            if own: previous[(gid, phase)] = own
+        item = {'view': slate[0], 'slate': slate}
+        data_payload['pregame_steps' if phase == 'pregame' else 'steps'].append(item)
     data = json.dumps(data_payload, ensure_ascii=False, default=str, allow_nan=False).replace("<", "\\u003c")
-    (output / "demo.html").write_text(template.replace("__LOOP_DATA__", data).replace("__ANALYSIS_SCRIPT__", (Path(__file__).parent / "templates" / "market_analysis.js").read_text()).replace("__DASHBOARD_SCRIPT__", (Path(__file__).parent / "templates" / "match_dashboard.js").read_text()))
+    (output / "demo.html").write_text(template.replace("__LOOP_DATA__", data).replace("__ANALYSIS_SCRIPT__", (Path(__file__).parent / "templates" / "betting_math.js").read_text()).replace("__DASHBOARD_SCRIPT__", (Path(__file__).parent / "templates" / "match_dashboard.js").read_text()))
     plot_sample(payload, output)
 
 
@@ -84,4 +130,6 @@ def plot_sample(payload, output):
     for name in ("sample.png", "overview.png"):
         fig.savefig(output / name, dpi=160)
     fig.savefig(output / "overview.svg")
+    svg_path = output / "overview.svg"
+    svg_path.write_text('\n'.join(line.rstrip() for line in svg_path.read_text().splitlines())+'\n')
     plt.close(fig)

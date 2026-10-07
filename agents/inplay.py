@@ -124,16 +124,18 @@ class InPlayAgent:
         return self.registry.priority(source)
 
     def _extract(self, batch, roster, now, errors):
+        self.retrieved_news = []
         for raw in batch.evidence:
             try:
                 item = dict(raw)
                 published, observed = utc(item["published_at"]), utc(item["observed_at"])
                 if (str(item["game_id"]) != str(self.game.game_id) or not utc(self.game.tip_time) <= published <= now
-                        or observed > now or item["item_id"] in self.seen_items):
+                        or observed > now or observed < published or item["item_id"] in self.seen_items):
                     continue
                 item.update(published_at=published.isoformat(), observed_at=observed.isoformat())
                 self._append("inplay_evidence.jsonl", item)
                 self.seen_items.add(item["item_id"])
+                self.retrieved_news.append(item)
             except (KeyError, ValueError, TypeError):
                 errors.append({"source": "evidence", "error": "invalid in-game evidence"})
         new_ids = []
@@ -226,6 +228,7 @@ class InPlayAgent:
         if self.stopped:
             return {"stopped": True, "snapshot": self.latest}
         errors, new_ids = [], []
+        self.retrieved_news = []
         coverage, batch = [], None
         accepted_score = False
         if now < utc(self.game.tip_time):
@@ -300,6 +303,7 @@ class InPlayAgent:
                 else:
                     snapshot["freshness"] = "within_age_limit"
         from agents.news_report import make_report, persist_report
+        snapshot['retrieved_news'] = self.retrieved_news
         snapshot["report"] = make_report(snapshot, self.game, self.players, self.latest, batch.events if batch else [])
         from agents.forecast_audit import audit_snapshot
         snapshot["forecast_audit"] = audit_snapshot(snapshot, self.latest)

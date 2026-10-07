@@ -42,6 +42,7 @@
           }
         ],
         "new_evidence_count": 0,
+        "retrieved_news": [],
         "errors": [],
         "news_health": "ok",
         "odds_basis": "fair decimal odds, no bookmaker margin",
@@ -172,6 +173,24 @@
           }
         ],
         "new_evidence_count": 1,
+        "retrieved_news": [
+          {
+            "news_id": "c5de3f4894c6e80fd4961017",
+            "item_id": "c5de3f4894c6e80fd4961017",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "published_at": "2026-04-12T20:30:00+00:00",
+            "observed_at": "2026-04-12T20:30:02+00:00",
+            "status": "questionable",
+            "minutes_limit": null,
+            "source": "espn_rss",
+            "url": "",
+            "text": "Jaylen Brown is questionable tonight with an ankle injury",
+            "synthetic": true,
+            "source_label": "合成权威媒体情景（ESPN层级）",
+            "review_required": false
+          }
+        ],
         "errors": [],
         "news_health": "ok",
         "odds_basis": "fair decimal odds, no bookmaker margin",
@@ -351,6 +370,24 @@
           }
         ],
         "new_evidence_count": 1,
+        "retrieved_news": [
+          {
+            "news_id": "4c62a2a4f3bd4117589504db",
+            "item_id": "4c62a2a4f3bd4117589504db",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "published_at": "2026-04-12T20:35:00+00:00",
+            "observed_at": "2026-04-12T20:35:02+00:00",
+            "status": "available",
+            "minutes_limit": null,
+            "source": "x:souichiterada",
+            "url": "",
+            "text": "Jaylen Brown is available tonight",
+            "synthetic": true,
+            "source_label": "合成跟队记者情景",
+            "review_required": false
+          }
+        ],
         "errors": [],
         "news_health": "ok",
         "odds_basis": "fair decimal odds, no bookmaker margin",
@@ -504,6 +541,24 @@
           }
         ],
         "new_evidence_count": 1,
+        "retrieved_news": [
+          {
+            "news_id": "4e0b977268381ea7cb03940a",
+            "item_id": "4e0b977268381ea7cb03940a",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "published_at": "2026-04-12T21:30:00+00:00",
+            "observed_at": "2026-04-12T21:30:02+00:00",
+            "status": "available",
+            "minutes_limit": null,
+            "source": "espn_rss",
+            "url": "",
+            "text": "Jaylen Brown is available tonight",
+            "synthetic": true,
+            "source_label": "合成权威确认情景（ESPN层级）",
+            "review_required": false
+          }
+        ],
         "errors": [],
         "news_health": "ok",
         "odds_basis": "fair decimal odds, no bookmaker margin",
@@ -654,6 +709,7 @@
           }
         ],
         "new_evidence_count": 0,
+        "retrieved_news": [],
         "errors": [],
         "news_health": "ok",
         "odds_basis": "fair decimal odds, no bookmaker margin",
@@ -824,6 +880,7 @@
         "remaining_seconds": 2880.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "5ae0e8b242834b9ff18e740b",
           "pipeline": "inplay",
@@ -1226,6 +1283,7 @@
         "remaining_seconds": 2820.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "46e65304e3aa7338d0a1047b",
           "pipeline": "inplay",
@@ -1637,6 +1695,7 @@
         "remaining_seconds": 2760.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "1acee73aee5fe0c4ae2b6da3",
           "pipeline": "inplay",
@@ -2048,6 +2107,7 @@
         "remaining_seconds": 2700.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "30277d7df4433e34d6a81c66",
           "pipeline": "inplay",
@@ -2459,6 +2519,7 @@
         "remaining_seconds": 2640.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "31aedddebbff71509ac79205",
           "pipeline": "inplay",
@@ -2870,6 +2931,7 @@
         "remaining_seconds": 2580.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "81bc168e47786d179baf8ae9",
           "pipeline": "inplay",
@@ -3281,6 +3343,7 @@
         "remaining_seconds": 2520.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "a0a7d54909069a2a66faed7e",
           "pipeline": "inplay",
@@ -3692,6 +3755,7 @@
         "remaining_seconds": 2460.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "e8d522b40c4b0c6a2e3cc6ba",
           "pipeline": "inplay",
@@ -4103,6 +4167,7 @@
         "remaining_seconds": 2400.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "76d8b3c642b2e042fe70145b",
           "pipeline": "inplay",
@@ -4514,6 +4579,7 @@
         "remaining_seconds": 2340.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "6a82d8c7c2fd48bd95000dd8",
           "pipeline": "inplay",
@@ -4925,6 +4991,7 @@
         "remaining_seconds": 2280.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "73fd471bdddac3653a63d366",
           "pipeline": "inplay",
@@ -5336,6 +5403,7 @@
         "remaining_seconds": 2220.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "d3e54ae253d1b0f098dc54b0",
           "pipeline": "inplay",
@@ -5747,6 +5815,7 @@
         "remaining_seconds": 2160.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "b97b6859b740bb444f5be069",
           "pipeline": "inplay",
@@ -6158,6 +6227,7 @@
         "remaining_seconds": 2160.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "53ce293bf0320e0b543b35b4",
           "pipeline": "inplay",
@@ -6569,6 +6639,7 @@
         "remaining_seconds": 2100.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "2a33e1ddcbf23f797ecb0a20",
           "pipeline": "inplay",
@@ -6980,6 +7051,7 @@
         "remaining_seconds": 2040.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "575d3d2508052e4462188dac",
           "pipeline": "inplay",
@@ -7391,6 +7463,7 @@
         "remaining_seconds": 1980.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "50688bc7e53f38e3c06e350a",
           "pipeline": "inplay",
@@ -7802,6 +7875,7 @@
         "remaining_seconds": 1920.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "a7bf3870af301479e7394f57",
           "pipeline": "inplay",
@@ -8248,6 +8322,23 @@
         "remaining_seconds": 1920.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [
+          {
+            "event_id": "e35591b0fa4723b4c3dea023",
+            "item_id": "e35591b0fa4723b4c3dea023",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "status": "left_injured",
+            "published_at": "2026-04-12T22:27:51+00:00",
+            "observed_at": "2026-04-12T22:27:51+00:00",
+            "source": "x:shamscharania",
+            "url": "",
+            "text": "Jaylen Brown left for the locker room with an ankle injury",
+            "synthetic": true,
+            "source_label": "合成 Shams 情景",
+            "review_required": false
+          }
+        ],
         "report": {
           "report_id": "87d0c9ae78e3c3c9fa86da9e",
           "pipeline": "inplay",
@@ -8714,6 +8805,7 @@
         "remaining_seconds": 1860.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "4f7ce44da441e7ac5beda27d",
           "pipeline": "inplay",
@@ -9164,6 +9256,7 @@
         "remaining_seconds": 1800.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "9006b70416381226bc3a38da",
           "pipeline": "inplay",
@@ -9616,6 +9709,23 @@
         "remaining_seconds": 1800.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [
+          {
+            "event_id": "b494dcfe254e776e06064d00",
+            "item_id": "b494dcfe254e776e06064d00",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "status": "injury_out",
+            "published_at": "2026-04-12T22:31:01+00:00",
+            "observed_at": "2026-04-12T22:31:01+00:00",
+            "source": "espn_rss",
+            "url": "",
+            "text": "Jaylen Brown will not return",
+            "synthetic": true,
+            "source_label": "合成权威媒体情景（ESPN层级）",
+            "review_required": false
+          }
+        ],
         "report": {
           "report_id": "2bb5853d03175503da00d30d",
           "pipeline": "inplay",
@@ -10082,6 +10192,7 @@
         "remaining_seconds": 1740.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "e62c3d8ada3120dbee20cc01",
           "pipeline": "inplay",
@@ -10532,6 +10643,7 @@
         "remaining_seconds": 1680.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "b004b446d896e39e5e913ea8",
           "pipeline": "inplay",
@@ -10982,6 +11094,7 @@
         "remaining_seconds": 1620.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "21f7b52014b07ac00b05f47e",
           "pipeline": "inplay",
@@ -11432,6 +11545,7 @@
         "remaining_seconds": 1560.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "6aaf6ab8ce3d182d22d6010b",
           "pipeline": "inplay",
@@ -11882,6 +11996,7 @@
         "remaining_seconds": 1500.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "b89c98e33f3d63636567fe3b",
           "pipeline": "inplay",
@@ -12332,6 +12447,7 @@
         "remaining_seconds": 1440.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "7dc081a1dc000f2464c64de2",
           "pipeline": "inplay",
@@ -12782,6 +12898,7 @@
         "remaining_seconds": 1440.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "02b846810af550c2a496d350",
           "pipeline": "inplay",
@@ -13232,6 +13349,7 @@
         "remaining_seconds": 1380.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "863de7a9cf6cf4ff85fcc66b",
           "pipeline": "inplay",
@@ -13682,6 +13800,7 @@
         "remaining_seconds": 1320.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "f59e2756222ee3680d960979",
           "pipeline": "inplay",
@@ -14132,6 +14251,7 @@
         "remaining_seconds": 1260.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "1e9e323a2f49177388b6ee7e",
           "pipeline": "inplay",
@@ -14584,6 +14704,23 @@
         "remaining_seconds": 1260.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [
+          {
+            "event_id": "7a06586cab58a201d514dfcf",
+            "item_id": "7a06586cab58a201d514dfcf",
+            "game_id": "401811041",
+            "player_id": 3917376,
+            "status": "returned",
+            "published_at": "2026-04-12T23:02:46+00:00",
+            "observed_at": "2026-04-12T23:02:46+00:00",
+            "source": "espn_rss",
+            "url": "",
+            "text": "Jaylen Brown returned to the game (synthetic correction)",
+            "synthetic": true,
+            "source_label": "合成权威回归确认（ESPN层级）",
+            "review_required": false
+          }
+        ],
         "report": {
           "report_id": "233ef4f9e6e36abeb78fb6c8",
           "pipeline": "inplay",
@@ -15050,6 +15187,7 @@
         "remaining_seconds": 1200.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "29c3d88bbab6b3d2fcf29d08",
           "pipeline": "inplay",
@@ -15500,6 +15638,7 @@
         "remaining_seconds": 1140.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "762a710872f90b9eab21f94a",
           "pipeline": "inplay",
@@ -15950,6 +16089,7 @@
         "remaining_seconds": 1080.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "9a95ad5ba522ba5a91eca643",
           "pipeline": "inplay",
@@ -16400,6 +16540,7 @@
         "remaining_seconds": 1020.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "adbad8fb3f02ac1a27269da6",
           "pipeline": "inplay",
@@ -16850,6 +16991,7 @@
         "remaining_seconds": 960.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "d59768237666b6b0802a505e",
           "pipeline": "inplay",
@@ -17300,6 +17442,7 @@
         "remaining_seconds": 900.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "fbd52b4679afcdcb51911484",
           "pipeline": "inplay",
@@ -17750,6 +17893,7 @@
         "remaining_seconds": 840.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "a141c93bae198d7e3bc3867b",
           "pipeline": "inplay",
@@ -18200,6 +18344,7 @@
         "remaining_seconds": 780.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "72436cee75f246d2b4d84eb3",
           "pipeline": "inplay",
@@ -18650,6 +18795,7 @@
         "remaining_seconds": 720.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "95107a2c7105bd72c60f0773",
           "pipeline": "inplay",
@@ -19100,6 +19246,7 @@
         "remaining_seconds": 720.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "a94e30ec3a02497a402528c2",
           "pipeline": "inplay",
@@ -19550,6 +19697,7 @@
         "remaining_seconds": 660.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "a2af492798eeca714008fe85",
           "pipeline": "inplay",
@@ -20000,6 +20148,7 @@
         "remaining_seconds": 600.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "93c3a50c8de00ba515282a7f",
           "pipeline": "inplay",
@@ -20450,6 +20599,7 @@
         "remaining_seconds": 540.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "63991531a31f4ca0ee26782a",
           "pipeline": "inplay",
@@ -20900,6 +21050,7 @@
         "remaining_seconds": 480.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "101585c878fb05e2571ce67b",
           "pipeline": "inplay",
@@ -21350,6 +21501,7 @@
         "remaining_seconds": 420.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "d9f62f259d29ea02eba82b7c",
           "pipeline": "inplay",
@@ -21800,6 +21952,7 @@
         "remaining_seconds": 360.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "ffc1a44e874a3f2e4c416fbb",
           "pipeline": "inplay",
@@ -22250,6 +22403,7 @@
         "remaining_seconds": 300.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "2e0f751608fb0aaf32d37976",
           "pipeline": "inplay",
@@ -22733,6 +22887,23 @@
         "remaining_seconds": 300.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [
+          {
+            "event_id": "173feba921a5dba0efe3e1da",
+            "item_id": "173feba921a5dba0efe3e1da",
+            "game_id": "401811041",
+            "player_id": 4432573,
+            "status": "ejected",
+            "published_at": "2026-04-12T23:30:36+00:00",
+            "observed_at": "2026-04-12T23:30:36+00:00",
+            "source": "nba_live",
+            "url": "",
+            "text": "Paolo Banchero was ejected",
+            "synthetic": true,
+            "source_label": "合成 NBA 官方比赛事件",
+            "review_required": false
+          }
+        ],
         "report": {
           "report_id": "4626d2d11ef81b4acd35e1a5",
           "pipeline": "inplay",
@@ -23274,6 +23445,23 @@
         "remaining_seconds": 300.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [
+          {
+            "event_id": "7d4abc73453dfed5cf23d823",
+            "item_id": "7d4abc73453dfed5cf23d823",
+            "game_id": "401811041",
+            "player_id": 4432573,
+            "status": "returned",
+            "published_at": "2026-04-12T23:30:38+00:00",
+            "observed_at": "2026-04-12T23:30:38+00:00",
+            "source": "x:shamscharania",
+            "url": "",
+            "text": "Paolo Banchero has returned to the game",
+            "synthetic": true,
+            "source_label": "合成次级回归误报",
+            "review_required": false
+          }
+        ],
         "report": {
           "report_id": "81fa3e1d785a2a025a738c96",
           "pipeline": "inplay",
@@ -23814,6 +24002,7 @@
         "remaining_seconds": 240.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "6507b77a89e80b67aaa52d9a",
           "pipeline": "inplay",
@@ -24338,6 +24527,7 @@
         "remaining_seconds": 180.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "6740a0733d8d4e60674449f4",
           "pipeline": "inplay",
@@ -24862,6 +25052,7 @@
         "remaining_seconds": 120.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "bcecdfeb496f63ae1de53ba3",
           "pipeline": "inplay",
@@ -25386,6 +25577,7 @@
         "remaining_seconds": 60.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "04f3a643150a0d791697d64e",
           "pipeline": "inplay",
@@ -25910,6 +26102,7 @@
         "remaining_seconds": 1.0,
         "quote_quality": "provisional",
         "freshness": "within_age_limit",
+        "retrieved_news": [],
         "report": {
           "report_id": "6f308983e52aadc6a3f05f3d",
           "pipeline": "inplay",
@@ -26383,6 +26576,7 @@
         "odds_basis": "fair decimal odds, no bookmaker margin",
         "score_observation_age_seconds": 0.0,
         "score_source_age_seconds": 0.0,
+        "retrieved_news": [],
         "report": {
           "report_id": "392babcb0f28a492779610f2",
           "pipeline": "inplay",

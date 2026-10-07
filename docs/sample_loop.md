@@ -1,9 +1,22 @@
-# Courtside: match updates and market actions
+# Courtside: choose a bet, compare the price
 
-The customer page is in English and focuses on four things: the score and game
-clock, model versus Polymarket odds, a next action, and recent player updates.
-The main view has one probability chart. Technical reports, raw inputs, model
-comparisons and training remain available separately from the customer page.
+The English customer interface follows the selected match automatically from
+**Pre-game** through **In-play** to **Final**; there is no manual phase switch.
+Before tip-off it shows our estimated win chances, live model-versus-Polymarket
+odds, the hedge/bet-slip section and retrieved news. The probability chart appears
+only after the game starts. Latest match updates remain the final section.
+Choose a game and **Moneyline**, **Spread** or **Total points**. Tap an outcome to
+add it to **Your bet slip**, enter a stake, and compare our model's chance and fair
+odds with Polymarket's reference odds. The slip shows return including stake and
+estimated profit on average, rather than shares and acquisition cost.
+
+Use **Find my best single bet** to rank the positive-value choices in the selected
+market. Choose **Parlay**, include games, and select two, three or four legs to
+find a combination. Recommendations can prioritize **Highest estimated profit**
+or **Highest chance to win**. These are different objectives; the largest possible
+payout does not necessarily have the best expected return. Users can also build
+and remove picks themselves, with one pick per game to avoid treating correlated
+same-game outcomes as independent.
 
 ## Open the dashboard
 
@@ -12,159 +25,162 @@ source .venv/bin/activate
 python -m agents.dashboard_server
 ```
 
-Open **http://127.0.0.1:8766**. Choose **Demo replay** or **Live games**.
-The standalone [demo.html](samples/news_loop/demo.html) also works directly from
-its file; its Live games button connects to this local service on port 8766.
-When serving on a different port, open the service URL instead of the file.
+Open **http://127.0.0.1:8766**. The [portable demo website](samples/news_loop/demo.html)
+works offline too. Its **Live data** button connects to this service on port 8766;
+when using another port, open the service URL.
 
-- **Demo replay** needs no network, uploads, credentials or wallet. Scores,
-  incidents and Polymarket-format prices are simulated. It initially shows
-  Q2 06:00, when an injury update changes the model's estimated probability.
-  From tip-off, Play, Next update and the progress slider replay all four quarters;
-  the display uses information observed up to the selected step and stops at final.
-- **Live games** discovers the current ESPN NBA schedule and automatically finds
-  each selected game's Polymarket full-game winner market. It refreshes every five
-  seconds while this mode is open. Failed connections retry; stale actions clear.
-  This is HTTP polling; provider latency and news coverage still matter. Five
-  seconds is a refresh target, not a guarantee of end-to-end detection latency.
-- **Available budget** updates the entry-cost and action calculations. Enter
-  **My position (optional)** to compare holding, buying the opposite outcome and
-  selling held shares. Positions reset on match changes in the browser. No upload
-  or hand-entered market quote is required. Nothing places trades.
+- **Demo** starts before tip-off and includes four games so users can try parlays.
+  It auto-plays across tip-off and the four-quarter replay. From the start, Play, Next update
+  and the progress slider replay observed updates and stop at final. Scores, news
+  incidents and Polymarket-format quotes are synthetic and labeled accordingly.
+- The local HTTP website opens in **Live data** and automatically discovers the
+  current and upcoming ESPN schedule. Choosing a game determines its phase;
+  the selected game stays selected when it starts. Model/news and reference
+  fetches run in parallel, with a five-second refresh target. Reconnection is
+  automatic; failures clear old recommendations, returns and hedge suggestions.
+  Provider latency, access and source coverage still affect update speed.
+- **Your stake** updates the depth-aware odds, return and estimated average profit.
+  No file upload, hand-entered reference quote, wallet or order submission is needed.
+- **Already placed a bet? Protect it**, available before and during play, accepts the original
+  pick, amount bet and decimal odds when placed. It compares an opposite-outcome
+  hedge in the exact same market and line. It shows the additional stake and lower
+  completed-game profit, including whether the hedge is partial or balanced.
 
-Streamlit also presents the same English customer view:
+The same betting flow is available in Streamlit:
 
 ```bash
 streamlit run loop_demo_app.py
-# The main app's News loop sample tab uses the shared view:
+# Or the main app's News loop sample tab:
 streamlit run app.py
 ```
 
-Streamlit connects directly to the same Python controller; it does not require
-the HTTP service. Automatic refresh needs a Streamlit release with `st.fragment`;
-older releases can refresh by interacting with the page.
+Streamlit connects directly to the Python controller. Automatic refresh requires
+`st.fragment`; older versions refresh through interaction.
 
-## How prices and actions work
+## Our model and the reference price
 
-**Our odds** are fair decimal odds `1 / model probability`. Polymarket pays one
-dollar per winning share; its decimal equivalent is shares divided by the all-in
-purchase cost. The table walks available asks for the chosen budget and includes
-price-dependent fees and a $0.002 per-share cost reserve. The chart uses midpoint
-prices for comparison, rather than treating them as available entry prices.
+**All probabilities and fair odds come from our models.** Polymarket prices are
+read only after our prediction and never enter probability features, priors or
+news effects. Repricing a reference changes estimated value, not our forecast.
 
-Without a held position, the page compares buying either outcome with waiting.
-It ranks candidates with positive expected value after a two percentage-point
+The existing PregameAgent supplies a historical prior with availability/news
+updates. The independent InPlayAgent supplies score, clock and incident updates.
+`forecast/betting.py` builds an own-history final-score distribution from completed
+games before tip-off, excluding the current game's final result. It estimates
+full-game spread and total probabilities at the **same line** as the reference.
+The winner probability anchors the margin distribution; observed pace and
+remaining time update totals, with prototype news adjustments. Half-point lines
+avoid presenting a push as a loss. If a matching reference is unavailable, model
+options remain visible but do not become betting recommendations.
+
+These spread/total distributions and news weights are **research prototypes**,
+not separately calibrated betting models. Win-loss priors, normal score tails,
+pace blending and injury effects need validation on historical observations.
+The page labels these estimates and does not invent accuracy for a replay.
+
+Our fair decimal odds are `1 / model probability`. Comparison cards show Polymarket ask odds `1 / best ask` before fees. The bet slip
+uses the winning payout divided by all-in entry cost at the user's stake. Calculations
+walk actual ask depth and include verified price-dependent fees and a $0.002
+per-unit cost reserve. Positive-value recommendations require a two percentage-point
 probability stress buffer and at least one percentage point of remaining edge.
-The buffer is a modeling assumption, not a confidence interval. Demo actions are
-explicitly hypothetical. Live buy signals require a validated model, current
-matching quotes and healthy score/news coverage. The default model is a research
-prototype, so live prices may be shown while the suggested action remains **Wait**.
-Before tip-off, the independent in-play model waits for current game data;
-Polymarket prices can already be displayed.
+That buffer is an assumption, not a confidence interval. Profit on average is
+probability times winning return minus actual cost; it is not guaranteed profit.
 
-A model probability is an estimate, not a second venue on which a hedge can be
-traded. With a held position, protection uses real outcome shares and current
-bids/asks in the **same binary market**. Buying opposite shares is capped at held
-shares and the available cash budget; selling is capped at owned shares and bid
-depth. The page chooses the option that maximizes the lower P/L of the two
-completed-game outcomes, breaking ties by added cash required. This protects a
-chosen downside objective; it does not promise the highest eventual profit.
+The parlay search considers every eligible combination in the selected slate
+(up to twelve games), selected bet types and leg count. Different games are
+assumed independent. It multiplies our model probabilities and the reference
+single-bet odds as a **planning benchmark**, not an executable combined quote.
+No combined-market API or actual parlay price is fetched. Confirm an actual
+combined quote and its settlement rules before acting. Recommended combinations
+maximize the selected metric within this bounded set, not every available market.
 
-For `N` held shares with original cost `C`, and `H` opposite shares costing `K`:
+For an existing bet, the opposite hedge is capped at the original potential
+payout and available budget/depth. It balances two completed-game outcomes:
 
 ```
-Held team wins:   N - C - K
-Other team wins:  H - C - K
+Original pick wins: original stake × placed odds − original stake − hedge cost
+Opposite pick wins: opposite payout − original stake − hedge cost
 ```
 
-Equal shares balance these two payouts. Partial hedges retain exposure; a better
-lower payout can still be negative. Cancellation is a separate settlement case
-and follows the particular market's rules. The optional explanation shows the
-outcome table so users can review this tradeoff before acting externally.
+A partial hedge leaves exposure. Even an improved lower profit can remain negative.
+Cancellation is a separate settlement case governed by the exact contract.
+The model is an estimator, not a second trading venue, and no orders are placed.
 
-## Automatic API connection
+## Automatic live API connection
 
-`agents/dashboard_live.py` creates a separate live InPlayAgent for each selected
-game, with independent run state under `runs/dashboard/live-<id>/<game-id>/`.
-It uses the existing NBA/ESPN score and news providers, with a dedicated
-five-second media polling interval for this dashboard, polls the model and market
-in parallel, retains past observations for the chart, and caches source fetches
-for five seconds across viewers. Changing the budget or position recomputes the
-view without rerunning cached providers. Pregame agent state stays separate.
+`agents/dashboard_live.py` creates independent PregameAgent and InPlayAgent state
+for each match under `runs/dashboard/`, with five-second caching shared across
+viewers. Per-game locks serialize updates while different games can refresh in
+parallel. Separate phase state prevents pre-game news from mutating the in-play
+agent. Model observation time is retained independently of comparison time;
+quotes and forecasts older than 15 seconds cannot produce a current recommendation.
+Past in-play observations alone form each live chart; demo values never populate
+live charts. Retrieved articles and X posts are displayed with publication time and
+source links, including relevant news that does not create a model factor. News
+is deduplicated and filtered by game, publication and observation time.
 
-`data_sources/polymarket_books.py` only calls public GET endpoints:
+`data_sources/polymarket_books.py` uses public read-only market-data APIs:
 
-1. Gamma `/events/slug/{slug}` with the scheduled NBA matchup and Eastern date;
-   if needed, scan the NBA event catalog for one exact match.
-2. Match the two team names, scheduled tip time (within 60 seconds),
-   `sportsMarketType=moneyline`, condition ID and outcome tokens. No fuzzy pairing.
-3. CLOB `/clob-markets/{condition_id}` for fee parameters and `/book?token_id=...`
-   for each outcome's bids, asks, depth and timestamps.
+1. Gamma `GET /events/slug/{slug}`, then exact catalog lookup when needed.
+2. Match NBA teams, scheduled tip time within 60 seconds, full-game market type,
+   condition ID and outcome tokens. No fuzzy pairing or quarter/half substitution.
+3. Choose one most-liquid open line per type: winner, spread and total.
+4. CLOB `POST /books` requests all selected outcome books in one **read-only** batch;
+   response tokens/conditions are matched individually regardless of ordering.
+5. `GET /clob-markets/{condition_id}` retrieves fee parameters. Unknown fees block
+   comparisons. The existing single-winner reader remains available separately.
 
-The reader recognizes the standard NBA description only when it states a final
-score including overtime, postponement through completion, and 50-50 canceled-game
-resolution. Unrecognized rules remain unverified and block price actions.
-Closed/suspended markets, unknown or unsupported fees, mismatched game identity,
-crossed books, future timestamps and prices older than 15 seconds are rejected.
-Discovery metadata is cached for 20 seconds; order books are fetched every poll.
-Both source time and local fetch time are retained: a newly fetched old book does
-not become fresh. Old but otherwise matched prices may appear with **Last seen**
-for reference; they never produce an entry edge or position-trade recommendation. The model observation time is retained separately from the
-combined comparison time. If a refresh takes too long, the model becomes stale.
+Winner contracts must explicitly state final score including overtime, postponement
+through completion and 50-50 canceled-game resolution. Spread/total contracts must
+match recognized full-game half-point rule templates and scoring thresholds; the
+full-game type is treated as including overtime. Unknown rules, wrong dates,
+closed/suspended markets, invalid books and missing outcome pairs are rejected.
+Both book source time and local fetch time are checked: fetching an old book does
+not make it current. Matched older prices may display **Last seen**, but cannot
+produce an average-profit estimate, recommendation or hedge action.
 
-Public price queries require no API token or wallet. The existing X news feed
-still needs `INPLAY_X_BEARER_TOKEN` and appropriate access; without it, news
-coverage is marked degraded. This is live API integration, not a guarantee that
-all news is seen immediately or that the prototype's probabilities are calibrated.
-Local historical statistics come from `data/frozen/` when complete, otherwise
-`data/sample/`. Refresh those inputs and calibrate models before evaluating live
-forecast accuracy.
+Public market data needs no wallet or API token. X news coverage still requires
+appropriate access and configured tokens; unavailable feeds are shown as incomplete
+coverage. Local historical statistics come from complete `data/frozen/` inputs,
+otherwise `data/sample/`. Update these records before evaluating live model accuracy.
 
 References: [Gamma event lookup](https://docs.polymarket.com/api-reference/events/get-event-by-slug),
-[CLOB order books](https://docs.polymarket.com/api-reference/market-data/get-order-book),
+[batch order books](https://docs.polymarket.com/api-reference/market-data/get-order-books-request-body),
 [fees](https://docs.polymarket.com/trading/fees),
 [resolution](https://docs.polymarket.com/concepts/resolution).
 
-## Reproduce the sample and inspect the research outputs
+## Reproduce and inspect the sample
 
 ```bash
 python -m agents.loop_demo --output docs/samples/news_loop
 ```
 
-This runs the actual PregameAgent and InPlayAgent with separate fresh temporary
-state: 5 pregame polls and 58 in-play polls covering four quarters, injury exit,
-ruled-out update, return/correction, opponent ejection, a lower-priority conflict,
-the last pre-final second and final settlement. Scores interpolate synthetic
-quarter totals; this is not actual NBA play-by-play. The historical records are
-real local inputs; news, scores, source personas and all market quotes are synthetic.
-Probability differences describe model effects at the same score and clock,
-not verified causal impacts. Final settlement is excluded from forecast curves.
+The primary BOS–ORL match runs the actual independent agents: 5 pre-game polls and
+58 in-play polls covering Q1–Q4, injury exit, ruled-out update, return/correction,
+opponent ejection, a lower-priority conflict, the last pre-final second and final
+settlement. Scores interpolate synthetic quarter totals, not real play-by-play.
+Three additional matches use synthetic score projections from their own historical
+priors to demonstrate cross-game parlays; they are not additional real live feeds.
+Their synthetic prices lag past model estimates. No future scores or news are
+used to calculate earlier forecasts.
 
-Outputs include the English `demo.html`, full `report.md`, schema-v3 `result.json`,
-`timeline.csv`, overview figures and independent pregame/in-play logs. Full raw
-inputs, forecast audits and parameter sensitivities remain in the exported data,
-not in the primary customer page. Generating the sample never fetches live prices
-or changes existing agent run state.
+Outputs include English `demo.html`, `report.md`, schema-v3 `result.json`,
+`timeline.csv`, overview figures and independent agent logs. Forecast audits,
+sensitivities and research details remain outside the main customer flow.
+Generating the replay never fetches live prices or mutates existing run state.
 
-### Model research
-
-The diffusion prototype uses a historical prior, score/time and estimated
-remaining player availability. Fixed variance, replacement-value and injury
-weights need calibration on real in-game observations. The training module offers
-logistic regression and monotonic histogram gradient boosting with chronological,
-whole-game train/calibration/test splits, sigmoid calibration, game-balanced
-weights, Brier score, log loss and reliability bins:
+For calibrated winner-model research, the existing training module offers logistic
+regression and monotonic histogram gradient boosting, chronological whole-game
+train/calibration/test splits, sigmoid calibration, Brier score and log loss:
 
 ```bash
 python -m forecast.inplay_training \
   --training-data snapshots.parquet \
   --train-end 2026-02-01 --calibration-end 2026-03-01 \
   --candidate logistic --output models/inplay/logistic-calibrated.pkl
-# --candidate hgb for monotonic boosting
 python -m agents.dashboard_server --model-file models/inplay/logistic-calibrated.pkl
 ```
 
-Only load trusted local model files. Exported models remain `development_only`
-until further independent validation and market execution-cost testing. Training
-success does not establish profitable trades. The page never invents accuracy or
-calibration metrics for the synthetic replay.
+Only load trusted model files. Exported candidates remain `development_only` until
+independent validation and execution-cost testing; training alone does not prove
+profitable betting or validate the spread/total extensions.

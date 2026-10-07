@@ -136,3 +136,41 @@ def test_game_clock_positions_include_quarter_boundaries_and_overtime():
     assert elapsed_seconds({"period": 6, "clock_seconds": 120}) == 3360
     assert clock_label({"period": 2, "clock_seconds": 480}) == "Q2 08:00"
     assert clock_label({"period": 5, "clock_seconds": 300}) == "OT1 05:00"
+
+
+def test_pregame_general_news_is_visible_without_changing_probability(tmp_path):
+    from data_sources.live_news import NewsBatch
+    from agents.match_view import event_feed
+    a=setup_agent(tmp_path)
+    now=a.game.tip_time-pd.Timedelta(hours=2)
+    good={'item_id':'article','game_id':a.game.game_id,'published_at':now,'observed_at':now,
+          'source':'espn_rss','url':'https://example.com/preview','title':'Team announces warm-up schedule',
+          'text':'Team announces warm-up schedule','review_required':True}
+    items=[good,{**good,'item_id':'future','published_at':now+pd.Timedelta(seconds=1)},
+           {**good,'item_id':'wrong-game','game_id':'other'}]
+    a.provider=type('News',(),{'fetch':lambda self,*args:NewsBatch(items=items)})()
+    s=a.poll(now)['snapshot']
+    assert s['p_home']==s['baseline']['p_home']
+    assert [r['item_id'] for r in s['retrieved_news']]==['article']
+    feed=event_feed([{'snapshot':s}])
+    assert feed[0]['headline']==good['title'] and feed[0]['url']==good['url']
+    assert feed[0]['impact_pp'] is None and not feed[0]['selected']
+    repeat=a.poll(now+pd.Timedelta(seconds=5))['snapshot']
+    assert repeat['retrieved_news']==[]
+    assert len(event_feed([{'snapshot':s},{'snapshot':repeat}]))==1
+
+
+def test_inplay_general_news_is_visible_once_without_an_injury_effect(tmp_path):
+    from agents.match_view import event_feed
+    from data_sources.inplay_types import InPlayBatch
+    feed=Feed()
+    good={'item_id':'live-article','game_id':'g2','published_at':NOW,'observed_at':NOW,
+          'source':'espn_rss','url':'https://example.com/live','title':'Coach comments on defensive scheme','text':'Match update'}
+    feed.fetch=lambda *args:InPlayBatch(score=score(at=args[-1]),evidence=[good,{**good,'item_id':'future','published_at':NOW+pd.Timedelta(minutes=1)}])
+    a=agent(tmp_path,feed)
+    s=a.poll(NOW)['snapshot']
+    assert [r['item_id'] for r in s['retrieved_news']]==['live-article']
+    assert not s['factors'] and s['news_effect_pp']==0
+    assert event_feed([{'snapshot':s}])[0]['headline']==good['title']
+    repeat=a.poll(NOW+pd.Timedelta(seconds=5))['snapshot']
+    assert repeat['retrieved_news']==[]

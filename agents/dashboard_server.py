@@ -34,6 +34,12 @@ class Handler(BaseHTTPRequestHandler):
                 result = {'status': 'ok', 'refresh_seconds': 5}
             elif route.path == '/api/games':
                 result = {'games': self.server.controller.games()}
+            elif route.path == '/api/betting':
+                params = parse_qs(route.query)
+                game_id = params.get('game_id', [''])[0]
+                if not game_id.isdigit():
+                    raise ValueError('Select a current NBA game')
+                result = self.server.controller.betting(game_id)
             elif route.path == '/api/match':
                 params = parse_qs(route.query)
                 game_id = params.get('game_id', [''])[0]

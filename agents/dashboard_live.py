@@ -12,23 +12,31 @@ import requests
 from nba_api.stats.static import teams
 
 from agents.inplay import InPlayAgent
-from agents.graph import clip, log5_home, win_rate
+from agents.pregame import PregameAgent
+from agents.betting import make_board
+from agents.graph import clip, log5_home, win_rate, usual_minutes, OUT_MINUTE_VALUE
 from agents.match_view import match_view, hedge_options
 from agents.market_analysis import _finite
 from data_sources import ROOT, FROZEN, read_table
 from data_sources.inplay import LiveInPlay
+from data_sources.live_news import LiveNews
 from data_sources.inplay_news import InPlayMedia
 from data_sources.inplay_score import ESPN_BASE, team_code
 from data_sources.inplay_types import utc
 from data_sources.news_registry import NewsRegistry
 from data_sources.polymarket_books import PolymarketReader
+from forecast.betting import historical_distribution, distribution
 
 
 class HistoricalRecordPrior:
     name = 'historical-record-prototype'
-    def win(self, view, game):
+    def win(self, view, game, availability=None):
         done = view.games().dropna(subset=['home_pts'])
-        return {'p_home': clip(log5_home(win_rate(done, game.home_team_id), win_rate(done, game.away_team_id)))}
+        p = log5_home(win_rate(done, game.home_team_id), win_rate(done, game.away_team_id))
+        for pid, share in (availability or {}).items():
+            team, minutes = usual_minutes(view.player_games(), int(pid))
+            p += (-1 if team == game.home_team_id else 1 if team == game.away_team_id else 0)*OUT_MINUTE_VALUE*minutes*share
+        return {'p_home': clip(p)}
 
 
 def dashboard_provider():
@@ -38,11 +46,18 @@ def dashboard_provider():
 
 def discover_games(session=None):
     session = session or requests.Session()
-    response = session.get(ESPN_BASE+'/scoreboard', timeout=10)
-    response.raise_for_status()
+    now = pd.Timestamp.now(tz='America/New_York')
+    # ESPN's undated endpoint can keep the previous day's completed slate.
+    dates = sorted({(now+pd.Timedelta(hours=h)).strftime('%Y%m%d') for h in (-8,0,24)})
+    def fetch(date):
+        response = session.get(ESPN_BASE+'/scoreboard', params={'dates':date}, timeout=10)
+        response.raise_for_status()
+        return response.json().get('events', [])
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        events = {str(event['id']):event for group in pool.map(fetch,dates) for event in group}
     known = {r['abbreviation']: r for r in teams.get_teams()}
     result = []
-    for event in response.json().get('events', []):
+    for event in events.values():
         competition = event.get('competitions', [{}])[0]
         sides = {r.get('homeAway'): r for r in competition.get('competitors', [])}
         if not {'home', 'away'} <= set(sides):
@@ -69,8 +84,10 @@ class LiveDashboard:
         self.market = market_reader or PolymarketReader()
         self.provider_factory = provider_factory or dashboard_provider
         self.agents, self.histories, self.cache = {}, {}, {}
+        self.pregame_agents, self.board_cache, self.distributions = {}, {}, {}
         self.catalog, self.catalog_at = [], float("-inf")
         self.lock = threading.RLock()
+        self.board_locks = {}
         self.run_root = ROOT/'runs'/'dashboard'/('live-'+uuid4().hex[:8])
 
     def games(self):
@@ -81,17 +98,20 @@ class LiveDashboard:
                 self.catalog_at = time.monotonic()
             return self.catalog
 
-    def _agent(self, game):
+    def _load_tables(self):
         if self.tables is None:
             self.tables = {n: read_table(n, self.source) for n in ('games', 'player_games')}
             self.tables['news'] = pd.DataFrame()
             self.players = read_table('players', self.source)
+
+    def _agent(self, game):
+        self._load_tables()
         if game.game_id not in self.agents:
             model = pickle.loads(Path(self.model_file).read_bytes()) if self.model_file else None
             self.agents[game.game_id] = InPlayAgent(self.tables, self.players, game, self.provider_factory(),
                                                    self.run_root/game.game_id, prior_model=HistoricalRecordPrior(),
                                                    win_model=model, clock=lambda: pd.Timestamp.now(tz='UTC'))
-            self.histories[game.game_id] = []
+            self.histories.setdefault(game.game_id, [])
         return self.agents[game.game_id]
 
     def poll(self, game_id, budget=100, position=None):
@@ -99,11 +119,14 @@ class LiveDashboard:
         if position:
             hedge_options({}, {}, position, budget)
         with self.lock:
+            game_lock = self.board_locks.setdefault(str(game_id), threading.RLock())
+            self._load_tables()
+        with game_lock:
             games = self.games()
             found = next((g for g in games if g['game_id'] == str(game_id)), None)
             if not found:
                 raise ValueError('This match is not on the current NBA schedule')
-            game = SimpleNamespace(**found)
+            game = SimpleNamespace(**{**found, 'tip_time':utc(found['tip_time'])})
             if utc(pd.Timestamp.now(tz='UTC'))-utc(game.tip_time) > pd.Timedelta(hours=8):
                 raise ValueError('This game is archived; choose a current match')
             cached = self.cache.get(game.game_id)
@@ -142,7 +165,73 @@ class LiveDashboard:
             view['auto_refresh_seconds'] = 5
             return view
 
+    def betting(self, game_id):
+        """Own-model betting board, with isolated pregame and in-play agent state."""
+        with self.lock:
+            game_lock = self.board_locks.setdefault(str(game_id), threading.RLock())
+            self._load_tables()
+        with game_lock:
+            found = next((g for g in self.games() if g['game_id'] == str(game_id)), None)
+            if not found:
+                raise ValueError('Select a current NBA game')
+            game = SimpleNamespace(**{**found, 'tip_time':utc(found['tip_time'])})
+            self._load_tables()
+            now = pd.Timestamp.now(tz='UTC')
+            phase = 'pregame' if now < utc(game.tip_time) else 'inplay'
+            key = (game.game_id, phase)
+            cached = self.board_cache.get(key)
+            if not cached or time.monotonic()-cached[0] >= 5:
+                if phase == 'pregame':
+                    if game.game_id not in self.pregame_agents:
+                        self.pregame_agents[game.game_id] = PregameAgent(self.tables, self.players, game,
+                            HistoricalRecordPrior(), LiveNews(timeout=3, report_slots=1), self.run_root/game.game_id/'pregame',
+                            clock=lambda: pd.Timestamp.now(tz='UTC'))
+                    agent = self.pregame_agents[game.game_id]
+                else:
+                    agent = self._agent(game)
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    prediction = pool.submit(agent.poll, now)
+                    reference = pool.submit(self.market.fetch_bet_contracts, game)
+                    result = prediction.result()
+                    raw = result.get('snapshot') or agent.latest
+                    if raw is None:
+                        raise ValueError('Tip-off transition; waiting for current game data')
+                    snapshot = dict(raw)
+                    if phase == 'pregame':
+                        snapshot.update(quote_state='pregame', model_trained=False, quote_quality='provisional')
+                    try:
+                        market = reference.result()
+                    except (requests.RequestException, ValueError, TypeError, KeyError):
+                        market = {'contracts': [], 'errors': ['Polymarket reference unavailable. Retrying automatically.']}
+                at = pd.Timestamp.now(tz='UTC')
+                snapshot['model_as_of'] = snapshot['as_of']
+                age = (at-utc(snapshot['as_of'])).total_seconds()
+                snapshot['as_of'] = at.isoformat()
+                if phase == 'pregame' and at >= utc(game.tip_time):
+                    snapshot.update(p_home=None, quote_state='waiting_for_tip')
+                if age > 15 and snapshot.get('quote_state') in ('live', 'pregame'):
+                    snapshot.update(p_home=None, quote_state='stale_score')
+                if game.game_id not in self.distributions:
+                    self.distributions[game.game_id] = historical_distribution(self.tables['games'], game, now)
+                own = distribution(self.distributions[game.game_id], snapshot)
+                board = make_board(game, snapshot, own, market.get('contracts', []), False)
+                self.board_cache[key] = (time.monotonic(), snapshot, board, market)
+                history = self.histories.setdefault(game.game_id, [])
+                if not history or history[-1]['snapshot']['as_of'] != snapshot['as_of']:
+                    history.append({'phase': phase, 'snapshot': snapshot})
+                    del history[:-5000]
+            _, snapshot, board, market = self.board_cache[key]
+            view = match_view({'home_team': game.home_team, 'away_team': game.away_team},
+                              self.histories[game.game_id], snapshot, {}, False)
+            past = [r['snapshot'] for r in self.histories[game.game_id] if r['phase'] == 'pregame' and r['snapshot'].get('p_home') is not None]
+            view['pre_curve'] = [{'minute': (utc(s['as_of'])-utc(past[0]['as_of'])).total_seconds()/60, 'p': s['p_home']} for s in past] if past else []
+            view.update(board, phase=phase, market_connected=any(r['reference_quote'] for r in board['bets']),
+                        connection_note='; '.join(market.get('errors', [])), auto_refresh_seconds=5, tip_time=utc(game.tip_time).isoformat())
+            return view
+
     def close(self):
         for agent in self.agents.values():
             agent.provider.close()
+        for agent in self.pregame_agents.values():
+            agent.provider.session.close()
         self.market.close()

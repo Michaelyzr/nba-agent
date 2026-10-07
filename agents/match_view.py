@@ -117,14 +117,29 @@ def next_action(snapshot, quotes, home, away, budget=100, position=None, demo=Fa
 
 def event_feed(steps):
     out = []
+    seen = set()
     for step in steps:
         s = step['snapshot']
         for e in s.get('report', {}).get('new_evidence', []):
             effect = s['report'].get('news_effect') or {}
+            if e['id'] in seen:
+                continue
+            seen.add(e['id'])
             out.append({'id': e['id'], 'headline': e['player']+' '+EVENT_LABELS.get(e['status'], 'status updated'),
                         'clock': clock_label(s['score']) if s.get('score') else '', 'as_of': s['as_of'],
                         'impact_pp': effect.get('home_delta_pp'), 'selected': e['selected'],
-                        'source': e['source'], 'synthetic': e['synthetic'], 'url': e.get('url', ''), 'text': e['text']})
+                        'source': e['source'], 'synthetic': e['synthetic'], 'url': e.get('url', ''), 'text': e['text'],
+                        'published_at': e.get('published_at'), 'observed_at': e.get('observed_at')})
+        for item in s.get('retrieved_news', []):
+            ident = item['item_id']
+            if ident in seen or any(e.get('url') and e.get('url') == item.get('url') for e in s.get('report', {}).get('new_evidence', [])):
+                continue
+            seen.add(ident)
+            out.append({'id': ident, 'headline': item.get('title') or item.get('text') or 'Match news update',
+                        'clock': clock_label(s['score']) if s.get('score') else '', 'as_of': s['as_of'],
+                        'impact_pp': None, 'selected': False, 'source': item['source'], 'synthetic': bool(item.get('synthetic')),
+                        'url': item.get('url', ''), 'text': item.get('text', ''),
+                        'published_at': item.get('published_at'), 'observed_at': item.get('observed_at'), 'news_only': True})
     return out
 
 
