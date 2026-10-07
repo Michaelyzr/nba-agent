@@ -339,6 +339,11 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
                    "sceptic rejects when the price already moved 3¢ toward the trade). This proves the pipeline "
                    "end to end; it says nothing about how an LLM would trade. Tokens are character-count estimates "
                    "and latency is local.", ""]
+        if model.startswith("gemini") and model != "gemini-2.5-flash":
+            md += [f"**Model deviation from the pre-registration.** The pre-registered `gemini-2.5-flash` is no "
+                   f"longer available to new API keys (404), and the free-tier quota for `gemini-3.8-flash` is "
+                   f"20 requests per day. All LLM arms therefore used `{model}` (free tier, about 15 requests per "
+                   f"minute). Prompts, tools, validation and the trading rule are unchanged.", ""]
         md += [
                f"LLM: `{model}`, temperature 0. Decision points: "
                + ("all" if sub >= 1 else f"fixed {sub:.0%} subsample (seed {next(iter(m.values()))['seed']}), same for every setup")
