@@ -120,10 +120,12 @@ the CIs above. Files: `evaluation/results/gate_audit.{md,csv}`, `gate_placebo.{m
 ## Deviations
 
 1. **Window (Wed 7 Oct, deadline).** The gate-audit and Kelly runs use the secondary
-   test period 1 Feb – 12 Apr 2026 only (learning arms still warm up on 1 Nov – 31 Jan).
-   The primary walk-forward window was too slow to finish before 18:00 HKT; re-run with
-   `python -m evaluation.gate_audit --period wf` and
-   `python -m evaluation.kelly --start 2025-11-01 --end 2026-04-12` when time allows.
-2. **Placebo base.** Placebo review points use the no-learning anchor over
+   test period 1 Feb – 12 Apr 2026 only. The primary walk-forward window was too slow
+   to finish before 18:00 HKT; re-run with `python -m evaluation.gate_audit --period wf`
+   and `python -m evaluation.kelly --start 2025-11-01 --end 2026-04-12` when time allows.
+2. **No Nov–Jan warm-up (deadline).** Learning arms start with an empty notebook on
+   1 Feb (`--warm-dev` off). Concurrent agent evals made the Nov–Jan gate back-tests
+   too slow. Re-run with `--warm-dev` for the preregistered protocol.
+3. **Placebo base.** Placebo review points use the no-learning anchor over
    1 Nov – 12 Apr when a situations-bearing run is available; otherwise the same
    agent is replayed on that window once to capture situations.

@@ -7,8 +7,10 @@
 Pre-registered in docs/preregistration_gate.md. Writes evaluation/results/gate_audit.{csv,md}.
 
 Deviation (deadline): the default run uses the secondary test window 1 Feb – 12 Apr
-only (learn on Nov–Jan first for learning arms). Pass --period wf for the primary
-walk-forward window. Documented in the report and in preregistration_gate.md §Deviations.
+only. With `--warm-dev` (off by default under deadline), learning arms warm up on
+Nov–Jan first; otherwise they start with an empty notebook on 1 Feb. Pass
+`--period wf` for the primary walk-forward window. Documented in the report and
+in preregistration_gate.md §Deviations.
 """
 import argparse
 import copy
@@ -77,32 +79,37 @@ def _job(job: dict) -> dict:
             "active": sum(r["status"] == "active" for r in agent.notebook.rules)}
 
 
-def run_all(workers: int, which: list | None = None, period: str = "test"):
+def run_all(workers: int, which: list | None = None, period: str = "test",
+            warm_dev: bool = False):
     blob = None
     if period in ("wf", "all"):
         starts = [SEASON_START] + [w[1] for w in WINDOWS]
         print(f"training M4 for {len(starts)} window starts", flush=True)
         models, _ = train_win_models(starts)
         blob = pickle.dumps(models)
-    # Dev notebooks first (learning arms), then test-period jobs, then optional walk-forward.
+    # Optional Nov–Jan warm-up, then test-period jobs, then optional walk-forward.
     from evaluation.gate_audit import _job as run_job
     batches = []
     if period in ("test", "all"):
-        dev = []
-        for name, spec in SETUPS.items():
-            if which and name not in which:
-                continue
-            if spec[1]:
-                dev.append({"name": f"gate_audit/dev-{name}", "spec": spec, "start": "2025-11-01",
-                            "end": "2026-01-31", "models": None})
+        if warm_dev:
+            dev = []
+            for name, spec in SETUPS.items():
+                if which and name not in which:
+                    continue
+                if spec[1]:
+                    dev.append({"name": f"gate_audit/dev-{name}", "spec": spec, "start": "2025-11-01",
+                                "end": "2026-01-31", "models": None})
+            batches.append(dev)
         test_jobs = []
         for name, spec in SETUPS.items():
             if which and name not in which:
                 continue
-            nb = str(RUNS / "gate_audit" / f"dev-{name}" / "notebook.json") if spec[1] else None
+            nb = None
+            if spec[1] and warm_dev:
+                nb = str(RUNS / "gate_audit" / f"dev-{name}" / "notebook.json")
             test_jobs.append({"name": f"gate_audit/test-{name}", "spec": spec, "start": TEST[0],
                               "end": TEST[1], "models": None, "notebook": nb})
-        batches.extend([dev, test_jobs])
+        batches.append(test_jobs)
     if period in ("wf", "all"):
         wf = []
         for name, spec in SETUPS.items():
@@ -211,8 +218,8 @@ def report():
     lines = ["# Gate audit", "",
              f"Pre-registered in `docs/preregistration_gate.md`. Day-clustered bootstrap, {REPS} replicates, "
              f"seed {SEED}. **Reported window (deadline deviation):** test {TEST[0]}–{TEST[1]} "
-             f"(not clean; learn on Nov–Jan first). Walk-forward {WF[0]}–{WF[1]} is optional via "
-             f"`--period wf`.", "",
+             f"(not clean; learning arms start empty unless `--warm-dev`). Walk-forward "
+             f"{WF[0]}–{WF[1]} is optional via `--period wf`.", "",
              "## Summaries", "",
              "| Period | Setup | Trades | Rules active | Mean CLV [95% CI] | CLV $ [95% CI] | P&L [95% CI] | "
              "Worst day | Kill trips (enforced / measured) |",
@@ -249,10 +256,12 @@ def main():
     ap.add_argument("--only", nargs="*", default=None, help="subset of setup ids")
     ap.add_argument("--period", choices=("test", "wf", "all"), default="test",
                     help="test = Feb–Apr only (default); wf = walk-forward; all = both")
+    ap.add_argument("--warm-dev", action="store_true",
+                    help="learn on Nov–Jan before the test window (slow; off by default)")
     args = ap.parse_args()
     RESULTS.mkdir(parents=True, exist_ok=True)
     if not args.report_only:
-        run_all(args.workers, args.only, args.period)
+        run_all(args.workers, args.only, args.period, args.warm_dev)
     report()
 
 
