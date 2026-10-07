@@ -1,4 +1,19 @@
 period,comparison,metric,estimate,ci_low,ci_high,p_one_sided
+test,Split gate + learning − Legacy gate + learning,mean_clv,-0.001511627906976744,-0.00527482077811361,0.002842890097330186,0.7551224387806097
+test,Split gate + learning − Legacy gate + learning,clv_dollars,17.684999999999988,1.195999999999975,34.208875000000006,0.02048975512243878
+test,Split gate + learning − Legacy gate + learning,pnl,150.89000000000001,-238.20075000000014,541.4604999999999,0.2223888055972014
+test,Split gate + learning + kill switch − Split gate + learning,mean_clv,0.0,0.0,0.0,
+test,Split gate + learning + kill switch − Split gate + learning,clv_dollars,0.0,0.0,0.0,
+test,Split gate + learning + kill switch − Split gate + learning,pnl,0.0,0.0,0.0,
+test,Split gate + learning − No learning (gate never runs),mean_clv,-0.001511627906976744,-0.00527482077811361,0.002842890097330186,0.7551224387806097
+test,Split gate + learning − No learning (gate never runs),clv_dollars,17.684999999999988,1.195999999999975,34.208875000000006,0.02048975512243878
+test,Split gate + learning − No learning (gate never runs),pnl,150.89000000000001,-238.20075000000014,541.4604999999999,0.2223888055972014
+test,Split gate + learning − Never trade,mean_clv,-0.004999999999999994,-0.010108819169960469,0.001885284565419118,0.9695152423788106
+test,Split gate + learning − Never trade,clv_dollars,-17.564999999999984,-34.256874999999944,-1.8498749999999848,0.9800099950024987
+test,Split gate + learning − Never trade,pnl,-96.38,-437.2502499999999,246.74074999999965,0.7031484257871065
 test,Legacy gate + learning − Never trade,mean_clv,-0.00348837209302325,-0.00649322916666666,7.601838162403239e-18,0.9900049975012494
 test,Legacy gate + learning − Never trade,clv_dollars,-35.24999999999997,-60.29012499999998,-11.547124999999935,0.9970014992503748
 test,Legacy gate + learning − Never trade,pnl,-247.27,-718.2989999999998,264.9269999999992,0.8305847076461769
+test,Split gate + learning + kill switch − Never trade,mean_clv,-0.004999999999999994,-0.010108819169960469,0.001885284565419118,0.9695152423788106
+test,Split gate + learning + kill switch − Never trade,clv_dollars,-17.564999999999984,-34.256874999999944,-1.8498749999999848,0.9800099950024987
+test,Split gate + learning + kill switch − Never trade,pnl,-96.38,-437.2502499999999,246.74074999999965,0.7031484257871065

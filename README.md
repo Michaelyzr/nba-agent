@@ -1059,7 +1059,8 @@ season (`--period wf --warm-dev`) was not run. 95% CIs: day-clustered bootstrap,
 | Test period, 1 Feb – 12 Apr | Rules proposed / accepted | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] | Worst day | Kill-switch trips |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Legacy gate + learning | 24 / 0 | 129 | −0.0035 [−0.0065, +0.0000] | −$35 [−60, −12] | −$247 [−718, +265] | −$83 | 0 |
-<!-- SPLIT_ROWS -->
+| Split gate + learning | 11 / 5 | 53 | −0.0050 [−0.0101, +0.0019] | −$18 [−34, −2] | −$96 [−437, +247] | −$54 | 0 |
+| Split gate + learning + kill switch | 11 / 5 | 53 | −0.0050 [−0.0101, +0.0019] | −$18 [−34, −2] | −$96 [−437, +247] | −$54 | 0 |
 | No learning (gate never runs) | – | 129 | −0.0035 [−0.0065, +0.0000] | −$35 [−60, −12] | −$247 [−718, +265] | −$83 | 0 |
 | Never trade | – | 0 | – | $0 | $0 | $0 | 0 |
 
@@ -1069,7 +1070,16 @@ What the numbers say:
   24 proposed rules, so the legacy learning agent is identical to the agent with no
   learning (−$247). The published −$32 for "full agent + learning" relied on rules
   carried over from development.
-<!-- SPLIT_TEXT -->
+- **The split gate accepts more rules, and they cut exposure rather than improve
+  trades.** It kept 5 of 11 rules: skip when news is stale, when the news barely moved the
+  model, when trading before the inactive list, or when the price has moved 2¢
+  against us; and require a 7¢ edge. Trades fall from 129 to 53. Against the legacy agent,
+  CLV $ improves by +$18 [+1, +34] (p = 0.02). Mean CLV per trade does not improve:
+  −0.0015 [−0.0053, +0.0028]. P&L improves by +$151 [−238, +541] (p = 0.22, not
+  significant). Three of the five accepted rules made mean CLV *worse* on their gate
+  days. They passed only because dropping negative-CLV trades raises total CLV dollars.
+  The split agent still does not beat never trading: P&L −$96 [−437, +247], CLV $ −$18
+  [−34, −2].
 - **Placebo (`gate_placebo.md`, 7 review points, 11 templates and 5 random slices
   each).** Random slices (dropping a random hash bucket of trades) pass the split
   gate **57%** of the time [Wilson CI 41%, 72%], against **0%** [0%, 10%] under
@@ -1080,7 +1090,7 @@ What the numbers say:
   Under legacy it passes 29%, against 0% for random slices (difference +29% [+0%, +71%],
   borderline). So H2, "the reviewer is no better than random", cannot be rejected.
   H1 is not supported: the reviewer passes the split gate *more* often than legacy
-  (+29% [−29%, +71%]).
+  (+29% [−29%, +71%]), and in the full runs split accepted 5 of 11 rules against 0 of 24 for legacy.
   Accepted rules do not do better on the next 7 days than rejected ones:
   forward CLV $, accepted − rejected, is −$0.76 [−2.59, +1.23] under split and
   −$2.39 [−4.38, −0.69] under legacy. The gate cannot tell lessons from noise.
