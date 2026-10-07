@@ -9,6 +9,8 @@ never cached.
 Backends are plain objects with generate(system, prompt, meta) -> (text, usage).
 GeminiBackend uses google-genai with temperature 0, JSON output and thinking
 off; tests and dry runs pass a stub. The key comes from GEMINI_API_KEY in .env.
+DeepSeekBackend posts to DeepSeek's OpenAI-compatible /chat/completions with
+httpx (temperature 0, JSON mode); the key comes from DEEPSEEK_API_KEY.
 """
 import hashlib
 import json
@@ -24,7 +26,10 @@ DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # USD per million tokens (input, output), Google AI Studio paid tier list prices; an estimate only.
 PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40),
           "gemini-3.5-flash-lite": (0.10, 0.40),   # assumed equal to 2.5 Flash-Lite
-          "gemini-2.5-pro": (1.25, 10.0)}
+          "gemini-2.5-pro": (1.25, 10.0),
+          "deepseek-chat": (0.27, 1.10)}           # approximate DeepSeek list price, cache-miss input
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_URL = "https://api.deepseek.com"
 MAX_WAIT = 300                 # seconds; a longer retry hint means the daily quota is spent
 
 
@@ -48,9 +53,12 @@ def parse_json(text: str):
 
 
 def cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
-    if not model.startswith("gemini"):
+    if model.startswith("gemini"):
+        price_in, price_out = PRICES.get(model, PRICES["gemini-3.8-flash"])
+    elif model.startswith("deepseek"):
+        price_in, price_out = PRICES.get(model, PRICES["deepseek-chat"])
+    else:
         return 0.0
-    price_in, price_out = PRICES.get(model, PRICES["gemini-3.8-flash"])
     return (tokens_in * price_in + tokens_out * price_out) / 1e6
 
 
@@ -102,6 +110,59 @@ class GeminiBackend:
                     raise                                  # daily quota spent: fail this call, do not sleep for hours
                 time.sleep(max(delay, float(hint.group(1)) + 1) if hint else delay)
                 delay = min(delay * 2, 60)
+
+
+class DeepSeekBackend:
+    """DeepSeek chat completions over httpx: temperature 0, JSON mode, retries on 429/5xx and timeouts."""
+
+    def __init__(self, model: str = DEEPSEEK_MODEL, max_retries: int = 8, min_interval: float = 0.0,
+                 base_url: str = DEEPSEEK_URL, timeout: float = 120.0, client=None):
+        import httpx
+        from dotenv import load_dotenv
+
+        load_dotenv(ROOT / ".env")
+        key = os.getenv("DEEPSEEK_API_KEY")
+        if not key and client is None:
+            raise RuntimeError("DEEPSEEK_API_KEY is not set (add it to .env)")
+        self.model, self.max_retries, self.min_interval = model, max_retries, min_interval
+        self.client = client or httpx.Client(base_url=base_url, timeout=timeout,
+                                             headers={"Authorization": f"Bearer {key}"})
+        self._last = 0.0
+        self._lock = threading.Lock()
+
+    def _body(self, system: str, prompt: str) -> dict:
+        return {"model": self.model, "temperature": 0.0, "response_format": {"type": "json_object"},
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}
+
+    def generate(self, system: str, prompt: str, meta=None):
+        import httpx
+        delay = 2.0
+        for attempt in range(self.max_retries + 1):
+            with self._lock:
+                wait = self._last + self.min_interval - time.time()
+                if wait > 0:
+                    time.sleep(wait)
+                self._last = time.time()
+            try:
+                r = self.client.post("/chat/completions", json=self._body(system, prompt))
+                code = r.status_code
+                if code == 200:
+                    data = r.json()
+                    u = data.get("usage") or {}
+                    text = (data["choices"][0]["message"].get("content") or "")
+                    return text, {"tokens_in": int(u.get("prompt_tokens", 0) or 0),
+                                  "tokens_out": int(u.get("completion_tokens", 0) or 0)}
+                err = f"HTTP {code}: {r.text[:200]}"
+                retry_after = r.headers.get("retry-after")
+            except httpx.TransportError as exc:          # timeouts, dropped connections
+                code, err, retry_after = None, f"{exc.__class__.__name__}: {exc}", None
+            if (code is not None and code not in (429, 500, 502, 503, 504)) or attempt == self.max_retries:
+                raise RuntimeError(err)
+            hint = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else None
+            if hint is not None and hint > MAX_WAIT:
+                raise RuntimeError(err)
+            time.sleep(max(delay, hint + 1) if hint is not None else delay)
+            delay = min(delay * 2, 60)
 
 
 class StubBackend:

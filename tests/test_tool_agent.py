@@ -164,6 +164,44 @@ def test_spent_daily_quota_fails_fast_and_is_not_cached(monkeypatch, tmp_path):
     assert not list(tmp_path.rglob("*.json"))
 
 
+def test_deepseek_backend_parses_retries_and_keys_cache_by_model(monkeypatch, tmp_path):
+    import httpx
+
+    from agents import llm_client
+    sleeps, bodies = [], []
+    monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    replies = [httpx.Response(429, headers={"retry-after": "3"}, text="rate limited"),
+               httpx.Response(200, json={"choices": [{"message": {"content": '{"decision": "pass"}'}}],
+                                         "usage": {"prompt_tokens": 11, "completion_tokens": 5}})]
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return replies.pop(0)
+    client = httpx.Client(base_url="https://api.deepseek.com", transport=httpx.MockTransport(handler))
+    b = llm_client.DeepSeekBackend(model="deepseek-chat", client=client)
+    llm = CachedLLM(b, cache_dir=tmp_path)
+    out = llm.ask("analyst", "Reply in JSON.", "prompt")
+    assert out["json"] == {"decision": "pass"} and (out["tokens_in"], out["tokens_out"]) == (11, 5)
+    assert sleeps == [4.0] and len(bodies) == 2
+    assert bodies[0]["model"] == "deepseek-chat" and bodies[0]["temperature"] == 0.0
+    assert bodies[0]["response_format"] == {"type": "json_object"}
+    assert [m["role"] for m in bodies[0]["messages"]] == ["system", "user"]
+    assert out["cost"] == pytest.approx((11 * 0.27 + 5 * 1.10) / 1e6)
+    gemini = CachedLLM(StubBackend(lambda *a: {}, model="gemini-3.5-flash-lite"), cache_dir=tmp_path)
+    assert gemini.key("analyst", "Reply in JSON.", "prompt") != out["key"]
+
+
+def test_deepseek_backend_does_not_retry_auth_errors(monkeypatch):
+    import httpx
+
+    from agents import llm_client
+    monkeypatch.setattr(llm_client.time, "sleep", lambda s: pytest.fail("slept on a 401"))
+    client = httpx.Client(base_url="https://api.deepseek.com",
+                          transport=httpx.MockTransport(lambda r: httpx.Response(401, text="bad key")))
+    with pytest.raises(RuntimeError, match="HTTP 401"):
+        llm_client.DeepSeekBackend(client=client).generate("system", "prompt")
+
+
 def test_invalid_llm_json_is_a_pass():
     a = agent(fn=lambda *x: "not json at all", sceptic=False)
     decisions, fills, _ = run(a, tables_with_history())

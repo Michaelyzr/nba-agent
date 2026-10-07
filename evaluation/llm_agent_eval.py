@@ -45,8 +45,9 @@ WINDOWS = {"dev": ("2025-11-01", "2026-01-31"), "test": ("2026-02-01", "2026-04-
            "holdout": ("2026-04-13", "2026-06-14")}
 SETUPS = {"anchor": "A. Deterministic anchor agent (no learning)", "plain": "B. Plain LLM, one call (no tools)",
           "tool": "C. Tool agent, no sceptic", "tool_sceptic": "D. Tool agent + priced-in sceptic",
-          "tool_anon": "C-anon. Tool agent, anonymised teams and date", "never": "Never trade"}
-LLM_SETUPS = ("plain", "tool", "tool_sceptic", "tool_anon")
+          "tool_anon": "C-anon. Tool agent, anonymised teams and date",
+          "plain_gemini": "B′. Plain LLM, one call (no tools), earlier run", "never": "Never trade"}
+LLM_SETUPS = ("plain", "tool", "tool_sceptic", "tool_anon", "plain_gemini")
 CHUNK_DAYS = 2
 
 _STATE = {}
@@ -89,11 +90,18 @@ def _shared():
     return _STATE
 
 
+def default_model(kind: str) -> str:
+    from agents.llm_client import DEEPSEEK_MODEL
+    return {"gemini": DEFAULT_MODEL, "deepseek": DEEPSEEK_MODEL}.get(kind, "heuristic-stub")
+
+
 def make_backend(kind: str, model: str | None, min_interval: float):
-    from agents.llm_client import GeminiBackend, StubBackend
+    from agents.llm_client import DeepSeekBackend, GeminiBackend, StubBackend
     from agents.tool_agent import heuristic_reply
     if kind == "heuristic":
         return StubBackend(heuristic_reply, model="heuristic-stub")
+    if kind == "deepseek":
+        return DeepSeekBackend(model or default_model(kind), min_interval=min_interval)
     return GeminiBackend(model or DEFAULT_MODEL, min_interval=min_interval)
 
 
@@ -146,8 +154,8 @@ def run_setup(setup, tag, start, end, args) -> Path:
     decisions.to_parquet(out / "decisions.parquet", index=False)
     fills.to_parquet(out / "fills.parquet", index=False)
     (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in traces))
-    meta = {"setup": setup, "start": start, "end": end, "backend": args.backend, "model": args.model or
-            (DEFAULT_MODEL if args.backend == "gemini" else "heuristic-stub"), "subsample": args.subsample,
+    meta = {"setup": setup, "start": start, "end": end, "backend": args.backend,
+            "model": args.model or default_model(args.backend), "subsample": args.subsample,
             "seed": args.seed, "wall_seconds": time.time() - t0, "fills": len(fills)}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"  {setup}: {len(fills)} fills, {len(traces)} decision points in {(time.time() - t0) / 60:.1f} min",
@@ -275,7 +283,7 @@ def chart(tabs_by_window: dict, path: Path):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     colors = {"anchor": "#1f77b4", "plain": "#9467bd", "tool": "#ff7f0e", "tool_sceptic": "#2ca02c",
-              "tool_anon": "#8c564b", "never": "#7f7f7f"}
+              "tool_anon": "#8c564b", "plain_gemini": "#e377c2", "never": "#7f7f7f"}
     windows = list(tabs_by_window)
     fig, axes = plt.subplots(2, len(windows), figsize=(7 * len(windows), 7.5), squeeze=False)
     for j, w in enumerate(windows):
@@ -330,9 +338,20 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
     for tag, extra in metas.items():
         r = rows[rows.window == tag]
         m = extra["meta"]
-        model = next((v["model"] for k, v in m.items() if k in LLM_SETUPS), "–")
+        models = {k: v["model"] for k, v in m.items() if k in LLM_SETUPS}
+        model = next((v for k, v in models.items() if k != "plain_gemini"), next(iter(models.values()), "–"))
         sub = next((v["subsample"] for v in m.values()), 1.0)
         md += [f"## {tag}: {extra['days'][0]} – {extra['days'][-1]} ({len(extra['days'])} game-days)", ""]
+        if model.startswith("deepseek"):
+            secondary = models.get("plain_gemini")
+            md += [f"**Model deviation from the pre-registration.** The pre-registered model was Gemini 2.5 Flash "
+                   f"(`gemini-2.5-flash`), which is no longer available to new API keys, and the Gemini free-tier "
+                   f"quota ran out before the tool arms could be scored. Setups B, C and D therefore all used "
+                   f"DeepSeek `{model}` (temperature 0, JSON mode), so every LLM setup in the main comparison uses "
+                   f"the same model. Prompts, tools, validation, the decision points and the trading rule are "
+                   f"unchanged. The anchor (A) is the same deterministic run as before."
+                   + (f" The earlier plain-LLM run on `{secondary}` is kept as a secondary row (B′) for reference."
+                      if secondary else ""), ""]
         if model == "heuristic-stub":
             md += ["**Stub results, not Gemini.** Every LLM call was answered by the deterministic heuristic stub "
                    "(`agents.tool_agent.heuristic_reply`: anchor + M4 news shift through the tool protocol; the "
@@ -350,9 +369,11 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
                + ".", "",
                "| Setup | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] | p (CLV > 0) |",
                "| --- | --- | --- | --- | --- | --- |"]
+        mixed = len(set(models.values())) > 1
         for x in r.itertuples():
             b = bootstrap(extra["tabs"][x.setup]).loc["mean_clv", "p_gt_0"]
-            md.append(f"| {x.label} | {x.trades} | {fmt(x.mean_clv, x.mean_clv_lo, x.mean_clv_hi, 'clv')} | "
+            label = f"{x.label} (`{models[x.setup]}`)" if mixed and x.setup in models else x.label
+            md.append(f"| {label} | {x.trades} | {fmt(x.mean_clv, x.mean_clv_lo, x.mean_clv_hi, 'clv')} | "
                       f"{fmt(x.clv_dollars, x.clv_dollars_lo, x.clv_dollars_hi, '$')} | "
                       f"{fmt(x.pnl, x.pnl_lo, x.pnl_hi, '$')} | {'–' if pd.isna(b) else f'{b:.3f}'} |")
         p = pairs[pairs.window == tag]
@@ -385,8 +406,10 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
         md += ["## Memorisation probe", "", probe["summary"], ""]
     md += [f"![Cumulative P&L and CLV by setup]({stem}.png)", "",
            "Costs are estimates from token counts at the list prices in `agents/llm_client.PRICES` "
-           "(Gemini 3.5 Flash-Lite assumed at the 2.5 Flash-Lite price, $0.10 / $0.40 per million input / output "
-           "tokens; the runs themselves used the free tier) and include calls served from the cache, i.e. the cost "
+           "(DeepSeek `deepseek-chat` at about $0.27 / $1.10 per million input / output tokens, ignoring DeepSeek's "
+           "cheaper cache-hit input price, so approximate; Gemini 3.5 Flash-Lite assumed at the 2.5 Flash-Lite "
+           "price, $0.10 / $0.40, though those runs used the free tier) and include calls served from the cache, "
+           "i.e. the cost "
            "of a fresh run. Latency is per API call as measured when the response was first fetched."]
     (RESULTS / f"{stem}.md").write_text("\n".join(md) + "\n")
     print((RESULTS / f"{stem}.md").read_text())
@@ -434,7 +457,7 @@ def main():
     ap.add_argument("--end")
     ap.add_argument("--name", help="run folder under runs/llm_agent/ (default: the window)")
     ap.add_argument("--setups", default="anchor,plain,tool,tool_sceptic")
-    ap.add_argument("--backend", choices=["gemini", "heuristic"], default="gemini")
+    ap.add_argument("--backend", choices=["gemini", "deepseek", "heuristic"], default="gemini")
     ap.add_argument("--model", default=None)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--min-interval", type=float, default=0.0, help="seconds between API calls per process")
