@@ -15,21 +15,31 @@ closing price.
 > AI agent that trades NBA prediction markets and let the market's closing price grade every part
 > of it. Only the parts that defer to the market survive.
 
-### 2. The problem (0:35) [0:50]
+### 2. The problem: surging, under-protected betting markets (0:55) [1:10]
 
-> Consumers face three things. Betting is mainstream: legal in 38 US states, and 46% of adults
-> worldwide gambled last year. The markets are tilted, which is what we measured: about 5% cost per
-> trade, and 91% of the price move before the public news. And published research shows harm:
-> lower credit scores, more bankruptcies. Consumers need education and protection, not tips.
+> First, volume is surging. Monthly trading on Kalshi and Polymarket more than doubled, from
+> $26 billion in May to $53 billion in July 2026, mostly sports, and Kalshi did a record $61
+> billion in September, about 46 times a year earlier. It reaches ordinary users through apps:
+> nearly 2 million Robinhood customers, and Coinbase. Second, price protection is thin. An exchange
+> has no house edge, but you pay a fee and the spread, and you trade against professional market
+> makers, including Kalshi's own affiliate. The CFTC polices market integrity, not whether your
+> price is fair, and not gambling harm; you can trade at 18. States are fighting it in court, and
+> the courts are split. Our own data shows what that gap costs: about 5% per trade, and 91% of the
+> move before the public news. Third, betting causes measurable harm. Consumers need education and
+> protection, not tips.
 
-### 3. Research question and what we built (0:30) [1:20]
+*Sources (say only if asked): Pew Research 23 Sep 2026; TickerTracker via NEXTPredict;
+Robinhood Q2 2026; 3rd Cir. 6 Apr 2026 and 9th Cir. 28 Aug 2026. Full list in
+`docs/market_regulation.md`. Notional volume counts each contract at $1, so cash paid is lower.*
+
+### 3. Research question and what we built (0:30) [1:40]
 
 > Our question: can a consumer, even one armed with an AI agent and public news, beat the market?
 > We built the strongest consumer we could: public news, trained models including a neural net,
 > a LangGraph agent with code risk limits, gated learning and LLM tools. A replay shows it only
 > what was public and fills every order at the real ask plus fee. The answer is no.
 
-### 4. How the agent works (0:45) [2:05]
+### 4. How the agent works (0:45) [2:25]
 
 > Here is the agent. Top row, the decide loop: a news or clock trigger wakes it; it picks which
 > as-of tools to call, prices, news, rotations, our models; it estimates a probability, market
@@ -41,7 +51,7 @@ closing price.
 > trade is graded at the close, a reviewer proposes a rule, and the gate keeps it only if it helps
 > on held-out days. Coach and League give the same analysis to people. The close grades every box.
 
-### 5. Market-Graded Learning: the closing price is the grader (0:35) [2:40]
+### 5. Market-Graded Learning: the closing price is the grader (0:35) [3:00]
 
 > This is what the title means. Each component must pass the market's test. The raw win model
 > fails: minus $2,475 over the season. Recalibrating it fails too. The neural impact model fails:
@@ -49,24 +59,23 @@ closing price.
 > the market anchor, plus $2,450, p 0.002, and gated learning, which passes only by trading less.
 > So the finding is the product: if a disciplined agent can't beat the close, a consumer can't.
 
-### 6. Data (0:25) [3:05]
+### 6. Data (0:15) [3:15]
 
-> All public. Kalshi: 2,632 game-winner markets, 3.9 million one-minute price rows, settlements.
-> ESPN: three seasons of games, box scores and inactive lists, which are our news. Models train
-> before February; the test is February to April, 501 games; the walk-forward retrains monthly;
-> the 87 play-off games are a holdout scored once. No look-ahead, and every fill pays ask plus fee.
+> All public: 3.9 million one-minute Kalshi price rows, and ESPN box scores and inactive lists as
+> our news. Test is February to April, 501 games; the 87 play-off games are a holdout scored once.
+> No look-ahead, and every fill pays ask plus fee.
 
-### 7. Evidence 1: costs, and a price that moves before the news (0:45) [3:50]
+### 7. Evidence 1: costs, and a price that moves before the news (0:45) [4:00]
 
 > Costs first. A $20 order pays 1.92 cents per contract, 5% of the price, up to 14% on cheap
 > contracts. Our best agent made plus $36 at the mid and lost $32 after costs. Second, speed: 91%
 > of the move happens before the inactive list, and about two-thirds, 67%, before the first
 > official injury report, about 6 hours earlier. That is why the agent passes by default.
 
-### 8. Evidence 2: the market beats our model (0:20) [4:10]
+### 8. Evidence 2: the market beats our model (0:10) [4:10]
 
-> Third, expertise. Brier score one hour before tip: market 0.164, our model 0.186. When we
-> disagree by more than five points, the market is right in both directions.
+> Third, expertise: Brier score market 0.164, our model 0.186, and when we disagree the market is
+> right.
 
 ### 9. Deep learning: four neural parts, graded by the market (0:45) [4:55]
 
@@ -130,6 +139,6 @@ closing price.
 
 ---
 
-**Buffer:** about 10 seconds. If running long, shorten slide 6 (data) to one sentence or skip the
+**Buffer:** about 10 seconds. If running long, drop the valuation line on slide 2, or skip the
 League call in the demo. Backup figures for Q&A: `figures/walkforward.png`,
 `figures/data_timeline.png`, `figures/longshot_calibration.png`.

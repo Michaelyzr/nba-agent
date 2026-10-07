@@ -28,3 +28,25 @@ investigates and decides is the right shape.
 Honestly, it mostly learns to trade less. The placebo audit shows that random rules pass the
 split gate 57% of the time, the same rate as the reviewer's rules. Learning improves CLV $
 (+$39, p = 0.001) by cutting trades, not by finding edge. We report that as the result.
+
+**Q5. Isn't Kalshi regulated by the CFTC, so the prices are fair?**
+Regulated, yes: Kalshi has been a CFTC designated contract market since 2020, and it
+self-certified sports contracts in January 2025 without the CFTC blocking them. But CFTC
+oversight is about *market integrity*: surveillance, no manipulation, everyone sees the same order
+book. It does not check that the price a retail user pays gives a fair chance of profit, there is
+no best-execution duty on a direct exchange trade, and there is no federal responsible-gambling
+obligation (sports contracts are open at 18). You still pay the taker fee
+(0.07 × p × (1 − p) per contract) and the spread, and you trade against professionals, including
+Kalshi's own affiliated market maker, which the CFTC has proposed to restrict in 2026. We measured
+the result: about 5% cost per trade (1.92¢), and 91% of the news move before the public news.
+"Fair" in the integrity sense, structurally tilted in the price sense. We make no accusation of
+fraud. Sources: `docs/market_regulation.md`.
+
+**Q6. Why not just use a sportsbook instead?**
+It isn't a better deal, just a different one. A licensed sportsbook builds its margin into the odds:
+US hold was 10.1% of handle in Q2 2026 (AGA), more than our ~5% exchange cost. In return, state law
+gives you 21+ age limits, self-exclusion, responsible-gambling tools and advertising rules. Neither
+venue lets an informed retail user win on average: the books' margin is larger, and the exchange's
+price already holds the news. That is why our product teaches and lets people practise with play
+money rather than recommending a venue. The regulatory gap is that exchange users get neither the
+gambling protections of a sportsbook nor any oversight of the price they pay.

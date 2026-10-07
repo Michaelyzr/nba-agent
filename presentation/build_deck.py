@@ -168,6 +168,15 @@ EXT = {
     "bankrupt": "10%",           # H: bankruptcies ~10% higher with online access
     "invest": "$0.99",           # B: $1 of online betting reduces net investment by $0.99
 }
+# Market growth and regulation (docs/market_regulation.md has full sources and dates).
+MKT = {
+    "pm_may": "$26B", "pm_jul": "$53B",          # Pew Research, 23 Sep 2026: Kalshi + Polymarket monthly
+    "k_sep": "$61B", "k_yoy": "46×",             # NEXTPredict / TickerTracker: Sep 2026 notional; Aug daily avg YoY
+    "k_val": "$22B", "k_val_talks": "~$40B",     # Kalshi release 7 May 2026; Reuters 29 Sep 2026 (talks)
+    "p_val": "$21B",                             # Bloomberg 31 Aug 2026
+    "aga_jul": "$11.6B", "k_sports_jul": "$31B", # AGA tracker, July 2026 handle; Pew, Kalshi July sports
+    "hood_users": "~2M", "hood_q2": "13.6B",     # Robinhood Q2 2026 results, 29 Jul 2026
+}
 
 _fit_report: list[tuple[int, str, float, float]] = []
 
@@ -410,45 +419,60 @@ def build():
 
     # 2 The problem -----------------------------------------------------------
     n = 2
-    s = new_slide(prs, "The problem: three things consumers face", (
-        f"Three parts. First, consumers want to learn: since 2018, {EXT['states']} US states have legalised sports "
-        f"betting, and the Lancet Public Health Commission estimates {EXT['adults_pct']} of adults worldwide gambled "
-        f"last year. Second, the markets are structurally tilted, which is what we measured: about "
-        f"{K['cost_pct']} cost per trade, {K['disc_share']} of the price move before the public news, and the "
-        f"market beats our model. Third, published research shows harm: about {EXT['disorder']} adults with "
-        f"gambling disorder; online betting lowers credit scores by {EXT['credit_online']} points and raises "
-        f"bankruptcies by about {EXT['bankrupt']}; each dollar of online betting cuts investment by about "
-        f"{EXT['invest']}. References: Wardle et al., Lancet Public Health 2024; Hollenbeck, Larsen and Proserpio, "
-        f"SSRN 4903302; Baker et al., NBER WP 33108."), n)
+    s = new_slide(prs, "The problem: surging, under-protected betting markets", (
+        f"Three parts. First, volume is surging. Pew Research, using The Block's data, found that monthly volume "
+        f"on Kalshi and Polymarket more than doubled from {MKT['pm_may']} in May to {MKT['pm_jul']} in July 2026, "
+        f"mostly sports. Kalshi alone traded a record {MKT['k_sep']} notional in September 2026, about "
+        f"{MKT['k_yoy']} its daily average a year earlier (TickerTracker, via NEXTPredict). Notional counts "
+        f"each contract at one dollar, so cash paid is lower, but in July Kalshi's sports notional of "
+        f"{MKT['k_sports_jul']} compared with {MKT['aga_jul']} of handle at all US sportsbooks (AGA). It reaches "
+        f"retail users through brokers: Robinhood reported {MKT['hood_q2']} event contracts in Q2 2026 and nearly "
+        f"2 million prediction-market customers; Coinbase routes to Kalshi since January 2026. Investors value "
+        f"Kalshi at {MKT['k_val']} (May 2026, talks at about $40 billion reported by Reuters on 29 September) "
+        f"and Polymarket at {MKT['p_val']} (Bloomberg, 31 August). "
+        f"Second, price protection is thin. An exchange has no house edge, but every taker pays a fee, "
+        f"0.07 times p times one minus p per contract on Kalshi, plus the spread, and trades against professional "
+        f"market makers, including Kalshi's own affiliate, Kalshi Trading, which the CFTC has proposed to "
+        f"restrict. Kalshi has been CFTC-regulated since 2020 and self-certified sports contracts in January 2025; "
+        f"the CFTC did not block them. CFTC core principles protect market integrity, surveillance and "
+        f"manipulation, but nobody checks that the price a retail user pays is fair, and there is no federal "
+        f"responsible-gambling duty; sports contracts are open at 18, not 21. States are fighting back: the Third "
+        f"Circuit said New Jersey cannot regulate Kalshi, the Ninth Circuit in August said Nevada can. Our own "
+        f"measurement shows what this gap costs: about {K['cost_pct']} per trade, and {K['disc_share']} of the "
+        f"price move before the public news. Third, published research shows harm: about {EXT['disorder']} adults "
+        f"with gambling disorder (Lancet Public Health 2024); online betting lowers credit scores by "
+        f"{EXT['credit_online']} points and raises bankruptcies by about {EXT['bankrupt']} (Hollenbeck, Larsen and "
+        f"Proserpio, SSRN 4903302). Full sources and dates: docs/market_regulation.md."), n)
     cw3 = (CW - 0.5) / 3
     pillars = [
-        ("1  People want to learn", BLUE, [
-            f"Mainstream: legal in {EXT['states']} US states since 2018 ¹",
-            f"{EXT['adults_pct']} of adults worldwide gambled last year ²",
-            "Few understand prices, fees and spreads",
+        ("1  Surging volume", BLUE, [
+            f"Kalshi + Polymarket: **{MKT['pm_may']} → {MKT['pm_jul']}** a month, May → Jul 2026 ¹",
+            f"Kalshi Sep 2026: **{MKT['k_sep']}** notional, ~{MKT['k_yoy']} a year earlier ²",
+            f"Sold in Robinhood ({MKT['hood_users']} users) and Coinbase apps ³",
+            f"Valued at {MKT['k_val']} (Kalshi), {MKT['p_val']} (Polymarket) ⁴",
         ]),
-        ("2  Markets are tilted", ORANGE, [
-            f"~{K['cost_pct']} cost on every trade",
-            f"{K['disc_share']} of the price move comes before the public news",
-            "The market beats our model; never trading wins",
+        ("2  Thin price protection", ORANGE, [
+            "No house edge, but fees, spreads and pro market makers, incl. Kalshi's own ⁵",
+            "CFTC checks integrity, not fair prices or gambling harm; 18+ ⁶",
+            "Courts split on state power (3rd vs 9th Cir.) ⁷",
+            f"**Ours: ~{K['cost_pct']} cost per trade; {K['disc_share']} of the move before the news**",
         ]),
         ("3  Betting causes harm", RED, [
-            f"~{EXT['disorder']} adults with gambling disorder or problem gambling ²",
-            f"Online betting: credit scores −{EXT['credit_online']} pts, bankruptcies +~{EXT['bankrupt']} ¹",
-            f"$1 of online betting cuts investment ~{EXT['invest']} ³",
+            f"~{EXT['disorder']} adults with gambling disorder or problem gambling ⁸",
+            f"Online betting: credit scores −{EXT['credit_online']} pts, bankruptcies +~{EXT['bankrupt']} ⁹",
         ]),
     ]
     for i, (head, col, lines) in enumerate(pillars):
-        card(s, MARGIN + i * (cw3 + 0.25), TOP + 0.15, cw3, 3.55, head, lines, col, pt=18, n=n)
-    textbox(s, MARGIN + cw3 + 0.25, TOP + 3.75, cw3, 0.45, [("Our measurements", {"italic": True})],
-            pt=14, color=ORANGE, align=PP_ALIGN.CENTER, slide_no=n, label="ours")
-    textbox(s, MARGIN + 2 * (cw3 + 0.25), TOP + 3.75, cw3, 0.45, [("External research", {"italic": True})],
-            pt=14, color=RED, align=PP_ALIGN.CENTER, slide_no=n, label="external")
-    callout(s, MARGIN, TOP + 4.35, CW, 0.7,
-            "Consumers need education and protection, not betting tips", pt=22, n=n)
-    textbox(s, MARGIN, 6.45, CW, 0.5, [
-        "¹ Hollenbeck, Larsen & Proserpio 2024 (SSRN)   ² Lancet Public Health Commission on gambling 2024   "
-        "³ Baker et al. 2024 (NBER WP 33108)"], pt=13, color=GREY, slide_no=n, label="refs")
+        card(s, MARGIN + i * (cw3 + 0.25), TOP + 0.08, cw3, 4.07, head, lines, col, pt=16, n=n)
+    callout(s, MARGIN, TOP + 4.24, CW, 0.55,
+            "Consumers need education and protection, not betting tips", pt=20, n=n)
+    textbox(s, MARGIN, 6.03, CW, 0.92, [
+        "¹ Pew Research, 23 Sep 2026 (The Block data)   ² NEXTPredict / TickerTracker, Sep–Oct 2026   "
+        "³ Robinhood Q2 2026 results; Coinbase, 28 Jan 2026   ⁴ Kalshi, 7 May 2026; Bloomberg, 31 Aug 2026   "
+        "⁵ Kalshi fee schedule & Rule 2.12; CFTC affiliate proposal 2026   ⁶ DCM core principles; NBA letter "
+        "to CFTC, 30 Apr 2026   ⁷ KalshiEX v. Flaherty (3d Cir., 6 Apr 2026); KalshiEX v. Assad (9th Cir., "
+        "28 Aug 2026)   ⁸ Lancet Public Health 2024   ⁹ Hollenbeck, Larsen & Proserpio 2024 (SSRN)   "
+        "Full list: docs/market_regulation.md"], pt=10, color=GREY, space=0, slide_no=n, label="refs")
 
     # 3 Research question and what we built ----------------------------------------
     n = 3
