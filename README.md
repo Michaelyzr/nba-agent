@@ -961,6 +961,84 @@ What the tests say:
   Inactive-list news in the frozen data ends 7 May, so after that the agents
   trade on prices and team form only.
 
+#### M4 recalibration
+
+`python -m evaluation.m4_calibration` (calibrators in `forecast/calibrate.py`).
+Platt scaling and isotonic regression are fit on 2,889 out-of-sample M4
+predictions for games before 1 Feb 2026 (M4 refit before each month on all
+earlier games), then scored on the 501 test games. Full tables:
+`m4_calibration.md`.
+
+| Predictor, 501 test games | Brier | Brier − market 1 h [95% CI] |
+| --- | --- | --- |
+| M4 raw, absences known | 0.183 | +0.019 [+0.011, +0.027] |
+| M4 Platt | 0.185 | +0.021 [+0.013, +0.029] |
+| M4 isotonic | 0.184 | +0.020 [+0.012, +0.028] |
+| Anchor estimate (24 h mid + raw M4 news shift) | 0.166 | +0.002 [−0.002, +0.007] |
+| Market 1 h before tip | 0.164 | – |
+
+- **Recalibration does not close the gap to the market.** Both calibrators
+  make M4 slightly worse, and every M4 variant stays significantly behind the
+  market. Even a Platt map fit on the test games themselves (diagnostic only)
+  reaches 0.177.
+- **Why: M4's miscalibration changes with the season phase.** The
+  out-of-sample Platt slope is below 1 in October–January (M4 too confident)
+  and above 1 in February–April (too close to 50%), e.g. 0.78 and 1.33 in
+  2025-26. A pooled calibrator averages the two and fits neither.
+- **Trading:** Platt-calibrated M4 does not change the trading results. For the
+  raw model, P&L is −$2,346 against −$2,087 uncalibrated (paired difference
+  −$259 [−664, +251]). For the anchor agent without learning, it is −$251
+  against −$247. The calibrated replays for the learning agent, and for the
+  isotonic and February–April anchor variants, were not rerun before the
+  deadline.
+
+#### M6 robustness
+
+`python -m evaluation.m6_robustness` reruns the M6 market-impact model on a
+pre-declared grid with the same splits, loss and early stopping as
+`forecast/impact.py`. The grid has 9 configurations (GRU hidden size 16/64/128,
+6/12/24 h history, a static-feature MLP and a 1D CNN), each with 3 seeds.
+Full table: `m6_robustness.md`.
+
+- **Every configuration is worse than predicting zero move.** On test
+  decision times the zero-move MAE is 0.833¢. The gap ranges from +0.017¢
+  (best, GRU-64 with 12 h history) to +0.036¢ (CNN). All 18 gap CIs
+  (9 configurations × 2 row sets) lie entirely above zero.
+- No configuration ever predicts a move larger than the 5.5¢ needed to cover
+  spread and fee, so the M6 agent's zero trades are not a tuning accident.
+
+![M6 robustness grid](evaluation/results/m6_robustness.png)
+
+#### Injury-report timing
+
+`python -m evaluation.injury_timing` (add `--download` to fetch the public NBA
+injury-report PDFs). It covers the 193 test games where at least one player
+was ruled out and M4 moved by 1 point or more. The price move from 24 h before
+tip to tip, signed in the direction of M4's news shift, is split at the first
+official injury report listing the absent player Out/Doubtful and at the
+inactive list (tip − 30 min). Full tables: `injury_timing.md`.
+
+- **About two-thirds of the move comes before the first official injury
+  report:** 67% [47%, 85%] for the key absent player (most minutes), assuming
+  the report is public 15 minutes after its slot. With no publication lag the
+  share is 49%.
+- 24% [6%, 42%] comes between the report and the inactive list, and
+  9% [1%, 19%] after the list. So 91% of the move happens before the
+  inactive list.
+- The first report comes a median of 6.0 h before the inactive list.
+- **Caveats.**
+  - 77 of the 193 key reports were published before the 24 h anchor, so
+    their "anchor → report" share is zero by construction. Counting only the
+    95 games whose report fell between the anchor and the list, 86% of the
+    move comes before the report.
+  - The split depends on which player's listing counts. Using the earliest
+    fresh listing gives 73% before the report; using the last absent player
+    gives 81%.
+  - Only official league reports are used. Team beat reporters and social
+    media can be earlier still, so this bounds how early public news was.
+
+![Injury-report timing](evaluation/results/injury_timing.png)
+
 #### Gate audit, kill switch and Kelly
 
 Pre-registered in `docs/preregistration_gate.md` before any of these runs.
