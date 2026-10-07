@@ -345,5 +345,48 @@
    "away_pts": 115,
    "final_at": "2026-02-12T03:30:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810634",
+  "matchup": "IND @ BKN",
+  "home": "BKN",
+  "away": "IND",
+  "home_pts": 110,
+  "away_pts": 115,
+  "winner": "IND",
+  "margin": 5,
+  "overtime_periods": 0,
+  "final_at": "2026-02-12T03:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB11INDBKN-BKN",
+    "team": "BKN",
+    "settled_yes": 0,
+    "settled_at": "2026-02-12T03:09:30.167327+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+    "team": "IND",
+    "settled_yes": 1,
+    "settled_at": "2026-02-12T03:09:30.167327+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+    "team": "IND",
+    "side": "no",
+    "price": 0.68,
+    "contracts": 29,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -20.17,
+    "clv": -0.005
+   }
+  ],
+  "note": null,
+  "headline": "IND 115 @ BKN 110: IND won by 5. Counterfactual (not traded): IND 'no' at 68c settled $0, lost, P&L -$20.17."
  }
 }

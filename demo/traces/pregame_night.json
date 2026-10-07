@@ -130,7 +130,37 @@
       "away_decimal_odds": 1.4912
      }
     }
-   ]
+   ],
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [],
+    "note": "The pregame agent places no bets.",
+    "headline": "CLE 130 @ POR 111: CLE won by 19."
+   }
   },
   "401810557": {
    "matchup": "MIL @ BOS",
@@ -248,7 +278,37 @@
       "away_decimal_odds": 5.3926
      }
     }
-   ]
+   ],
+   "game_outcome": {
+    "game_id": "401810557",
+    "matchup": "MIL @ BOS",
+    "home": "BOS",
+    "away": "MIL",
+    "home_pts": 107,
+    "away_pts": 79,
+    "winner": "BOS",
+    "margin": 28,
+    "overtime_periods": 0,
+    "final_at": "2026-02-01T23:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+      "team": "BOS",
+      "settled_yes": 1,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+      "team": "MIL",
+      "settled_yes": 0,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     }
+    ],
+    "positions": [],
+    "note": "The pregame agent places no bets.",
+    "headline": "MIL 79 @ BOS 107: BOS won by 28."
+   }
   }
  }
 }

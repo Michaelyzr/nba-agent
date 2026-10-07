@@ -12,6 +12,49 @@
     "pregame": "pregame_night",
     "inplay": "inplay_cle_por",
     "review": "review"
+   },
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "side": "no",
+      "price": 0.55,
+      "contracts": 36,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 15.57,
+      "clv": 0.075
+     }
+    ],
+    "note": null,
+    "headline": "CLE 130 @ POR 111: CLE won by 19. Agent's bet: POR 'no' at 55c settled $1, won, P&L +$15.57."
    }
   },
   {
@@ -20,6 +63,49 @@
    "summary": "A fault injected for the demo makes the investigator cite news published after the decision. The checks reject it, the graph loops back once, and the clean retry passes.",
    "agents": {
     "trader": "trader_cle_por_retry"
+   },
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "side": "no",
+      "price": 0.55,
+      "contracts": 36,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 15.57,
+      "clv": 0.075
+     }
+    ],
+    "note": null,
+    "headline": "CLE 130 @ POR 111: CLE won by 19. Agent's bet: POR 'no' at 55c settled $1, won, P&L +$15.57."
    }
   },
   {
@@ -28,6 +114,49 @@
    "summary": "The brief says 'This one is a lock.' on every try. Checks fail twice, the order is blocked and logged.",
    "agents": {
     "trader": "trader_cle_por_blocked"
+   },
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "side": "no",
+      "price": 0.55,
+      "contracts": 36,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 15.57,
+      "clv": 0.075
+     }
+    ],
+    "note": null,
+    "headline": "CLE 130 @ POR 111: CLE won by 19. Counterfactual (not traded): POR 'no' at 55c settled $1, won, P&L +$15.57."
    }
   },
   {
@@ -36,6 +165,49 @@
    "summary": "Same trade, but the day's realised losses already exceeded the limit: the risk node blocks every order.",
    "agents": {
     "trader": "trader_cle_por_kill"
+   },
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "side": "no",
+      "price": 0.55,
+      "contracts": 36,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 15.57,
+      "clv": 0.075
+     }
+    ],
+    "note": null,
+    "headline": "CLE 130 @ POR 111: CLE won by 19. Counterfactual (not traded): POR 'no' at 55c settled $1, won, P&L +$15.57."
    }
   },
   {
@@ -46,6 +218,49 @@
     "trader": "trader_pass",
     "coach": "coach_pass",
     "orchestrator": "orchestrator_night"
+   },
+   "game_outcome": {
+    "game_id": "401810557",
+    "matchup": "MIL @ BOS",
+    "home": "BOS",
+    "away": "MIL",
+    "home_pts": 107,
+    "away_pts": 79,
+    "winner": "BOS",
+    "margin": 28,
+    "overtime_periods": 0,
+    "final_at": "2026-02-01T23:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+      "team": "BOS",
+      "settled_yes": 1,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+      "team": "MIL",
+      "settled_yes": 0,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+      "team": "MIL",
+      "side": "yes",
+      "price": 0.16,
+      "contracts": 125,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -21.18,
+      "clv": 0.005
+     }
+    ],
+    "note": null,
+    "headline": "MIL 79 @ BOS 107: BOS won by 28. Counterfactual (not traded): MIL 'yes' at 16c settled $0, lost, P&L -$21.18."
    }
   },
   {
@@ -55,6 +270,49 @@
    "agents": {
     "trader": "trader_rule",
     "review": "review"
+   },
+   "game_outcome": {
+    "game_id": "401810645",
+    "matchup": "POR @ UTA",
+    "home": "UTA",
+    "away": "POR",
+    "home_pts": 119,
+    "away_pts": 135,
+    "winner": "POR",
+    "margin": 16,
+    "overtime_periods": 0,
+    "final_at": "2026-02-13T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB12PORUTA-POR",
+      "team": "POR",
+      "settled_yes": 1,
+      "settled_at": "2026-02-13T04:43:01.150877+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+      "team": "UTA",
+      "settled_yes": 0,
+      "settled_at": "2026-02-13T04:43:01.150877+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+      "team": "UTA",
+      "side": "yes",
+      "price": 0.32,
+      "contracts": 62,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -20.79,
+      "clv": 0.005
+     }
+    ],
+    "note": null,
+    "headline": "POR 135 @ UTA 119: POR won by 16. Counterfactual (not traded): UTA 'yes' at 32c settled $0, lost, P&L -$20.79."
    }
   },
   {
@@ -63,6 +321,49 @@
    "summary": "The analyst finds an edge, code validates it, and the sceptic rejects because the price already moved.",
    "agents": {
     "tool_agent": "tool_stub_sceptic_reject"
+   },
+   "game_outcome": {
+    "game_id": "401810634",
+    "matchup": "IND @ BKN",
+    "home": "BKN",
+    "away": "IND",
+    "home_pts": 110,
+    "away_pts": 115,
+    "winner": "IND",
+    "margin": 5,
+    "overtime_periods": 0,
+    "final_at": "2026-02-12T03:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB11INDBKN-BKN",
+      "team": "BKN",
+      "settled_yes": 0,
+      "settled_at": "2026-02-12T03:09:30.167327+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+      "team": "IND",
+      "settled_yes": 1,
+      "settled_at": "2026-02-12T03:09:30.167327+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+      "team": "IND",
+      "side": "no",
+      "price": 0.68,
+      "contracts": 29,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -20.17,
+      "clv": -0.005
+     }
+    ],
+    "note": null,
+    "headline": "IND 115 @ BKN 110: IND won by 5. Counterfactual (not traded): IND 'no' at 68c settled $0, lost, P&L -$20.17."
    }
   },
   {
@@ -71,6 +372,49 @@
    "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
    "agents": {
     "tool_agent": "tool_gemini_1"
+   },
+   "game_outcome": {
+    "game_id": "401810567",
+    "matchup": "NOP @ CHA",
+    "home": "CHA",
+    "away": "NOP",
+    "home_pts": 102,
+    "away_pts": 95,
+    "winner": "CHA",
+    "margin": 7,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T23:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB02NOPCHA-CHA",
+      "team": "CHA",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T22:36:57.534253+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB02NOPCHA-NOP",
+      "team": "NOP",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T22:36:57.534253+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB02NOPCHA-CHA",
+      "team": "CHA",
+      "side": "yes",
+      "price": 0.71,
+      "contracts": 28,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 7.71,
+      "clv": -0.015
+     }
+    ],
+    "note": null,
+    "headline": "NOP 95 @ CHA 102: CHA won by 7. Counterfactual (not traded): CHA 'yes' at 71c settled $1, won, P&L +$7.71."
    }
   },
   {
@@ -79,6 +423,49 @@
    "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
    "agents": {
     "tool_agent": "tool_gemini_2"
+   },
+   "game_outcome": {
+    "game_id": "401810569",
+    "matchup": "MIN @ MEM",
+    "home": "MEM",
+    "away": "MIN",
+    "home_pts": 137,
+    "away_pts": 128,
+    "winner": "MEM",
+    "margin": 9,
+    "overtime_periods": 0,
+    "final_at": "2026-02-03T03:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB02MINMEM-MEM",
+      "team": "MEM",
+      "settled_yes": 1,
+      "settled_at": "2026-02-03T03:44:57.353461+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB02MINMEM-MIN",
+      "team": "MIN",
+      "settled_yes": 0,
+      "settled_at": "2026-02-03T03:44:57.353461+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB02MINMEM-MIN",
+      "team": "MIN",
+      "side": "no",
+      "price": 0.28,
+      "contracts": 71,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 50.11,
+      "clv": -0.005
+     }
+    ],
+    "note": null,
+    "headline": "MIN 128 @ MEM 137: MEM won by 9. Counterfactual (not traded): MIN 'no' at 28c settled $1, won, P&L +$50.11."
    }
   },
   {
@@ -87,9 +474,52 @@
    "summary": "Replayed from the cached Gemini responses (Gemini (gemini-3.5-flash-lite), replayed from the response cache). Outcome: pass - agent passed.",
    "agents": {
     "tool_agent": "tool_gemini_3"
+   },
+   "game_outcome": {
+    "game_id": "401810590",
+    "matchup": "UTA @ ATL",
+    "home": "ATL",
+    "away": "UTA",
+    "home_pts": 121,
+    "away_pts": 119,
+    "winner": "ATL",
+    "margin": 2,
+    "overtime_periods": 0,
+    "final_at": "2026-02-06T03:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB05UTAATL-ATL",
+      "team": "ATL",
+      "settled_yes": 1,
+      "settled_at": "2026-02-06T03:07:10.548787+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB05UTAATL-UTA",
+      "team": "UTA",
+      "settled_yes": 0,
+      "settled_at": "2026-02-06T03:07:10.548787+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB05UTAATL-ATL",
+      "team": "ATL",
+      "side": "yes",
+      "price": 0.74,
+      "contracts": 27,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 6.65,
+      "clv": -0.005
+     }
+    ],
+    "note": null,
+    "headline": "UTA 119 @ ATL 121: ATL won by 2. Counterfactual (not traded): ATL 'yes' at 74c settled $1, won, P&L +$6.65."
    }
   }
  ],
- "built_at": "2026-10-07T08:00:48.706800+00:00",
+ "built_at": "2026-10-07T09:07:51.109186+00:00",
  "note": "Decision steps use only data available at the decision time; settlement is revealed at tip-off."
 }

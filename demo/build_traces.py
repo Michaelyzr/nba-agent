@@ -183,6 +183,70 @@ def final_score(game):
             "away_pts": clean(game.away_pts), "final_at": pd.Timestamp(game.final_at).isoformat()}
 
 
+def overtime_periods(ctx, game):
+    """Overtime periods inferred from team minutes in player_games (240 = regulation, +25 per OT); None if unknown."""
+    pg = ctx.tables.get("player_games")
+    if pg is None:
+        return None
+    mins = pg[pg.game_id == game.game_id].groupby("team_id")["min"].sum()
+    if mins.empty:
+        return None
+    return max(0, int(round((float(mins.max()) - 240) / 25)))
+
+
+def market_settlements(ctx, gid):
+    st_ = ctx.tables.get("settlements")
+    if st_ is None:
+        st_ = pd.read_parquet(ROOT / "data" / "frozen" / "settlements.parquet")
+    tickers = ctx.tables["markets"].loc[ctx.tables["markets"].game_id == gid, "market_ticker"]
+    rows = st_[st_.market_ticker.isin(tickers)].sort_values("market_ticker")
+    return [{"ticker": r.market_ticker, "team": r.market_ticker.rsplit("-", 1)[-1], "settled_yes": int(r.outcome),
+             "settled_at": pd.Timestamp(r.settled_at).isoformat()} for r in rows.itertuples()]
+
+
+def candidate_orders(cands):
+    """The best analysed side (largest gap after fees) as an order: what a pass would have traded."""
+    from replay import Order
+    if not cands:
+        return []
+    c = max(cands, key=lambda c: c["gap_after_fees"])
+    return [Order(c["ticker"], c["side"], c["estimate_p"], float(c["stake"] or 20.0), "counterfactual")]
+
+
+def game_outcome(ctx, game, settlement=None, note=None):
+    """Final score, winner, Kalshi settlement and the agent's (or counterfactual) position after the game."""
+    hp, ap = clean(game.home_pts), clean(game.away_pts)
+    ot = overtime_periods(ctx, game)
+    winner = None if hp is None or ap is None or hp == ap else (game.home_team if hp > ap else game.away_team)
+    out = {"game_id": game.game_id, "matchup": f"{game.away_team} @ {game.home_team}",
+           "home": game.home_team, "away": game.away_team, "home_pts": hp, "away_pts": ap,
+           "winner": winner, "margin": None if winner is None else abs(hp - ap), "overtime_periods": ot,
+           "final_at": pd.Timestamp(game.final_at).isoformat(),
+           "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+           "markets": market_settlements(ctx, game.game_id), "positions": [], "note": note}
+    if settlement:
+        fills, counter = settlement.get("fills") or [], settlement.get("counterfactual") or []
+        for f, cf in [(f, False) for f in fills] + ([(f, True) for f in counter] if not fills else []):
+            if "price" not in f or f.get("outcome_yes") is None:
+                continue
+            won = (f["outcome_yes"] == 1) == (f["side"] == "yes")
+            out["positions"].append({"counterfactual": cf, "ticker": f["ticker"],
+                                     "team": f["ticker"].rsplit("-", 1)[-1], "side": f["side"], "price": f["price"],
+                                     "contracts": f["contracts"], "settled_value": 1.0 if won else 0.0,
+                                     "result": "won" if won else "lost", "pnl": f["pnl"], "clv": f["clv"]})
+    ot_txt = "" if not ot else f" ({ot}OT)" if ot > 1 else " (OT)"
+    score = f"{game.away_team} {ap} @ {game.home_team} {hp}{ot_txt}"
+    head = f"{score}: {winner} won by {out['margin']}." if winner else f"{score}."
+    for p in out["positions"]:
+        tag = "Counterfactual (not traded): " if p["counterfactual"] else "Agent's bet: "
+        head += (f" {tag}{p['team']} '{p['side']}' at {p['price'] * 100:.0f}c settled ${p['settled_value']:.0f}, "
+                 f"{p['result']}, P&L {'+' if p['pnl'] >= 0 else '-'}${abs(p['pnl']):.2f}.")
+    if not out["positions"] and settlement is not None:
+        head += " No bet placed."
+    out["headline"] = head
+    return clean(out)
+
+
 def run_trader(ctx, gid, now, plant=None, notebook=None, tripped=False, label=""):
     game, now = ctx.game(gid), pd.Timestamp(now)
     agent = MarketAgent(notebook or Notebook(), forecaster=ctx.forecaster, learn=False, plant=plant)
@@ -198,16 +262,19 @@ def run_trader(ctx, gid, now, plant=None, notebook=None, tripped=False, label=""
     orders = merged.get("orders", []) if merged.get("status") == "sent" else []
     # what the agent would have bought if not blocked (for the "blocked" panel)
     proposed = next((s["orders"] for s in steps if s["node"] == "propose" and s.get("orders")), [])
+    cands = next((s["candidates"] for s in steps if s["node"] == "analyse"), [])
+    counter_orders = [] if orders else (list(merged.get("orders", [])) or _orders_from(proposed)
+                                        or candidate_orders(cands))
+    settlement = {"revealed_at": pd.Timestamp(game.tip_time).isoformat(),
+                  "fills": settle_orders(ctx, orders, now, game),
+                  "counterfactual": settle_orders(ctx, counter_orders, now, game),
+                  "final": final_score(game)}
     return {"agent": "trader", "label": label, "game_id": gid, "matchup": f"{game.away_team} @ {game.home_team}",
             "tip_time": pd.Timestamp(game.tip_time).isoformat(), "as_of": now.isoformat(), "plant": plant,
             "kill_switch_tripped": tripped, "status": merged.get("status"), "brief": merged.get("brief", ""),
             "path": [s["node"] for s in steps], "steps": steps, "proposed_orders": proposed,
-            "nodes": TRADER_NODES, "edges": TRADER_EDGES,
-            "settlement": {"revealed_at": pd.Timestamp(game.tip_time).isoformat(),
-                           "fills": settle_orders(ctx, orders, now, game),
-                           "counterfactual": settle_orders(ctx, [o for o in merged.get("orders", [])] or
-                                                           _orders_from(proposed), now, game) if not orders else [],
-                           "final": final_score(game)}}
+            "nodes": TRADER_NODES, "edges": TRADER_EDGES, "settlement": settlement,
+            "game_outcome": game_outcome(ctx, game, settlement)}
 
 
 def _orders_from(proposed):
@@ -346,6 +413,12 @@ def run_tool_agent(ctx, gid, now, backend_kind, sceptic, impact, label):
         from replay import Order
         counter = settle_orders(ctx, [Order(cand["ticker"], cand["side"], 0.5, 20.0, "counterfactual", [],
                                             "platform", [], "x")], now, game)
+    elif not orders:
+        steps = run_trader(ctx, gid, now)["steps"]
+        counter = settle_orders(ctx, candidate_orders(next((s["candidates"] for s in steps
+                                                            if s["node"] == "analyse"), [])), now, game)
+    settlement = {"revealed_at": pd.Timestamp(game.tip_time).isoformat(), "fills": settled,
+                  "counterfactual": counter, "final": final_score(game)}
     stub = backend_kind == "heuristic"
     return clean({"agent": "tool_agent", "label": label, "game_id": gid,
                   "matchup": f"{game.away_team} @ {game.home_team}", "tip_time": pd.Timestamp(game.tip_time).isoformat(),
@@ -356,9 +429,8 @@ def run_tool_agent(ctx, gid, now, backend_kind, sceptic, impact, label):
                   "validation": validation, "gap_after_fees": tr.get("gap"), "order": tr.get("order"),
                   "sceptic": None if sceptic_call is None else {"verdict": tr.get("sceptic"),
                                                                  "reply": sceptic_call["reply"]},
-                  "usage": tr.get("llm"),
-                  "settlement": {"revealed_at": pd.Timestamp(game.tip_time).isoformat(), "fills": settled,
-                                 "counterfactual": counter, "final": final_score(game)}})
+                  "usage": tr.get("llm"), "settlement": settlement,
+                  "game_outcome": game_outcome(ctx, game, settlement)})
 
 
 def gemini_candidates():
@@ -396,7 +468,9 @@ def run_coach(ctx, gid, now, label):
     snap["news"] = s.get("news")
     return clean({"agent": "coach", "label": label, "game_id": gid, "matchup": f"{game.away_team} @ {game.home_team}",
                   "tip_time": pd.Timestamp(game.tip_time).isoformat(), "as_of": now.isoformat(),
-                  "snapshot": snap, "explanation": coach.explain(s), "picks": picks})
+                  "snapshot": snap, "explanation": coach.explain(s), "picks": picks,
+                  "game_outcome": game_outcome(ctx, game, note="The Coach places no bets; the market settlement "
+                                                               "shows which pending pick would have won.")})
 
 
 def run_night(ctx, date, game_ids):
@@ -437,7 +511,21 @@ def run_night(ctx, date, game_ids):
     keep = {"date": date, "games": out.get("games"), "done": out.get("done"), "failed": out.get("failed"),
             "messages": out.get("messages"), "trader": trader, "coach": out.get("coach"), "briefs": out.get("briefs"),
             "pregame_summary": out.get("pregame")}
-    return clean({"agent": "orchestrator", "label": f"One night: {date}", "night": keep}), clean(pregame)
+    outcomes = {}
+    for gid in game_ids:
+        g = ctx.game(gid)
+        t = trader.get(gid) or {}
+        from replay import Order
+        sent = [Order(o.get("market_ticker") or o["ticker"], o["side"], o.get("p_model", 0.5), float(o.get("stake", 20)),
+                      "night") for o in t.get("orders") or [] if isinstance(o, dict)]
+        at = next((x.get("as_of") for x in out.get("games") or [] if x.get("game_id") == gid), None)
+        settlement = None
+        if at is not None:
+            settlement = {"fills": settle_orders(ctx, sent, pd.Timestamp(at), g), "counterfactual": []}
+        outcomes[gid] = game_outcome(ctx, g, settlement)
+        pregame.get(gid, {})["game_outcome"] = game_outcome(ctx, g, note="The pregame agent places no bets.")
+    return (clean({"agent": "orchestrator", "label": f"One night: {date}", "night": keep, "game_outcomes": outcomes}),
+            clean(pregame))
 
 
 def run_inplay(ctx, gid):
@@ -471,14 +559,20 @@ def run_inplay(ctx, gid):
             break
     return clean({"agent": "inplay", "label": "In-play agent (SYNTHETIC game script over real rosters)",
                   "game_id": gid, "matchup": f"{game.away_team} @ {game.home_team}",
-                  "tip_time": pd.Timestamp(game.tip_time).isoformat(), "synthetic": True, "polls": polls})
+                  "tip_time": pd.Timestamp(game.tip_time).isoformat(), "synthetic": True, "polls": polls,
+                  "game_outcome": game_outcome(ctx, game, note="The in-play score script above is SYNTHETIC; this "
+                                                               "is the real final result of the game.")})
 
 
 # ---------------- main ----------------
 
+BUILT = {}
+
+
 def write(name, obj):
     OUT.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(clean(obj), indent=1, default=str)
+    BUILT[name] = clean(obj)
+    text = json.dumps(BUILT[name], indent=1, default=str)
     if SECRET.search(text):
         raise ValueError(f"{name}: looks like a secret in the trace")
     (OUT / f"{name}.json").write_text(text)
@@ -491,7 +585,9 @@ def build_all():
     scenarios = []
 
     def add(sid, title, summary, agents):
-        scenarios.append({"id": sid, "title": title, "summary": summary, "agents": agents})
+        primary = BUILT.get(next(iter(agents.values())), {})
+        scenarios.append({"id": sid, "title": title, "summary": summary, "agents": agents,
+                          "game_outcome": primary.get("game_outcome")})
 
     # 1. CLE @ POR, Avdija out: the headline trade
     t = run_trader(ctx, CLE_POR, CLE_POR_AT, label="Trade: Avdija out, buy POR 'no'")

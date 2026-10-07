@@ -370,5 +370,48 @@
    "away_pts": 130,
    "final_at": "2026-02-02T05:00:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810565",
+  "matchup": "CLE @ POR",
+  "home": "POR",
+  "away": "CLE",
+  "home_pts": 111,
+  "away_pts": 130,
+  "winner": "CLE",
+  "margin": 19,
+  "overtime_periods": 0,
+  "final_at": "2026-02-02T05:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+    "team": "CLE",
+    "settled_yes": 1,
+    "settled_at": "2026-02-02T04:27:06.985559+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "team": "POR",
+    "settled_yes": 0,
+    "settled_at": "2026-02-02T04:27:06.985559+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+    "team": "POR",
+    "side": "no",
+    "price": 0.55,
+    "contracts": 36,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 15.57,
+    "clv": 0.075
+   }
+  ],
+  "note": null,
+  "headline": "CLE 130 @ POR 111: CLE won by 19. Counterfactual (not traded): POR 'no' at 55c settled $1, won, P&L +$15.57."
  }
 }

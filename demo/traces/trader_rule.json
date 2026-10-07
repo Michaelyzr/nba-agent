@@ -290,7 +290,19 @@
  "settlement": {
   "revealed_at": "2026-02-13T02:00:00+00:00",
   "fills": [],
-  "counterfactual": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "side": "yes",
+    "price": 0.32,
+    "contracts": 62,
+    "fee_dollars": 0.95,
+    "close_price": 0.325,
+    "clv": 0.005,
+    "outcome_yes": 0,
+    "pnl": -20.79
+   }
+  ],
   "final": {
    "home": "UTA",
    "away": "POR",
@@ -298,6 +310,49 @@
    "away_pts": 135,
    "final_at": "2026-02-13T05:00:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810645",
+  "matchup": "POR @ UTA",
+  "home": "UTA",
+  "away": "POR",
+  "home_pts": 119,
+  "away_pts": 135,
+  "winner": "POR",
+  "margin": 16,
+  "overtime_periods": 0,
+  "final_at": "2026-02-13T05:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-POR",
+    "team": "POR",
+    "settled_yes": 1,
+    "settled_at": "2026-02-13T04:43:01.150877+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "team": "UTA",
+    "settled_yes": 0,
+    "settled_at": "2026-02-13T04:43:01.150877+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB12PORUTA-UTA",
+    "team": "UTA",
+    "side": "yes",
+    "price": 0.32,
+    "contracts": 62,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -20.79,
+    "clv": 0.005
+   }
+  ],
+  "note": null,
+  "headline": "POR 135 @ UTA 119: POR won by 16. Counterfactual (not traded): UTA 'yes' at 32c settled $0, lost, P&L -$20.79."
  },
  "rule": {
   "rule_id": "r023",

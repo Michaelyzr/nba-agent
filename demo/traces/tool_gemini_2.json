@@ -275,7 +275,19 @@
  "settlement": {
   "revealed_at": "2026-02-03T00:30:00+00:00",
   "fills": [],
-  "counterfactual": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB02MINMEM-MIN",
+    "side": "no",
+    "price": 0.28,
+    "contracts": 71,
+    "fee_dollars": 1.01,
+    "close_price": 0.275,
+    "clv": -0.005,
+    "outcome_yes": 0,
+    "pnl": 50.11
+   }
+  ],
   "final": {
    "home": "MEM",
    "away": "MIN",
@@ -283,5 +295,48 @@
    "away_pts": 128,
    "final_at": "2026-02-03T03:30:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810569",
+  "matchup": "MIN @ MEM",
+  "home": "MEM",
+  "away": "MIN",
+  "home_pts": 137,
+  "away_pts": 128,
+  "winner": "MEM",
+  "margin": 9,
+  "overtime_periods": 0,
+  "final_at": "2026-02-03T03:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB02MINMEM-MEM",
+    "team": "MEM",
+    "settled_yes": 1,
+    "settled_at": "2026-02-03T03:44:57.353461+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB02MINMEM-MIN",
+    "team": "MIN",
+    "settled_yes": 0,
+    "settled_at": "2026-02-03T03:44:57.353461+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB02MINMEM-MIN",
+    "team": "MIN",
+    "side": "no",
+    "price": 0.28,
+    "contracts": 71,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 50.11,
+    "clv": -0.005
+   }
+  ],
+  "note": null,
+  "headline": "MIN 128 @ MEM 137: MEM won by 9. Counterfactual (not traded): MIN 'no' at 28c settled $1, won, P&L +$50.11."
  }
 }

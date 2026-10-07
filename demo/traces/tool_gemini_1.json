@@ -254,7 +254,19 @@
  "settlement": {
   "revealed_at": "2026-02-02T20:00:00+00:00",
   "fills": [],
-  "counterfactual": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB02NOPCHA-CHA",
+    "side": "yes",
+    "price": 0.71,
+    "contracts": 28,
+    "fee_dollars": 0.41,
+    "close_price": 0.695,
+    "clv": -0.015,
+    "outcome_yes": 1,
+    "pnl": 7.71
+   }
+  ],
   "final": {
    "home": "CHA",
    "away": "NOP",
@@ -262,5 +274,48 @@
    "away_pts": 95,
    "final_at": "2026-02-02T23:00:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810567",
+  "matchup": "NOP @ CHA",
+  "home": "CHA",
+  "away": "NOP",
+  "home_pts": 102,
+  "away_pts": 95,
+  "winner": "CHA",
+  "margin": 7,
+  "overtime_periods": 0,
+  "final_at": "2026-02-02T23:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB02NOPCHA-CHA",
+    "team": "CHA",
+    "settled_yes": 1,
+    "settled_at": "2026-02-02T22:36:57.534253+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB02NOPCHA-NOP",
+    "team": "NOP",
+    "settled_yes": 0,
+    "settled_at": "2026-02-02T22:36:57.534253+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB02NOPCHA-CHA",
+    "team": "CHA",
+    "side": "yes",
+    "price": 0.71,
+    "contracts": 28,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 7.71,
+    "clv": -0.015
+   }
+  ],
+  "note": null,
+  "headline": "NOP 95 @ CHA 102: CHA won by 7. Counterfactual (not traded): CHA 'yes' at 71c settled $1, won, P&L +$7.71."
  }
 }

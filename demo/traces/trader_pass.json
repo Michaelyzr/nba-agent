@@ -244,7 +244,19 @@
  "settlement": {
   "revealed_at": "2026-02-01T20:30:00+00:00",
   "fills": [],
-  "counterfactual": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "side": "yes",
+    "price": 0.16,
+    "contracts": 125,
+    "fee_dollars": 1.18,
+    "close_price": 0.165,
+    "clv": 0.005,
+    "outcome_yes": 0,
+    "pnl": -21.18
+   }
+  ],
   "final": {
    "home": "BOS",
    "away": "MIL",
@@ -252,5 +264,48 @@
    "away_pts": 79,
    "final_at": "2026-02-01T23:30:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810557",
+  "matchup": "MIL @ BOS",
+  "home": "BOS",
+  "away": "MIL",
+  "home_pts": 107,
+  "away_pts": 79,
+  "winner": "BOS",
+  "margin": 28,
+  "overtime_periods": 0,
+  "final_at": "2026-02-01T23:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+    "team": "BOS",
+    "settled_yes": 1,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "team": "MIL",
+    "settled_yes": 0,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "team": "MIL",
+    "side": "yes",
+    "price": 0.16,
+    "contracts": 125,
+    "settled_value": 0.0,
+    "result": "lost",
+    "pnl": -21.18,
+    "clv": 0.005
+   }
+  ],
+  "note": null,
+  "headline": "MIL 79 @ BOS 107: BOS won by 28. Counterfactual (not traded): MIL 'yes' at 16c settled $0, lost, P&L -$21.18."
  }
 }

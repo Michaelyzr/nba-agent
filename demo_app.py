@@ -85,6 +85,63 @@ def settlement_panel(s, proposed_label="the order"):
         st.write(f"Final score: {fin['away']} {fin['away_pts']} @ {fin['home']} {fin['home_pts']}")
 
 
+# ---------------- game outcome ----------------
+
+def game_outcomes(agent, data):
+    if agent == "orchestrator":
+        return list((data.get("game_outcomes") or {}).values())
+    if agent == "pregame":
+        return [g["game_outcome"] for g in data.get("games", {}).values() if g.get("game_outcome")]
+    return [data["game_outcome"]] if data.get("game_outcome") else []
+
+
+def outcome_card(go, key, synthetic=False):
+    with st.container(border=True):
+        st.subheader(f"Game outcome: {go['matchup']}")
+        if st.session_state.get("present") and not st.session_state.get(key):
+            st.caption("Hidden in presentation mode. The agent decided before this was known.")
+            if st.button("Reveal game outcome", key=f"btn_{key}"):
+                st.session_state[key] = True
+                st.rerun()
+            return
+        ot = go.get("overtime_periods")
+        ot_txt = "" if not ot else f", {ot}OT" if ot > 1 else ", OT"
+        winner, loser = go.get("winner"), go["home"] if go.get("winner") == go["away"] else go["away"]
+        pos = go.get("positions") or []
+        c = st.columns(5)
+        c[0].metric("Final score", f"{go['away']} {go['away_pts']} - {go['home_pts']} {go['home']}")
+        c[1].metric("Winner", winner or "tie", f"by {go.get('margin')}{ot_txt}" if winner else None, delta_color="off")
+        if pos:
+            p = pos[0]
+            c[2].metric("Counterfactual bet (not placed)" if p["counterfactual"] else "Agent's bet",
+                        f"{p['team']} {p['side']} @ {p['price'] * 100:.0f}c",
+                        f"{'WON' if p['result'] == 'won' else 'LOST'}: settled ${p['settled_value']:.0f}",
+                        delta_color="normal" if p["result"] == "won" else "inverse")
+            c[3].metric("P&L" + (" (counterfactual)" if p["counterfactual"] else ""), f"${p['pnl']:+.2f}")
+            c[4].metric("CLV" + (" (counterfactual)" if p["counterfactual"] else ""), cents(p.get("clv")))
+            if p["counterfactual"]:
+                st.info(f"COUNTERFACTUAL: no order was placed. Had the agent bought {p['team']} '{p['side']}' at "
+                        f"{p['price'] * 100:.0f}c ({p['contracts']} contracts), it would have {p['result']} "
+                        f"${abs(p['pnl']):.2f}.")
+            if len(pos) > 1:
+                st.dataframe(pos, hide_index=True, width="stretch")
+        else:
+            c[2].metric("Agent's bet", "none")
+            c[3].metric("P&L", "$0.00")
+            c[4].metric("CLV", "n/a")
+            if winner:
+                st.write(f"A pick on **{winner}** would have won; a pick on **{loser}** would have lost.")
+        mk = go.get("markets") or []
+        if mk:
+            st.write("Kalshi settlement: " + ", ".join(f"{m['team']} 'yes' paid ${m['settled_yes']}" for m in mk))
+        if synthetic:
+            st.warning("The in-play score script on this page is SYNTHETIC; this card is the real final result.")
+        elif go.get("note"):
+            st.caption(go["note"])
+        st.caption(f"Final at {go.get('final_at', '')[:16].replace('T', ' ')} UTC. Not visible to the agent at "
+                   f"decision time. Source: {go.get('source')}.")
+
+
 # ---------------- trader ----------------
 
 def trader_step(s):
@@ -362,6 +419,7 @@ def main():
             agents.setdefault(k, v)
     keys = list(agents)
     agent = st.sidebar.radio("Agent", keys, format_func=lambda k: AGENT_NAMES.get(k, k))
+    st.sidebar.toggle("Presentation mode: hide outcome until revealed", value=False, key="present")
     st.sidebar.caption(index.get("note", ""))
     st.title(sc["title"])
     st.write(sc["summary"])
@@ -369,6 +427,8 @@ def main():
     if data is None:
         st.error("Trace missing for this agent.")
         return
+    for go in game_outcomes(agent, data):
+        outcome_card(go, f"reveal_{sc['id']}_{go['game_id']}", synthetic=agent == "inplay")
     RENDER[agent](data)
 
 

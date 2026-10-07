@@ -266,7 +266,19 @@
  "settlement": {
   "revealed_at": "2026-02-06T00:30:00+00:00",
   "fills": [],
-  "counterfactual": [],
+  "counterfactual": [
+   {
+    "ticker": "KXNBAGAME-26FEB05UTAATL-ATL",
+    "side": "yes",
+    "price": 0.74,
+    "contracts": 27,
+    "fee_dollars": 0.37,
+    "close_price": 0.735,
+    "clv": -0.005,
+    "outcome_yes": 1,
+    "pnl": 6.65
+   }
+  ],
   "final": {
    "home": "ATL",
    "away": "UTA",
@@ -274,5 +286,48 @@
    "away_pts": 119,
    "final_at": "2026-02-06T03:30:00+00:00"
   }
+ },
+ "game_outcome": {
+  "game_id": "401810590",
+  "matchup": "UTA @ ATL",
+  "home": "ATL",
+  "away": "UTA",
+  "home_pts": 121,
+  "away_pts": 119,
+  "winner": "ATL",
+  "margin": 2,
+  "overtime_periods": 0,
+  "final_at": "2026-02-06T03:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB05UTAATL-ATL",
+    "team": "ATL",
+    "settled_yes": 1,
+    "settled_at": "2026-02-06T03:07:10.548787+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB05UTAATL-UTA",
+    "team": "UTA",
+    "settled_yes": 0,
+    "settled_at": "2026-02-06T03:07:10.548787+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": true,
+    "ticker": "KXNBAGAME-26FEB05UTAATL-ATL",
+    "team": "ATL",
+    "side": "yes",
+    "price": 0.74,
+    "contracts": 27,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 6.65,
+    "clv": -0.005
+   }
+  ],
+  "note": null,
+  "headline": "UTA 119 @ ATL 121: ATL won by 2. Counterfactual (not traded): ATL 'yes' at 74c settled $1, won, P&L +$6.65."
  }
 }

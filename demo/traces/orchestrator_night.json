@@ -52,7 +52,7 @@
      "baseline": 0.815,
      "factors": [],
      "news_health": "ok",
-     "seconds": 0.66
+     "seconds": 0.96
     }
    },
    {
@@ -68,7 +68,7 @@
       "Deni Avdija out"
      ],
      "news_health": "ok",
-     "seconds": 0.73
+     "seconds": 0.65
     }
    },
    {
@@ -90,7 +90,7 @@
      "status": "brief_only",
      "orders": [],
      "best_gap": 0.015,
-     "seconds": 0.62
+     "seconds": 0.61
     }
    },
    {
@@ -172,7 +172,7 @@
     "as_of": "2026-02-01 20:00:00+00:00",
     "content": {
      "retail": "MIL at BOS. No injury news yet.\nModel: BOS 81% to win (81% before the news). Market: 84%-85% (mid 84%). No order: the gap after fees is too small or the price a",
-     "seconds": 1.42
+     "seconds": 1.38
     }
    },
    {
@@ -183,7 +183,7 @@
     "as_of": "2026-02-02 01:30:00+00:00",
     "content": {
      "retail": "CLE at POR. Kris Murray (POR) out: Back Muscle Strain Deni Avdija (POR) out: Lower Back Sprain Matisse Thybulle (POR) out: Right Knee Tendinitis Scoot Henderson",
-     "seconds": 1.45
+     "seconds": 1.41
     }
    },
    {
@@ -466,6 +466,81 @@
     "news_health": "ok",
     "polls": 7
    }
+  }
+ },
+ "game_outcomes": {
+  "401810565": {
+   "game_id": "401810565",
+   "matchup": "CLE @ POR",
+   "home": "POR",
+   "away": "CLE",
+   "home_pts": 111,
+   "away_pts": 130,
+   "winner": "CLE",
+   "margin": 19,
+   "overtime_periods": 0,
+   "final_at": "2026-02-02T05:00:00+00:00",
+   "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+   "markets": [
+    {
+     "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+     "team": "CLE",
+     "settled_yes": 1,
+     "settled_at": "2026-02-02T04:27:06.985559+00:00"
+    },
+    {
+     "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+     "team": "POR",
+     "settled_yes": 0,
+     "settled_at": "2026-02-02T04:27:06.985559+00:00"
+    }
+   ],
+   "positions": [
+    {
+     "counterfactual": false,
+     "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+     "team": "POR",
+     "side": "no",
+     "price": 0.55,
+     "contracts": 36,
+     "settled_value": 1.0,
+     "result": "won",
+     "pnl": 15.57,
+     "clv": 0.075
+    }
+   ],
+   "note": null,
+   "headline": "CLE 130 @ POR 111: CLE won by 19. Agent's bet: POR 'no' at 55c settled $1, won, P&L +$15.57."
+  },
+  "401810557": {
+   "game_id": "401810557",
+   "matchup": "MIL @ BOS",
+   "home": "BOS",
+   "away": "MIL",
+   "home_pts": 107,
+   "away_pts": 79,
+   "winner": "BOS",
+   "margin": 28,
+   "overtime_periods": 0,
+   "final_at": "2026-02-01T23:30:00+00:00",
+   "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+   "markets": [
+    {
+     "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+     "team": "BOS",
+     "settled_yes": 1,
+     "settled_at": "2026-02-01T23:17:27.353041+00:00"
+    },
+    {
+     "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+     "team": "MIL",
+     "settled_yes": 0,
+     "settled_at": "2026-02-01T23:17:27.353041+00:00"
+    }
+   ],
+   "positions": [],
+   "note": null,
+   "headline": "MIL 79 @ BOS 107: BOS won by 28. No bet placed."
   }
  }
 }
