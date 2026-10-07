@@ -148,110 +148,155 @@ def forward_clv(fills, situations, games, days, rule) -> float:
     return after - before
 
 
+KEYS = ("cases", "clv_dollars_before", "clv_dollars_after", "edge_dollars_before", "edge_dollars_after",
+        "before", "after")
+
+
+def legacy_selection(fills: pd.DataFrame, games: pd.DataFrame, day: str) -> pd.DataFrame:
+    """Legacy reviewer input: settled trades in the REVIEW_WINDOW ending on `day` (never later fills)."""
+    from agents.graph import REVIEW_WINDOW
+    known = day_fills(fills, games, games.loc[games.date <= day, "date"].unique())
+    if known.empty:
+        return known
+    as_of = pd.to_datetime(known.as_of)
+    return known[as_of >= as_of.max() - REVIEW_WINDOW]
+
+
 def run_audit(fills: pd.DataFrame, situations: dict, tables: dict) -> pd.DataFrame:
     games = tables["games"]
     rp = make_rp(tables, fills)
     agent = MarketAgent(learn=False)
     agent.situations = situations
-    all_days = market_days(rp, END)
-    # Need SELECT_DAYS + GATE_DAYS history before a review point.
-    start_i = SELECT_DAYS + GATE_DAYS
-    review_days = all_days[start_i::REVIEW_EVERY]
+    all_days = [d for d in market_days(rp, END) if d >= START]
+    # Review points need SELECT_DAYS + GATE_DAYS market days of history inside the window.
+    review_days = all_days[SELECT_DAYS + GATE_DAYS::REVIEW_EVERY]
     rows = []
-    for day in review_days:
-        for mode in GATE_MODES:
-            pick = reviewer_pick(agent, fills, situations, day, mode, rp)
-            _, test_days = gate_windows(rp, day, mode)
+    for r_i, day in enumerate(review_days):
+        fwd_days = [d for d in all_days if d > day][:SELECT_DAYS]
+        for m_i, mode in enumerate(GATE_MODES):
+            select_days, test_days = gate_windows(rp, day, mode)
             if len(test_days) < 2:
                 continue
-            fwd_days = [d for d in all_days if d > day][:SELECT_DAYS]
-            # Reviewer's pick
-            if pick is not None:
-                g = evaluate_rule(fills, situations, games, test_days, pick, mode)
-                rows.append({"review_day": day, "mode": mode, "kind": "reviewer", "rule": json.dumps(pick["when"]),
-                             "accepted": int(g["result"] == "accepted"), **{k: g[k] for k in
-                             ("cases", "clv_dollars_before", "clv_dollars_after", "edge_dollars_before",
-                              "edge_dollars_after", "before", "after")},
-                             "forward_clv_dollars": forward_clv(fills, situations, games, fwd_days, pick)})
-            # Every template
-            for when, do, blame, says in REVIEW_TEMPLATES:
-                rule = {"when": {"market_kind": "game", **when}, "do": do, "blame_category": blame}
+            sel = legacy_selection(fills, games, day) if mode == "legacy" else day_fills(fills, games, select_days)
+            agent.gate_mode = mode
+            pick = agent._review_offline(sel) if len(sel) else None
+
+            def add(kind, rule):
                 g = evaluate_rule(fills, situations, games, test_days, rule, mode)
-                rows.append({"review_day": day, "mode": mode, "kind": "template", "rule": json.dumps(rule["when"]),
-                             "accepted": int(g["result"] == "accepted"), **{k: g[k] for k in
-                             ("cases", "clv_dollars_before", "clv_dollars_after", "edge_dollars_before",
-                              "edge_dollars_after", "before", "after")},
+                rows.append({"review_day": day, "mode": mode, "kind": kind, "rule": json.dumps(rule["when"]),
+                             "action": rule["do"]["action"], "accepted": int(g["result"] == "accepted"),
+                             **{k: g[k] for k in KEYS},
+                             "delta_clv_dollars": g["clv_dollars_after"] - g["clv_dollars_before"],
                              "forward_clv_dollars": forward_clv(fills, situations, games, fwd_days, rule)})
-            # Random slices: width = reviewer hit rate on selection, else 0.25
-            select_days, _ = gate_windows(rp, day, mode)
-            sel = day_fills(fills, games, select_days or []) if select_days else fills
+
+            if pick is not None:
+                add("reviewer", pick)
+            for when, do, blame, _ in REVIEW_TEMPLATES:
+                add("template", {"when": {"market_kind": "game", **when}, "do": do, "blame_category": blame})
             share = 0.25
             if pick is not None and len(sel):
-                kept = apply_rule(sel, situations, pick)
-                share = 1 - len(kept) / len(sel) if len(sel) else 0.25
+                share = 1 - len(apply_rule(sel, situations, pick)) / len(sel)
             for i in range(PLACEBO_K):
-                rule = random_slice_rule(SEED, share, hash((day, mode, i)) % 10_000)
-                g = evaluate_rule(fills, situations, games, test_days, rule, mode)
-                rows.append({"review_day": day, "mode": mode, "kind": "random_slice",
-                             "rule": json.dumps(rule["when"]), "accepted": int(g["result"] == "accepted"),
-                             **{k: g[k] for k in ("cases", "clv_dollars_before", "clv_dollars_after",
-                                                  "edge_dollars_before", "edge_dollars_after", "before", "after")},
-                             "forward_clv_dollars": forward_clv(fills, situations, games, fwd_days, rule)})
+                add("random_slice", random_slice_rule(SEED, share, 1000 * r_i + 100 * m_i + i))
     return pd.DataFrame(rows)
 
 
-def summarise(frame: pd.DataFrame) -> str:
+def _boot_points(frame: pd.DataFrame, stat, reps=REPS, seed=SEED) -> tuple:
+    """Point estimate and 95% percentile CI of stat(frame), resampling review points with replacement."""
+    days = sorted(frame.review_day.unique())
+    groups = {d: g for d, g in frame.groupby("review_day")}
+    point = stat(frame)
+    if not days:
+        return point, np.nan, np.nan
+    rng = np.random.default_rng(seed)
+    draws = []
+    for _ in range(reps):
+        pick = rng.choice(len(days), size=len(days), replace=True)
+        v = stat(pd.concat([groups[days[j]] for j in pick], ignore_index=True))
+        if not pd.isna(v):
+            draws.append(v)
+    if not draws:
+        return point, np.nan, np.nan
+    lo, hi = np.quantile(draws, [0.025, 0.975])
+    return point, float(lo), float(hi)
+
+
+def _rate(frame, mode, kind):
+    part = frame[(frame["mode"] == mode) & (frame.kind == kind)]
+    return np.nan if part.empty else float(part.accepted.mean())
+
+
+def summarise(frame: pd.DataFrame) -> tuple:
+    """Markdown report and a tidy table of the bootstrap comparisons."""
+    n_points = frame.review_day.nunique() if len(frame) else 0
     lines = ["# Placebo gate audit", "",
-             f"Base: no-learning anchor agent, {START}–{END}. Review every {REVIEW_EVERY}th market day "
-             f"after {SELECT_DAYS + GATE_DAYS} days of history. At each point: the reviewer's pick, all "
-             f"{len(REVIEW_TEMPLATES)} templates, and {PLACEBO_K} random-slice rules, gated under "
-             f"{', '.join(GATE_MODES)}. Pass-rate CIs are Wilson 95%. Seed {SEED}.", "",
+             f"Pre-registered in `docs/preregistration_gate.md` (H1, H2). Base: no-learning market-anchor agent, "
+             f"{START}–{END} (**deadline deviation:** test window, not the walk-forward season). Review every "
+             f"{REVIEW_EVERY}th market day after {SELECT_DAYS + GATE_DAYS} market days of history "
+             f"({n_points} review points). At each point: the reviewer's own pick, all {len(REVIEW_TEMPLATES)} "
+             f"templates (= exact pass rate of a uniformly random template) and {PLACEBO_K} random-slice rules "
+             f"(seeded hash buckets, width = share of selection trades the reviewer's rule hit, else 0.25), each "
+             f"gated under {', '.join(GATE_MODES)}. Rules only remove trades, so they are applied to the base fills "
+             f"exactly, without replaying. Pass-rate CIs: Wilson 95%. Differences and CLV $ effects: bootstrap over "
+             f"review points, {REPS} replicates, seed {SEED}.", "",
              "## Pass rates", "",
-             "| Mode | Kind | N | Passes | Rate [95% CI] |", "| --- | --- | --- | --- | --- |"]
+             "| Gate | Rule kind | Rules gated | Accepted | Pass rate [95% CI] | Mean Δ CLV $ on test days | "
+             "Mean forward Δ CLV $ (next 7 days) |",
+             "| --- | --- | --- | --- | --- | --- | --- |"]
     for mode in GATE_MODES:
         for kind in ("reviewer", "template", "random_slice"):
-            part = frame[(frame.mode == mode) & (frame.kind == kind)]
+            part = frame[(frame["mode"] == mode) & (frame.kind == kind)]
             n, k = len(part), int(part.accepted.sum()) if len(part) else 0
             lo, hi = wilson(k, n)
             rate = "–" if n == 0 else f"{k / n:.1%} [{lo:.1%}, {hi:.1%}]"
-            lines.append(f"| {mode} | {kind} | {n} | {k} | {rate} |")
-    lines += ["", "## H1 / H2 checks", "",
-              "H1: fewer reviewer passes under split than under legacy.",
-              "H2: under legacy, reviewer pass rate ≈ template / random_slice pass rate "
-              "(learning mainly reduces exposure).", ""]
+            dlt = "–" if n == 0 else f"{part.delta_clv_dollars.mean():+.2f}"
+            fwd = "–" if n == 0 else f"{part.forward_clv_dollars.mean():+.2f}"
+            lines.append(f"| {mode} | {kind} | {n} | {k} | {rate} | {dlt} | {fwd} |")
+
+    comps = []
+    def comp(label, stat, kind="rate"):
+        est, lo, hi = _boot_points(frame, stat)
+        comps.append({"comparison": label, "kind": kind, "estimate": est, "ci_low": lo, "ci_high": hi})
+
+    comp("H1: reviewer pass rate, split − legacy", lambda f: _rate(f, "split", "reviewer") - _rate(f, "legacy", "reviewer"))
+    comp("H1: reviewer pass rate, split-edge − legacy",
+         lambda f: _rate(f, "split-edge", "reviewer") - _rate(f, "legacy", "reviewer"))
     for mode in GATE_MODES:
-        rev = frame[(frame.mode == mode) & (frame.kind == "reviewer")]
-        rnd = frame[(frame.mode == mode) & (frame.kind == "random_slice")]
-        tmpl = frame[(frame.mode == mode) & (frame.kind == "template")]
-        def rate(p):
-            return np.nan if p.empty else p.accepted.mean()
-        lines.append(f"- **{mode}**: reviewer {rate(rev):.1%} vs templates {rate(tmpl):.1%} vs "
-                     f"random slices {rate(rnd):.1%}.")
-        if len(rev):
-            acc = rev[rev.accepted == 1].forward_clv_dollars
-            rej = rev[rev.accepted == 0].forward_clv_dollars
-            lines.append(f"  Forward CLV $ (next {SELECT_DAYS} days): accepted mean "
-                         f"{acc.mean():+.2f} (n={len(acc)}), rejected mean {rej.mean():+.2f} (n={len(rej)}).")
-    # Bootstrap CI on reviewer − random_slice pass-rate difference under legacy
-    lines += ["", "## Bootstrap: reviewer − random_slice pass rate (legacy)", ""]
-    legacy_days = sorted(frame[frame.mode == "legacy"].review_day.unique())
-    if legacy_days:
-        rng = np.random.default_rng(SEED)
-        diffs = []
-        for _ in range(REPS):
-            days = rng.choice(legacy_days, size=len(legacy_days), replace=True)
-            r = frame[(frame.mode == "legacy") & (frame.kind == "reviewer") & (frame.review_day.isin(days))]
-            s = frame[(frame.mode == "legacy") & (frame.kind == "random_slice") & (frame.review_day.isin(days))]
-            if r.empty or s.empty:
-                continue
-            diffs.append(r.accepted.mean() - s.accepted.mean())
-        if diffs:
-            lo, hi = np.quantile(diffs, [0.025, 0.975])
-            point = (frame[(frame.mode == "legacy") & (frame.kind == "reviewer")].accepted.mean()
-                     - frame[(frame.mode == "legacy") & (frame.kind == "random_slice")].accepted.mean())
-            lines.append(f"Difference {point:+.1%} [{lo:+.1%}, {hi:+.1%}]. "
-                         "CI includes 0 ⇒ cannot reject H2 (gate does not prefer the reviewer over noise).")
-    return "\n".join(lines) + "\n"
+        comp(f"H2 ({mode}): reviewer − random template pass rate",
+             lambda f, m=mode: _rate(f, m, "reviewer") - _rate(f, m, "template"))
+        comp(f"H2 ({mode}): reviewer − random slice pass rate",
+             lambda f, m=mode: _rate(f, m, "reviewer") - _rate(f, m, "random_slice"))
+    comp("H2: random-slice pass rate, split − legacy",
+         lambda f: _rate(f, "split", "random_slice") - _rate(f, "legacy", "random_slice"))
+    comp("H2: random-slice pass rate, split-edge − legacy",
+         lambda f: _rate(f, "split-edge", "random_slice") - _rate(f, "legacy", "random_slice"))
+
+    def fwd_gap(f, m):
+        part = f[f["mode"] == m]
+        a, r = part[part.accepted == 1].forward_clv_dollars, part[part.accepted == 0].forward_clv_dollars
+        return np.nan if a.empty or r.empty else float(a.mean() - r.mean())
+
+    for mode in GATE_MODES:
+        comp(f"Forward CLV $, accepted − rejected rules ({mode}, all kinds)", lambda f, m=mode: fwd_gap(f, m), "$")
+    for mode in GATE_MODES:
+        comp(f"Δ CLV $ on test days of accepted reviewer rules ({mode})",
+             lambda f, m=mode: (lambda p: np.nan if p.empty else float(p.delta_clv_dollars.mean()))(
+                 f[(f["mode"] == m) & (f.kind == "reviewer") & (f.accepted == 1)]), "$")
+    comps = pd.DataFrame(comps)
+
+    lines += ["", "## Bootstrap comparisons", "", "| Comparison | Estimate [95% CI] |", "| --- | --- |"]
+    for c in comps.itertuples():
+        if pd.isna(c.estimate):
+            val = "– (no cases)"
+        elif c.kind == "rate":
+            val = f"{c.estimate:+.1%} [{c.ci_low:+.1%}, {c.ci_high:+.1%}]"
+        else:
+            val = f"{c.estimate:+.2f} [{c.ci_low:+.2f}, {c.ci_high:+.2f}]"
+        lines.append(f"| {c.comparison} | {val} |")
+    lines += ["", "Reading the table: H1 is supported if the split − legacy reviewer CI lies below 0. H2 is "
+              "supported if the reviewer − random CIs include 0 under legacy. If the accepted − rejected forward "
+              "CLV $ CI includes 0, the gate cannot tell lessons from noise.", ""]
+    return "\n".join(lines) + "\n", comps
 
 
 def capture_situations(start: str, end: str) -> tuple:
@@ -297,7 +342,8 @@ def main():
     situations = {(t, pd.Timestamp(a)): s for (t, a), s in situations.items()}
     frame = run_audit(fills, situations, tables)
     frame.to_csv(RESULTS / "gate_placebo.csv", index=False)
-    md = summarise(frame)
+    md, comps = summarise(frame)
+    comps.to_csv(RESULTS / "gate_placebo_pairs.csv", index=False)
     (RESULTS / "gate_placebo.md").write_text(md)
     print(md, flush=True)
 

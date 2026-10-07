@@ -1,0 +1,17 @@
+comparison,kind,estimate,ci_low,ci_high
+"H1: reviewer pass rate, split − legacy",rate,0.2857142857142857,-0.2857142857142857,0.7142857142857143
+"H1: reviewer pass rate, split-edge − legacy",rate,0.0,-0.42857142857142855,0.42857142857142855
+H2 (split): reviewer − random template pass rate,rate,0.18181818181818177,-0.012987012987012991,0.36363636363636365
+H2 (split): reviewer − random slice pass rate,rate,0.0,-0.2857142857142857,0.28571428571428575
+H2 (split-edge): reviewer − random template pass rate,rate,0.1818181818181818,-0.025974025974025976,0.45454545454545453
+H2 (split-edge): reviewer − random slice pass rate,rate,0.14285714285714285,0.0,0.34285714285714286
+H2 (legacy): reviewer − random template pass rate,rate,0.22077922077922077,0.0,0.5194805194805194
+H2 (legacy): reviewer − random slice pass rate,rate,0.2857142857142857,0.0,0.7142857142857143
+"H2: random-slice pass rate, split − legacy",rate,0.5714285714285714,0.34285714285714286,0.8
+"H2: random-slice pass rate, split-edge − legacy",rate,0.14285714285714285,0.0,0.34285714285714286
+"Forward CLV $, accepted − rejected rules (split, all kinds)",$,-0.7555370370370327,-2.587618644067793,1.2346907282271937
+"Forward CLV $, accepted − rejected rules (split-edge, all kinds)",$,-2.1244134615384596,-4.163067307692309,1.2236324786324846
+"Forward CLV $, accepted − rejected rules (legacy, all kinds)",$,-2.392633928571432,-4.382179487179504,-0.6903005501443056
+Δ CLV $ on test days of accepted reviewer rules (split),$,6.554999999999991,4.4649999999999945,9.03499999999999
+Δ CLV $ on test days of accepted reviewer rules (split-edge),$,8.204999999999998,6.355000000000006,10.054999999999993
+Δ CLV $ on test days of accepted reviewer rules (legacy),$,12.632500000000004,7.910000000000004,17.355000000000004
