@@ -53,6 +53,7 @@ class PollState(TypedDict, total=False):
     items: list
     coverage: list
     new_evidence_count: int
+    retrieved_news: list
 
 
 class PregameAgent:
@@ -195,19 +196,21 @@ class PregameAgent:
         now, rows, errors = state["now"], [], list(state["errors"])
         since = utc(self.baseline["as_of"]) - self.lookback
         evidence_count = 0
+        retrieved_news = []
         for raw in state.get("items", []):
             try:
                 item = dict(raw)
                 published = utc(item["published_at"])
                 observed = utc(item.get("observed_at", now))
                 if (item["game_id"] != self.game.game_id or not since <= published <= now
-                        or observed > now or published >= utc(self.game.tip_time)):
+                        or observed > now or observed < published or published >= utc(self.game.tip_time)):
                     continue
                 if item["item_id"] in self.seen_items:
                     continue
                 item.update(published_at=published.isoformat(), observed_at=observed.isoformat())
                 self._append("evidence.jsonl", item)
                 self.seen_items.add(item["item_id"])
+                retrieved_news.append(item)
                 evidence_count += 1
             except (KeyError, TypeError, ValueError) as exc:
                 errors.append({"source": "evidence_validation", "error": str(exc)})
@@ -257,7 +260,7 @@ class PregameAgent:
                     row["factor_result"] = "applied" if self.factors[key]["news_id"] == row["news_id"] else "conflict_pending"
             self._append("news.jsonl", row)
         self._resolve_factors()
-        return {"new_rows": rows, "errors": errors, "new_evidence_count": evidence_count}
+        return {"new_rows": rows, "errors": errors, "new_evidence_count": evidence_count, "retrieved_news": retrieved_news}
 
     def _reforecast(self, state):
         status_loss, minutes_loss = {}, {}
@@ -284,6 +287,7 @@ class PregameAgent:
                     "factors": list(self.factors.values()), "new_news_ids": [r["news_id"] for r in state["new_rows"]],
                     "conflicts": self.conflicts, "source_coverage": state.get("coverage", []),
                     "new_evidence_count": state.get("new_evidence_count", 0),
+                    "retrieved_news": state.get("retrieved_news", []),
                     "errors": state["errors"], "news_health": "degraded" if state["errors"] else "ok",
                     "odds_basis": "fair decimal odds, no bookmaker margin",
                     "factor_assumptions": STATUS_LOSS}
@@ -301,6 +305,9 @@ class PregameAgent:
 
     def _record(self, state):
         snapshot = state["snapshot"]
+        from agents.news_report import make_report, persist_report
+        snapshot["report"] = make_report(snapshot, self.game, self.players, self.latest, state["new_rows"])
+        persist_report(self.output, snapshot["report"])
         self._append("snapshots.jsonl", snapshot)
         self.latest = snapshot
         self._save_state(state["now"])

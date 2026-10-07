@@ -6,6 +6,7 @@
 All output is under runs/inplay/. No pregame state, news cache or runtime imports.
 """
 import argparse
+import hashlib
 import json
 import math
 import pickle
@@ -53,8 +54,10 @@ class InPlayAgent:
         self.seen, self.seen_items, self.history = set(), set(), None
         self.stopped = False
         model_config = {"sigma": self.win_model.sigma, "model": self.win_model.name,
-                        "coefs": self.win_model.fitted.coef_.tolist() if self.win_model.fitted is not None else None,
-                        "intercept": self.win_model.fitted.intercept_.tolist() if self.win_model.fitted is not None else None}
+                        "coefs": self.win_model.fitted.coef_.tolist() if hasattr(self.win_model.fitted, "coef_") else None,
+                        "intercept": self.win_model.fitted.intercept_.tolist() if hasattr(self.win_model.fitted, "intercept_") else None}
+        if self.win_model.fitted is not None and hasattr(self.win_model.fitted, "kind"):
+            model_config["artifact_hash"] = hashlib.sha256(pickle.dumps(self.win_model.fitted)).hexdigest()
         self.config = {"pipeline": "inplay-v1", "game_id": str(game.game_id),
                        "tip_time": utc(game.tip_time).isoformat(), "initial_p_home": initial_p_home,
                        "max_score_age": max_score_age, "point_value": point_value, **model_config}
@@ -121,16 +124,18 @@ class InPlayAgent:
         return self.registry.priority(source)
 
     def _extract(self, batch, roster, now, errors):
+        self.retrieved_news = []
         for raw in batch.evidence:
             try:
                 item = dict(raw)
                 published, observed = utc(item["published_at"]), utc(item["observed_at"])
                 if (str(item["game_id"]) != str(self.game.game_id) or not utc(self.game.tip_time) <= published <= now
-                        or observed > now or item["item_id"] in self.seen_items):
+                        or observed > now or observed < published or item["item_id"] in self.seen_items):
                     continue
                 item.update(published_at=published.isoformat(), observed_at=observed.isoformat())
                 self._append("inplay_evidence.jsonl", item)
                 self.seen_items.add(item["item_id"])
+                self.retrieved_news.append(item)
             except (KeyError, ValueError, TypeError):
                 errors.append({"source": "evidence", "error": "invalid in-game evidence"})
         new_ids = []
@@ -184,19 +189,21 @@ class InPlayAgent:
                     # Departure alone says nothing about a subsequent return prognosis.
                     chosen = max(prognosis, key=lambda r: (self._priority(r["source"]), r["published_at"]))
             self.factors[pid] = {**chosen, "confirmation": "primary" if self._priority(chosen["source"]) >= 30 else "secondary_only"}
-            alternatives = [r for r in candidates.values() if LOSSES[r["status"]] != LOSSES[chosen["status"]]]
+            alternatives = [r for r in candidates.values() if LOSSES[r["status"]] != LOSSES[chosen["status"]]
+                            and not (r["status"] == "left_injured" and r["published_at"] <= chosen["published_at"]
+                                     and chosen["status"] in {"injury_out", "questionable_return", "doubtful_return", "returned"})]
             if alternatives:
                 self.conflicts.append({"player_id": int(pid), "selected": self.factors[pid], "alternatives": alternatives})
         return new_ids
 
-    def _news_margin(self, score):
+    def _news_margin(self, score, factors=None):
         h = self._history()
         remaining = remaining_seconds(score) / 60
         total, effects = 0.0, []
-        for factor in self.factors.values():
+        for factor in self.factors.values() if factors is None else factors:
             pid, lost = factor["player_id"], LOSSES[factor["status"]]
             team = score.get("player_teams", {}).get(str(pid)) or h.last_played(pid, self.game.tip_time)[0]
-            usual, _ = h.usual(pid, self.game.tip_time)
+            usual, usual_points = h.usual(pid, self.game.tip_time)
             played = score.get("player_minutes", {}).get(str(pid))
             if score["period"] > 4 or played is None:
                 minutes = min(remaining, usual * remaining / 48)
@@ -206,7 +213,12 @@ class InPlayAgent:
             impact = sign * self.point_value * minutes * lost
             total += impact
             effects.append({"player_id": pid, "status": factor["status"], "expected_remaining_minutes": minutes,
-                            "expected_lost_share": lost, "home_margin_adjustment": impact})
+                            "player": dict(zip(self.players.player_id, self.players.player_name)).get(pid, str(pid)),
+                            "expected_lost_share": lost, "home_margin_adjustment": impact,
+                            "historical_usual_minutes": usual, "historical_usual_points": usual_points,
+                            "observed_played_minutes": played, "point_value_per_lost_minute": self.point_value,
+                            "team_id": int(team) if team is not None else None,
+                            "source": factor["source"], "impact_basis": "uniform_replacement_adjusted_assumption"})
         return total, effects
 
     def poll(self, now):
@@ -216,6 +228,7 @@ class InPlayAgent:
         if self.stopped:
             return {"stopped": True, "snapshot": self.latest}
         errors, new_ids = [], []
+        self.retrieved_news = []
         coverage, batch = [], None
         accepted_score = False
         if now < utc(self.game.tip_time):
@@ -251,7 +264,8 @@ class InPlayAgent:
                     "source_coverage": coverage, "errors": errors, "news_health": "degraded" if errors else "ok",
                     "model_trained": self.win_model.fitted is not None,
                     "heldout_validation": self.win_model.validation,
-                    "calibration_status": "heldout_evaluated" if self.win_model.validation else "validation_required",
+                    "calibration_status": "calibrated_heldout" if (self.win_model.validation or {}).get("calibrated") else "heldout_evaluated" if self.win_model.validation else "validation_required",
+                    "model_parameters": {"sigma": self.win_model.sigma},
                     "assumptions": {"point_value_per_lost_minute": self.point_value, "uncertain_status_loss": LOSSES},
                     "odds_basis": "fair decimal odds, no bookmaker margin"}
         if self.score:
@@ -274,7 +288,13 @@ class InPlayAgent:
                 self._initialize()
                 news_margin, effects = self._news_margin(self.score)
                 p = self.win_model.predict(self.score, self.prior["p_home"], news_margin)
+                old_margin, _ = self._news_margin(self.score, (self.latest or {}).get("factors", []))
+                without_news = self.win_model.predict(self.score, self.prior["p_home"], 0)
+                before_new_events = self.win_model.predict(self.score, self.prior["p_home"], old_margin)
                 snapshot.update(fair_odds(p), prior=self.prior, news_margin=news_margin, player_effects=effects,
+                                p_home_without_news=without_news, p_home_before_new_events=before_new_events,
+                                news_effect_pp=(p - without_news) * 100,
+                                new_event_effect_pp=(p - before_new_events) * 100,
                                 training_features=features(self.score, self.prior["p_home"], news_margin),
                                 remaining_seconds=remaining_seconds(self.score),
                                 quote_quality="provisional" if source_age is None or errors or self.win_model.fitted is None else "observed")
@@ -282,6 +302,12 @@ class InPlayAgent:
                     snapshot["freshness"] = "source_timestamp_unverified"
                 else:
                     snapshot["freshness"] = "within_age_limit"
+        from agents.news_report import make_report, persist_report
+        snapshot['retrieved_news'] = self.retrieved_news
+        snapshot["report"] = make_report(snapshot, self.game, self.players, self.latest, batch.events if batch else [])
+        from agents.forecast_audit import audit_snapshot
+        snapshot["forecast_audit"] = audit_snapshot(snapshot, self.latest)
+        persist_report(self.output, snapshot["report"])
         self._append("inplay_snapshots.jsonl", snapshot)
         self._save(now, snapshot)
         return {"stopped": self.stopped, "snapshot": snapshot}

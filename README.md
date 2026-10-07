@@ -665,6 +665,38 @@ plan. The displayed source plan is configuration, not a live retrieval claim.
 pytest -q tests/test_pregame.py tests/test_news_sources.py
 ```
 
+#### Visual sample of the complete news loop
+
+Both news runners now produce an automatic brief on each poll, saved as
+`reports.jsonl` and `latest_report.md` in their own run directories. In-play
+briefs separate the total probability movement from the new event's effect at
+the same score and clock; score changes alone are not attributed to news.
+These deterministic briefs use forecast numbers and retained evidence.
+
+```bash
+python -m agents.loop_demo                       # regenerate the offline sample
+python -m agents.dashboard_server               # English dashboard + automatic live APIs
+streamlit run loop_demo_app.py                   # optional shared Streamlit view
+```
+
+The main `app.py` also has a **News loop sample** tab. A committed sample
+contains 5 pregame and 58 in-play polls, parsed synthetic news, source conflicts,
+deduplication, injury exits/returns, an ejection and a final result. It uses the
+actual agents with historical record baselines, without API keys or model weights.
+All news, scores and source personas are explicitly synthetic.
+
+Open [the standalone interactive demo](docs/samples/news_loop/demo.html) in a
+browser, or inspect [the overview](docs/samples/news_loop/overview.png),
+[generated briefs](docs/samples/news_loop/report.md) and
+[timeline values](docs/samples/news_loop/timeline.csv).
+The English browser page defaults to an offline simulation. Start the dashboard
+service and select Live games for automatic ESPN match discovery and public
+Polymarket prices, refreshed every five seconds. Optional held positions compare
+holding, buying the opposite outcome and reducing exposure. No uploads or wallet
+are required; all API access is read-only. The default live model is a research
+prototype and does not issue validated buy signals.
+See [sample presentation instructions](docs/sample_loop.md).
+
 #### Independent in-play news and fair odds
 
 `agents/inplay.py` runs a separate post-tip loop over current scores, remaining
@@ -1322,3 +1354,18 @@ The GitHub Actions workflow was removed in the layout refactor. Restoring
 `.github/workflows/tests.yml` to run `pytest -q` will bring back the PR check.
 Add a test with every package: a planted failure that the code must catch is
 worth more than a test that only runs the happy path.
+
+
+The English Courtside dashboard follows each match automatically from Pre-game
+to In-play, with
+moneyline, spread and total selections, a stake-based bet slip and two- to four-leg
+parlay recommendations. All probabilities come from our models; Polymarket's
+exact full-game order books provide reference prices. Users can rank positive-value
+choices by estimated profit or win chance, build their own picks, and compare an
+opposite-outcome hedge using the original bet amount and placed odds. Before tip-off it shows estimated win
+chances and both odds; the live probability chart appears after tip-off. Latest
+match updates include retrieved news with source links. The offline
+website includes a four-game synthetic slate for the parlay demo. Live data refreshes
+automatically through `python -m agents.dashboard_server`. See the
+[dashboard guide](docs/sample_loop.md) for model assumptions, read-only APIs,
+replay instructions and combined-quote limitations.

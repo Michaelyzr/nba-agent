@@ -1,0 +1,212 @@
+{
+  "game_id": "401811041",
+  "tip_time": "2026-04-12T22:00:00+00:00",
+  "model": "record_forecaster",
+  "lookback_hours": 48.0,
+  "baseline": {
+    "as_of": "2026-04-12T20:00:00+00:00",
+    "p_home": 0.728776634529693,
+    "p_away": 0.271223365470307,
+    "home_decimal_odds": 1.372162542841865,
+    "away_decimal_odds": 3.6869979777220854
+  },
+  "factors": {
+    "3917376:status": {
+      "news_id": "4e0b977268381ea7cb03940a",
+      "item_id": "3b70d54ef468e8ce56bef310",
+      "game_id": "401811041",
+      "player_id": 3917376,
+      "published_at": "2026-04-12T21:30:00+00:00",
+      "observed_at": "2026-04-12T21:30:02+00:00",
+      "status": "available",
+      "minutes_limit": null,
+      "source": "espn_rss",
+      "url": "",
+      "text": "Jaylen Brown is available tonight",
+      "synthetic": true,
+      "source_label": "\u5408\u6210\u6743\u5a01\u786e\u8ba4\u60c5\u666f\uff08ESPN\u5c42\u7ea7\uff09",
+      "factor_result": "review_only",
+      "source_role": "authority_media",
+      "confirmation": "primary"
+    }
+  },
+  "seen": [
+    "4c62a2a4f3bd4117589504db",
+    "4e0b977268381ea7cb03940a",
+    "c5de3f4894c6e80fd4961017"
+  ],
+  "last_as_of": "2026-04-12T21:59:00+00:00",
+  "latest": {
+    "phase": "update",
+    "game_id": "401811041",
+    "as_of": "2026-04-12T21:59:00+00:00",
+    "tip_time": "2026-04-12T22:00:00+00:00",
+    "model": "record_forecaster",
+    "baseline": {
+      "as_of": "2026-04-12T20:00:00+00:00",
+      "p_home": 0.728776634529693,
+      "p_away": 0.271223365470307,
+      "home_decimal_odds": 1.372162542841865,
+      "away_decimal_odds": 3.6869979777220854
+    },
+    "p_home": 0.728776634529693,
+    "p_away": 0.271223365470307,
+    "home_decimal_odds": 1.372162542841865,
+    "away_decimal_odds": 3.6869979777220854,
+    "delta_home": 0.0,
+    "delta_home_from_baseline": 0.0,
+    "expected_lost_share": {
+      "3917376": 0.0
+    },
+    "factors": [
+      {
+        "news_id": "4e0b977268381ea7cb03940a",
+        "item_id": "3b70d54ef468e8ce56bef310",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "published_at": "2026-04-12T21:30:00+00:00",
+        "observed_at": "2026-04-12T21:30:02+00:00",
+        "status": "available",
+        "minutes_limit": null,
+        "source": "espn_rss",
+        "url": "",
+        "text": "Jaylen Brown is available tonight",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u6743\u5a01\u786e\u8ba4\u60c5\u666f\uff08ESPN\u5c42\u7ea7\uff09",
+        "factor_result": "review_only",
+        "source_role": "authority_media",
+        "confirmation": "primary"
+      }
+    ],
+    "new_news_ids": [],
+    "conflicts": [],
+    "source_coverage": [
+      {
+        "source": "synthetic_demo",
+        "state": "synthetic",
+        "transport": "offline_table"
+      }
+    ],
+    "new_evidence_count": 0,
+    "retrieved_news": [],
+    "errors": [],
+    "news_health": "ok",
+    "odds_basis": "fair decimal odds, no bookmaker margin",
+    "factor_assumptions": {
+      "out": 1.0,
+      "doubtful": 0.75,
+      "questionable": 0.5,
+      "probable": 0.25,
+      "available": 0.0,
+      "active": 0.0
+    },
+    "report": {
+      "report_id": "0aa2c9cd98313fc557c18997",
+      "pipeline": "pregame",
+      "as_of": "2026-04-12T21:59:00+00:00",
+      "headline": "ORL @ BOS \u00b7 \u8d5b\u524d\u66f4\u65b0",
+      "summary": "\u5f53\u524d BOS \u80dc\u7387 72.88%\uff0c\u516c\u5e73\u5341\u8fdb\u5236\u8d54\u7387 1.372\u3002 \u76f8\u6bd4\u4e0a\u6b21\u8f6e\u8be2\u53d8\u5316 +0.00 \u4e2a\u767e\u5206\u70b9\u3002 \u5386\u53f2\u57fa\u51c6\u4e3a 72.88%\u3002 \u672c\u8f6e\u65b0\u589e\u6d88\u606f\u7684\u6a21\u578b\u5f71\u54cd\u4e3a +0.00 \u4e2a\u767e\u5206\u70b9\u3002",
+      "synthetic": true,
+      "quote_state": "pregame",
+      "p_home": 0.728776634529693,
+      "home_decimal_odds": 1.372162542841865,
+      "away_decimal_odds": 3.6869979777220854,
+      "previous_p_home": 0.728776634529693,
+      "reference_p_home": 0.728776634529693,
+      "total_delta_pp": 0.0,
+      "active_news_effect_pp": 0.0,
+      "new_event_effect_pp": 0.0,
+      "news_effect": {
+        "p_home_before": 0.728776634529693,
+        "p_home_after": 0.728776634529693,
+        "home_delta_pp": 0.0,
+        "away_delta_pp": 0.0,
+        "home_odds_before": 1.372162542841865,
+        "home_odds_after": 1.372162542841865,
+        "home_odds_delta": 0.0,
+        "away_odds_before": 3.6869979777220854,
+        "away_odds_after": 3.6869979777220854,
+        "away_odds_delta": 0.0
+      },
+      "new_evidence": [],
+      "factors": [
+        {
+          "player": "Jaylen Brown",
+          "status": "\u786e\u8ba4\u53ef\u4ee5\u51fa\u573a",
+          "source": "\u5408\u6210\u6743\u5a01\u786e\u8ba4\u60c5\u666f\uff08ESPN\u5c42\u7ea7\uff09"
+        }
+      ],
+      "conflict_count": 0,
+      "notes": [
+        "\u5408\u6210\u65b0\u95fb\u3001\u6bd4\u5206\u4e0e\u53d1\u5e03\u60c5\u666f\uff0c\u4ec5\u7528\u4e8e\u529f\u80fd\u6f14\u793a\uff0c\u4e0d\u662f\u5b9e\u9645\u62a5\u9053\u6216\u5386\u53f2\u5b9e\u51b5\u3002",
+        "\u8d54\u7387\u4e3a\u6a21\u578b\u516c\u5e73\u8d54\u7387\uff0c\u4e0d\u542b\u5e84\u5bb6\u5229\u6da6\uff1b\u6d88\u606f\u6743\u91cd\u548c\u8d5b\u4e2d\u539f\u578b\u9700\u8981\u5386\u53f2\u6821\u51c6\u3002"
+      ],
+      "trace": [
+        {
+          "stage": "retrieve",
+          "detail": "\u672c\u8f6e\u63a5\u6536 0 \u6761\u65b0\u7684\u7403\u5458\u6d88\u606f"
+        },
+        {
+          "stage": "extract",
+          "detail": "\u4fdd\u7559 1 \u4e2a\u7403\u5458\u72b6\u6001\uff0c0 \u4e2a\u51b2\u7a81"
+        },
+        {
+          "stage": "forecast",
+          "detail": "record_forecaster \u00b7 pregame"
+        },
+        {
+          "stage": "report",
+          "detail": "\u4f7f\u7528\u6a21\u578b\u8f93\u51fa\u4e0e\u539f\u59cb\u8bc1\u636e\u751f\u6210\u7b80\u62a5"
+        },
+        {
+          "stage": "record",
+          "detail": "\u5199\u5165\u672c\u4f53\u7cfb\u7684\u5feb\u7167\u3001\u7b80\u62a5\u548c\u6062\u590d\u72b6\u6001"
+        }
+      ],
+      "markdown": "# ORL @ BOS \u00b7 \u8d5b\u524d\u66f4\u65b0\n\n\u89c2\u5bdf\u65f6\u95f4\uff1a2026-04-12T21:59:00+00:00\n\n\u5f53\u524d BOS \u80dc\u7387 72.88%\uff0c\u516c\u5e73\u5341\u8fdb\u5236\u8d54\u7387 1.372\u3002 \u76f8\u6bd4\u4e0a\u6b21\u8f6e\u8be2\u53d8\u5316 +0.00 \u4e2a\u767e\u5206\u70b9\u3002 \u5386\u53f2\u57fa\u51c6\u4e3a 72.88%\u3002 \u672c\u8f6e\u65b0\u589e\u6d88\u606f\u7684\u6a21\u578b\u5f71\u54cd\u4e3a +0.00 \u4e2a\u767e\u5206\u70b9\u3002\n\n## \u5f53\u524d\u56e0\u7d20\n\n- Jaylen Brown\uff1a\u786e\u8ba4\u53ef\u4ee5\u51fa\u573a\uff1b\u6765\u6e90 \u5408\u6210\u6743\u5a01\u786e\u8ba4\u60c5\u666f\uff08ESPN\u5c42\u7ea7\uff09\u3002\n\n## \u672c\u8f6e\u8bc1\u636e\n\n\u672c\u8f6e\u6ca1\u6709\u65b0\u7684\u7403\u5458\u6d88\u606f\uff1b\u91cd\u590d\u62a5\u9053\u4e0d\u4f1a\u518d\u6b21\u53e0\u52a0\u5f71\u54cd\u3002\n\n## \u8bf4\u660e\n\n- \u5408\u6210\u65b0\u95fb\u3001\u6bd4\u5206\u4e0e\u53d1\u5e03\u60c5\u666f\uff0c\u4ec5\u7528\u4e8e\u529f\u80fd\u6f14\u793a\uff0c\u4e0d\u662f\u5b9e\u9645\u62a5\u9053\u6216\u5386\u53f2\u5b9e\u51b5\u3002\n- \u8d54\u7387\u4e3a\u6a21\u578b\u516c\u5e73\u8d54\u7387\uff0c\u4e0d\u542b\u5e84\u5bb6\u5229\u6da6\uff1b\u6d88\u606f\u6743\u91cd\u548c\u8d5b\u4e2d\u539f\u578b\u9700\u8981\u5386\u53f2\u6821\u51c6\u3002\n"
+    }
+  },
+  "factor_evidence": {
+    "3917376:status": {
+      "espn_rss": {
+        "news_id": "4e0b977268381ea7cb03940a",
+        "item_id": "3b70d54ef468e8ce56bef310",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "published_at": "2026-04-12T21:30:00+00:00",
+        "observed_at": "2026-04-12T21:30:02+00:00",
+        "status": "available",
+        "minutes_limit": null,
+        "source": "espn_rss",
+        "url": "",
+        "text": "Jaylen Brown is available tonight",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u6743\u5a01\u786e\u8ba4\u60c5\u666f\uff08ESPN\u5c42\u7ea7\uff09",
+        "factor_result": "review_only"
+      },
+      "x:souichiterada": {
+        "news_id": "4c62a2a4f3bd4117589504db",
+        "item_id": "7bd9e310c75af44a128d88ee",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "published_at": "2026-04-12T20:35:00+00:00",
+        "observed_at": "2026-04-12T20:35:02+00:00",
+        "status": "available",
+        "minutes_limit": null,
+        "source": "x:souichiterada",
+        "url": "",
+        "text": "Jaylen Brown is available tonight",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u8ddf\u961f\u8bb0\u8005\u60c5\u666f",
+        "factor_result": "review_only"
+      }
+    }
+  },
+  "seen_items": [
+    "4c62a2a4f3bd4117589504db",
+    "4e0b977268381ea7cb03940a",
+    "c5de3f4894c6e80fd4961017"
+  ],
+  "provider": {},
+  "registry_reviewed_at": "2026-10-06"
+}

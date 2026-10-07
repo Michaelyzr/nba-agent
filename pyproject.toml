@@ -40,3 +40,4 @@ include = ["agents*", "data_sources*", "evaluation*", "forecast*"]
 
 [tool.setuptools.package-data]
 data_sources = ["news_sources.json"]
+agents = ["templates/*.html", "templates/*.js"]
