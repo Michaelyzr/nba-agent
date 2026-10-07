@@ -20,9 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "runs" / "llm_cache"
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # USD per million tokens (input, output), Google AI Studio paid tier list prices; an estimate only.
-PRICES = {"gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40), "gemini-2.5-pro": (1.25, 10.0)}
+PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40), "gemini-2.5-pro": (1.25, 10.0)}
 
 
 def parse_json(text: str):
@@ -45,7 +45,7 @@ def parse_json(text: str):
 
 
 def cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
-    price_in, price_out = PRICES.get(model, PRICES["gemini-2.5-flash"])
+    price_in, price_out = PRICES.get(model, PRICES["gemini-3.8-flash"])
     return (tokens_in * price_in + tokens_out * price_out) / 1e6
 
 

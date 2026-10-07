@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from agents.llm_client import DEFAULT_MODEL
 from evaluation.stats import REPS, SEED, bootstrap, day_table, paired
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -93,7 +94,7 @@ def make_backend(kind: str, model: str | None, min_interval: float):
     from agents.tool_agent import heuristic_reply
     if kind == "heuristic":
         return StubBackend(heuristic_reply, model="heuristic-stub")
-    return GeminiBackend(model or "gemini-2.5-flash", min_interval=min_interval)
+    return GeminiBackend(model or DEFAULT_MODEL, min_interval=min_interval)
 
 
 def make_agent(setup: str, backend, s: dict):
@@ -146,7 +147,7 @@ def run_setup(setup, tag, start, end, args) -> Path:
     fills.to_parquet(out / "fills.parquet", index=False)
     (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in traces))
     meta = {"setup": setup, "start": start, "end": end, "backend": args.backend, "model": args.model or
-            ("gemini-2.5-flash" if args.backend == "gemini" else "heuristic-stub"), "subsample": args.subsample,
+            (DEFAULT_MODEL if args.backend == "gemini" else "heuristic-stub"), "subsample": args.subsample,
             "seed": args.seed, "wall_seconds": time.time() - t0, "fills": len(fills)}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"  {setup}: {len(fills)} fills, {len(traces)} decision points in {(time.time() - t0) / 60:.1f} min",
