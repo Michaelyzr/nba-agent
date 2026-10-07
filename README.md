@@ -1253,6 +1253,40 @@ invisible before its game is final. The test window was not scored. To finish: `
 evaluation.memory_eval --only dev-memory`, `--only dev-memory_template`, then the matching `test-*` setups,
 then `--report-only`.
 
+#### Game-winner prices across venues (Kalshi, Polymarket, DraftKings)
+
+`python -m data_sources.polymarket --start 2026-02-01 --end 2026-04-12 --by-slug` (public, no key, about
+18 min), then `python -m evaluation.venue_compare`. Full tables are in `evaluation/results/venue_compare.md`
+and `.csv`; the per-game prices go to `data/frozen/venue_prices.parquet` (git-ignored). The test period has
+501 games:
+
+- **Kalshi** covers all 501, with a real bid and ask.
+- **Polymarket** covers 498 games. It gives only a traded price, so its bid and ask are synthetic (±1c).
+- **DraftKings** covers all 501, via ESPN `pickcenter`, but only the open and close moneylines. There are no
+  timestamps, so there are no tip − 24 h or tip − 1 h values.
+
+No free historical source exists for other books or for Pinnacle, so neither is included.
+
+- **Gap:** at close, the median gap in vig-free home-win probability is 0.3 pp between Kalshi and
+  Polymarket (p90 1.0) and 0.9 pp between Kalshi and DraftKings (p90 2.0).
+- **Cheapest venue after fees:** at close, Kalshi is cheapest for the side being bought 46% of the time,
+  DraftKings 31% and Polymarket 23%. Kalshi's fee is 0.07·p(1−p). For Polymarket we assumed the current
+  sports taker fee, 0.05·p(1−p).
+- **Arbitrage:** after fees and spreads, essentially none. 2 of 501 games had a positive edge at close
+  (under 1c), and none did at tip − 24 h or tip − 1 h.
+- **Sharpest close:** Kalshi is sharpest by Brier and log loss, then Polymarket, then DraftKings. The
+  differences are small (Brier 0.1614, 0.1618 and 0.1629), but the paired game-day bootstrap CIs for Kalshi
+  vs DraftKings and Polymarket vs DraftKings exclude 0. The Kalshi vs Polymarket CI just reaches 0.
+
+Caveats:
+
+- Polymarket's spread is synthetic.
+- The DraftKings close has no timestamp.
+- Settlement and void rules differ between venues.
+- Latency and the top-of-book size are ignored.
+
+![Venue comparison](evaluation/results/venue_compare.png)
+
 ### Deep learning: M4-NN and where neural models sit
 
 `python -m evaluation.win_nn_eval` (under 1 min on CPU) trains `forecast/win_nn.py`: an MLP on
