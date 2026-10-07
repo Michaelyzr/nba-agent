@@ -1,0 +1,43 @@
+family,params,config,tau,trades,net_dollars,clv_dollars,mean_net_clv
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.0,2,-1.2623850000000003,-0.5550000000000005,-0.023125000000000007
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.005,2,-1.2623850000000003,-0.5550000000000005,-0.023125000000000007
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.01,1,-0.37855200000000006,-0.1200000000000001,-0.015773000000000002
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.02,0,0.0,0.0,
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.03,0,0.0,0.0,
+ridge,{'alpha': 1.0},ridge(alpha=1.0),0.05,0,0.0,0.0,
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.0,2,-1.2623850000000003,-0.5550000000000005,-0.023125000000000007
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.005,2,-1.2623850000000003,-0.5550000000000005,-0.023125000000000007
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.01,1,-0.37855200000000006,-0.1200000000000001,-0.015773000000000002
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.02,0,0.0,0.0,
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.03,0,0.0,0.0,
+ridge,{'alpha': 10.0},ridge(alpha=10.0),0.05,0,0.0,0.0,
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.0,2,-1.2623850000000003,-0.5550000000000005,-0.023125000000000007
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.005,1,-0.37855200000000006,-0.1200000000000001,-0.015773000000000002
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.01,0,0.0,0.0,
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.02,0,0.0,0.0,
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.03,0,0.0,0.0,
+ridge,{'alpha': 100.0},ridge(alpha=100.0),0.05,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.0,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.005,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.01,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.02,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.03,0,0.0,0.0,
+gbm,"{'max_depth': 2, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=2, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.05,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.0,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.005,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.01,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.02,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.03,0,0.0,0.0,
+gbm,"{'max_depth': 3, 'learning_rate': 0.05, 'max_iter': 200, 'min_samples_leaf': 40}","gbm(max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=40)",0.05,0,0.0,0.0,
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.0,2,-1.8051850000000007,-0.6400000000000006,-0.02647450000000001
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.005,2,-1.406187,-0.2250000000000002,-0.021457000000000004
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.01,2,-1.406187,-0.2250000000000002,-0.021457000000000004
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.02,1,-0.8838330000000003,-0.4350000000000004,-0.03047700000000001
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.03,1,-0.8838330000000003,-0.4350000000000004,-0.03047700000000001
+mlp,"{'hidden_layer_sizes': (16,), 'alpha': 0.01}","mlp(hidden_layer_sizes=(16,), alpha=0.01)",0.05,1,-0.8838330000000003,-0.4350000000000004,-0.03047700000000001
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.0,35,-34.38827199999999,-10.714999999999991,-0.018391914285714288
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.005,19,-13.49368100000001,-1.3600000000000085,-0.014841947368421064
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.01,15,-11.823926000000014,-1.1250000000000115,-0.01418173333333336
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.02,11,-9.47078100000001,-1.885000000000008,-0.015301090909090933
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.03,7,-7.192324000000003,-2.325000000000002,-0.02092557142857144
+mlp,"{'hidden_layer_sizes': (32, 16), 'alpha': 0.001}","mlp(hidden_layer_sizes=(32, 16), alpha=0.001)",0.05,3,-2.3972960000000034,-0.5750000000000032,-0.020050000000000043

@@ -47,10 +47,16 @@ def _extract_job(job: dict) -> pd.DataFrame:
     from forecast.policy import decision_rows
     from replay import load_tables
 
+    part = OUT / "parts" / f"{job['start']}_{job['end']}.parquet"
+    if part.exists():                                   # resumable: each span is cached as soon as it finishes
+        print(f"  {job['start']}..{job['end']}: cached", flush=True)
+        return pd.read_parquet(part)
     base = Forecaster.load()
     forecaster = WalkForwardForecaster(pickle.loads(job["models"]), base.play_model, base.points_model)
     t0 = time.time()
     rows = decision_rows(load_tables(), forecaster, job["start"], job["end"])
+    part.parent.mkdir(parents=True, exist_ok=True)
+    rows.to_parquet(part, index=False)
     print(f"  {job['start']}..{job['end']}: {len(rows)} option rows in {(time.time() - t0) / 60:.1f} min", flush=True)
     return rows
 
@@ -61,9 +67,10 @@ def extract(workers: int):
     OUT.mkdir(parents=True, exist_ok=True)
     models, _ = train_win_models([SEASON_START] + [w[1] for w in WINDOWS])
     blob = pickle.dumps(models)
+    # Training months first so selection can start early; the play-off span is last.
     jobs = [{"start": s, "end": e, "models": blob} for s, e in SPANS]
     from evaluation.learned_policy import _extract_job as job_fn  # picklable under "python -m"
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, max_tasks_per_child=1) as pool:
         rows = pd.concat(list(pool.map(job_fn, jobs)), ignore_index=True)
     rows.to_parquet(ROWS, index=False)
     print(f"{len(rows)} option rows, {rows.groupby(['game_id', 'as_of']).ngroups} decision points, "
@@ -71,7 +78,12 @@ def extract(workers: int):
 
 
 def load_rows() -> pd.DataFrame:
-    return pd.read_parquet(ROWS)
+    if ROWS.exists():
+        return pd.read_parquet(ROWS)
+    parts = sorted((OUT / "parts").glob("*.parquet"))
+    if not parts:
+        raise FileNotFoundError(f"{ROWS} missing; run 'extract' first")
+    return pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
 
 
 # ---------------- select (training data only) ----------------
