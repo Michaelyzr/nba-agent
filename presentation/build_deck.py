@@ -3,13 +3,17 @@
     python presentation/build_deck.py            # writes presentation/nba_agent_deck.pptx
     python presentation/build_deck.py --check    # also prints a fit report for every text box
 
-Narrative: sports prediction markets are structurally unfair to consumers; our agent is the
-evidence and the product protects and educates. Every number on the slides lives in K below,
-with its source, so it can be updated in one place.
+Narrative ("Market-Graded Learning"): the market's closing price grades every component of our
+agent, and only the components that defer to the market survive. If a disciplined agent with our
+data cannot beat the close, a consumer cannot either, so the product educates and protects.
+Every number on the slides lives in K below, with its source, so it can be updated in one place.
+New agentic results: fill K["agentic"] from evaluation/results/*.md and rebuild; the build copies
+SYNC figures from evaluation/results/ and lists result files that exist but are still "pending".
 """
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -21,7 +25,9 @@ from pptx.util import Emu, Inches, Pt
 
 HERE = Path(__file__).resolve().parent
 FIG = HERE / "figures"
+RESULTS = HERE.parent / "evaluation" / "results"
 OUT = HERE / "nba_agent_deck.pptx"
+SYNC = ["injury_timing.png", "m6_robustness.png", "orchestrator.png"]   # copied from RESULTS when present
 
 W, H = 13.333, 7.5
 MARGIN = 0.5
@@ -39,11 +45,13 @@ LIGHT = RGBColor(0xF1, 0xF5, 0xF9)
 TEXT = RGBColor(0x0F, 0x17, 0x2A)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
-FOOTER = "DASC7606C Group 12 · Betting markets are tilted against consumers"
+FOOTER = "DASC7606C Group 12 · Market-Graded Learning: the closing price grades every component"
+PENDING = "pending"
 
 # Key numbers. Sources: README "Results" (R); evaluation/results/consumer_fairness.md (F);
 # m4_vs_market.csv (M); trade funnel / fairness_run_costs.csv (T); walkforward_summary.md,
-# significance.md, holdout.md (W); m6_heldout.csv, m6_ablation.md, README M6 section (S).
+# significance.md, holdout.md (W); m6_heldout.csv, m6_ablation.md, README M6 section (S);
+# m4_calibration.md (C); m6_robustness.md (G); injury_timing.md (I).
 K = {
     "games": "1,316", "price_rows": "~3.9M",                                   # frozen markets / prices
     "cost_c": "1.92", "cost_pct": "5.0%", "half_spread_c": "0.53", "fee_c": "1.39",  # F1
@@ -54,30 +62,55 @@ K = {
     "disc_games": "193", "disc_before": "1.80", "disc_after": "0.18", "disc_share": "91%",  # F3
     "m4_games": "501", "m4_brier": "0.186", "mkt_brier": "0.164",              # R/M: both 1 h before tip
     "m4_brier_tip": "0.183", "mkt_brier_tip": "0.163",                         # M: absences known / at tip
-    "ls_n": "66", "ls_implied": "7.4%", "ls_z": "−1.8",                        # F4, 0–10¢ bucket
-    "ls_roi": "−13.4%", "fav_roi": "−2.2%",                                    # F5
     "policy": "9 / 9",                                                         # R, policy_tests.csv
     # walk-forward, season Nov – 12 Apr, M4 retrained monthly, day-clustered bootstrap (W)
     "wf_full_n": "157", "wf_full_pnl": "−$25", "wf_full_ci": "−$569 to +$564", "wf_full_p": "0.53",
     "wf_nolearn_n": "276", "wf_nolearn_pnl": "−$407", "wf_nolearn_ci": "−$1,324 to +$553",
     "wf_raw_n": "711", "wf_raw_pnl": "−$2,475", "wf_raw_ci": "−$3,995 to −$845",
     "wf_anchor_gain": "+$2,450", "wf_anchor_p": "0.002", "wf_learn_p": "0.13",
+    "wf_learn_clv": "+$39", "wf_learn_clv_p": "0.001",
     "ho_games": "87", "ho_nolearn": "6 trades, −$74", "ho_raw": "+$450",       # W, play-off holdout
-    # M6 market-impact model (S)
+    # M6 market-impact model (S) and its robustness grid (G)
     "m6_mae": "0.867", "zero_mae": "0.833", "m6_coef": "0.025", "m6_coef_pct": "2.5%",
     "m6_forced_n": "501", "m6_forced_pnl": "−$652",
-    # cumulative P&L after fees by settlement date (evaluation/results/cumulative_pnl.csv; ends match
-    # ablations.md and walkforward_summary.md)
+    "m6_cfgs": "9", "m6_seeds": "3", "m6_best_gap": "+0.017¢", "m6_worst_gap": "+0.036¢", "m6_cis": "18 of 18",
+    "m6_need": "5.5¢",
+    # M4 recalibration on the 501 test games, absences known (C)
+    "cal_raw": "0.183", "cal_platt": "0.185", "cal_iso": "0.184", "cal_mkt": "0.164",
+    "cal_slope_early": "0.78", "cal_slope_late": "1.33",
+    # Injury-report timing, 193 test games, key absent player (I)
+    "it_before": "67%", "it_ci": "47–85%", "it_nolag": "49%", "it_lead": "6", "it_mid": "24%", "it_after": "9%",
+    # cumulative P&L after fees by settlement date (evaluation/results/cumulative_pnl.csv)
     "cum_nolearn_n": "129", "cum_nolearn_pnl": "−$247", "cum_raw_n": "366", "cum_raw_pnl": "−$2,087",
     "cum_full_low": "−$131",
-    # League (agents/league.py): rules, and the example league shown on the slide, which is the demo league
-    # league_data/friday-league.json (illustrative plays by two demo users, bots run offline on the same slate)
-    "lg_bankroll": "$1,000", "lg_stake": "$5–$50", "lg_min_trades": "5", "lg_slate": "10",
-    "lg_rows": [("michael (player)", "5", "+0.30¢", "60%", "−$32.47", "too early to tell"),
-                ("rival (player)", "10", "−0.20¢", "30%", "−$27.32", "too early to tell"),
-                ("Raw model (bot)", "8", "−0.63¢", "12%", "+$15.27", "costs"),
-                ("Agent (bot)", "0", "–", "–", "$0", "no trades"),
-                ("Never trade (bot)", "0", "–", "–", "$0", "no trades")],
+    # League (agents/league.py), demo league league_data/friday-league.json
+    "lg_bankroll": "$1,000", "lg_min_trades": "5", "lg_slate": "10", "lg_bot_pnl": "+$15", "lg_bot_clv": "−0.63¢",
+    # Agentic upgrades (slide 11): (component, what it is, result files, result). Result None = pending.
+    # Fill the result from the named evaluation/results/*.md once it exists, then rebuild.
+    "agentic": [
+        ("LLM tool agent + sceptic", "LLM picks as-of tools; code checks every number; a sceptic asks "
+         "“already priced in?”", ["llm_agent"], None),
+        ("Gate audit + placebo", "Rule gate on held-out days; reviewer vs random rules",
+         ["gate_audit", "gate_placebo"], None),
+        ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"], None),
+        ("Fractional Kelly", "¼-Kelly sizing, fee in the formula, vs flat $20", ["kelly"], None),
+        ("Coach, simulated users", "Biased personas play League slates with and without Coach nudges",
+         ["coach_sim"], None),
+        ("Orchestrator", "Supervisor graph: pregame → trader → coach → briefs for one night", [], None),
+        ("Learned policy", "Trade / pass classifier on as-of features, chosen on Nov–Jan only",
+         ["learned_policy"], None),
+        ("Rule DSL", "LLM writes free-form rules, compiled to a safe DSL, still gated", ["rule_dsl"], None),
+        ("Episodic memory", "Retrieve similar past situations and their outcomes", ["memory"], None),
+    ],
+    # Team contributions (slide 13): PRs on GitHub; names as the author appears on the PR.
+    "team": [
+        ("Pregame news and fair-odds loop", "#7", "codingMiiichael", "Multi-source news polling → fair odds"),
+        ("Player-feature experiment", "#8", "Catharine Li", "Isolated player features + probability calibration"),
+        ("In-play news and odds", "#9", "codingMiiichael", "Independent in-play updates (synthetic scenarios)"),
+        ("Live Polymarket markets", "#11, #12", "shidafuyang-alt, hijojo", "Read-only live prices and page"),
+        ("Replay, agent and evaluation", "branch", "Michael Ngan", "As-of replay, M4 / M6, LangGraph agent, gate, "
+         "walk-forward, Coach, League"),
+    ],
 }
 
 # Data, measured from data/frozen/*.parquet by evaluation/data_overview.py (data_overview.csv).
@@ -223,8 +256,15 @@ def picture(slide, name, x, y, w, h, align="center"):
 
 
 def table(slide, rows, x, y, col_w, row_h=0.5, pt=16, header_fill=NAVY, emphasis_row=None,
-          header_h=None, center_cols=()):
+          header_h=None, center_cols=(), muted=(), label="table"):
+    """Rows grow in PowerPoint when a cell wraps, so --check records the estimated total height."""
+    n = len(slide.part.package.presentation_part.presentation.slides)
     header_h = header_h or row_h
+    need = 0.0
+    for i, row in enumerate(rows):
+        lines = max(_lines(str(v).replace("**", ""), pt, cw - 0.16, bold=i == 0) for v, cw in zip(row, col_w))
+        need += max(lines * pt * 1.2 / 72 + 0.1, header_h if i == 0 else row_h)
+    _fit_report.append((n, label, round(need, 2), header_h + row_h * (len(rows) - 1)))
     shape = slide.shapes.add_table(len(rows), len(rows[0]), Inches(x), Inches(y),
                                    Inches(sum(col_w)), Inches(header_h + row_h * (len(rows) - 1)))
     t = shape.table
@@ -249,9 +289,10 @@ def table(slide, rows, x, y, col_w, row_h=0.5, pt=16, header_fill=NAVY, emphasis
             p = tf.paragraphs[0]
             p.alignment = PP_ALIGN.CENTER if j in center_cols else PP_ALIGN.LEFT
             parts = str(val).split("**")
+            colour = WHITE if i == 0 else GREY if (i, j) in muted else TEXT
             for k, part in enumerate(parts):
                 if part:
-                    _run(p, part, pt, WHITE if i == 0 else TEXT, bold=(i == 0 or k % 2 == 1))
+                    _run(p, part, pt, colour, bold=(i == 0 or k % 2 == 1), italic=(i, j) in muted)
     return shape
 
 
@@ -285,6 +326,26 @@ def card(slide, x, y, w, h, heading, lines, accent, pt=18, n=0):
             slide_no=n, label=heading + " body")
 
 
+# ---------------------------------------------------------------- agentic results
+
+def sync_figures():
+    """Copy SYNC figures from evaluation/results/ into figures/ when they exist there."""
+    for name in SYNC:
+        src = RESULTS / name
+        if src.exists() and (not (FIG / name).exists() or src.stat().st_mtime > (FIG / name).stat().st_mtime):
+            shutil.copy2(src, FIG / name)
+
+
+def agentic_status():
+    """(filled, pending, result files that exist but whose row is still pending)."""
+    filled, pending, waiting = [], [], []
+    for name, _, files, result in K["agentic"]:
+        (filled if result else pending).append(name)
+        if not result:
+            waiting += [f"{f}.md" for f in files if (RESULTS / f"{f}.md").exists()]
+    return filled, pending, sorted(set(waiting))
+
+
 # ---------------------------------------------------------------- slides
 
 def build():
@@ -296,11 +357,11 @@ def build():
     s = prs.slides.add_slide(prs.slide_layouts[6])
     rect(s, 0, 0, W, H, NAVY)
     rect(s, 0, 4.55, W, 0.08, ORANGE)
-    textbox(s, 0.9, 1.1, W - 1.8, 2.0,
-            [("Betting markets are tilted against consumers", {"bold": True})],
-            pt=44, color=WHITE, slide_no=1, label="title")
-    textbox(s, 0.9, 3.1, W - 1.8, 1.3,
-            ["An AI agent that tests it on a full NBA season, and a product that teaches it"],
+    textbox(s, 0.9, 0.95, W - 1.8, 1.2, [("Market-Graded Learning", {"bold": True})],
+            pt=48, color=WHITE, slide_no=1, label="title")
+    textbox(s, 0.9, 2.15, W - 1.8, 2.2,
+            ["The market's closing price grades every part of our NBA trading agent. Only the parts that "
+             "defer to the market survive, so a consumer betting against it is at a structural disadvantage."],
             pt=24, color=RGBColor(0xCB, 0xD5, 0xE1), slide_no=1, label="subtitle")
     textbox(s, 0.9, 4.85, W - 1.8, 1.9,
             ["Market-Graded Learning for NBA Game-Impact Intelligence",
@@ -308,28 +369,24 @@ def build():
              "Presenter: Ngan Tsz Sui · Friday 9 October 2026"],
             pt=20, color=WHITE, slide_no=1, label="meta")
     s.notes_slide.notes_text_frame.text = (
-        "Good morning, we are Group 12. Our project starts from a consumer problem: sports betting and prediction "
-        "markets are now everywhere, people want to understand them, the markets are structurally tilted against "
-        "them, and betting harms well-being. We built an AI agent to test how tilted the game is, and turned what "
-        "we learned into a product that educates and protects.")
+        "Good morning, we are Group 12. Our title is Market-Graded Learning, and it is also our thesis. We built an "
+        "AI agent that trades NBA prediction markets, and we let the market's closing price grade every part of "
+        "it: the models, the learned rules and the LLM. The finding is that only the parts that defer to the "
+        "market survive. If a disciplined agent cannot beat the close, a consumer cannot either, so our product "
+        "educates and protects instead of giving tips.")
 
     # 2 The problem -----------------------------------------------------------
     n = 2
     s = new_slide(prs, "The problem: three things consumers face", (
-        f"Three parts. First, consumers want to learn: since a 2018 US Supreme Court ruling, {EXT['states']} US "
-        f"states have legalised sports betting, and the Lancet Public Health Commission estimates {EXT['adults_pct']} "
-        f"of adults worldwide gambled in the past year, yet few users understand how prices, fees and spreads work. "
-        f"Second, the markets are structurally unfair, which is what we measured: about {K['cost_pct']} cost per trade, "
-        f"{K['disc_share']} of the price move before the public news, the market beats our model, and never trading "
-        f"wins. Third, external research shows betting harms well-being: the Commission estimates "
-        f"{EXT['disorder']} adults have gambling disorder or problem gambling; Hollenbeck, Larsen and Proserpio find "
-        f"legal online betting lowers credit scores by {EXT['credit_online']} points and raises bankruptcies by about "
-        f"{EXT['bankrupt']}; Baker and co-authors find each dollar of online betting cuts investment by about "
-        f"{EXT['invest']}. References: Wardle H. et al., The Lancet Public Health Commission on gambling, Lancet "
-        f"Public Health 2024; 9: e950–94. Hollenbeck B., Larsen P., Proserpio D., The Financial Consequences of "
-        f"Legalized Sports Gambling, SSRN 4903302, 2024, revised 2025. Baker S.R., Balthrop J., Johnson M.J., "
-        f"Kotter J.D., Pisciotta K., Gambling Away Stability: Sports Betting's Impact on Vulnerable Households, "
-        f"NBER Working Paper 33108, 2024."), n)
+        f"Three parts. First, consumers want to learn: since 2018, {EXT['states']} US states have legalised sports "
+        f"betting, and the Lancet Public Health Commission estimates {EXT['adults_pct']} of adults worldwide gambled "
+        f"last year. Second, the markets are structurally tilted, which is what we measured: about "
+        f"{K['cost_pct']} cost per trade, {K['disc_share']} of the price move before the public news, and the "
+        f"market beats our model. Third, published research shows harm: about {EXT['disorder']} adults with "
+        f"gambling disorder; online betting lowers credit scores by {EXT['credit_online']} points and raises "
+        f"bankruptcies by about {EXT['bankrupt']}; each dollar of online betting cuts investment by about "
+        f"{EXT['invest']}. References: Wardle et al., Lancet Public Health 2024; Hollenbeck, Larsen and Proserpio, "
+        f"SSRN 4903302; Baker et al., NBER WP 33108."), n)
     cw3 = (CW - 0.5) / 3
     pillars = [
         ("1  People want to learn", BLUE, [
@@ -363,12 +420,12 @@ def build():
     # 3 Research question and what we built ----------------------------------------
     n = 3
     s = new_slide(prs, "Research question, and what we built to test it", (
-        "So our research question: can a consumer, even one armed with an AI agent and public news, beat the "
+        "Our research question: can a consumer, even one armed with an AI agent and public news, beat the "
         "market? We built the strongest consumer we could: public news, trained models including a neural net "
-        "trained on the market's own moves, an LLM-capable agent with code risk limits and gated rule learning. "
-        "On the right, a replay walks the season day by day, shows the agent only what was public, and fills every "
-        "order at the recorded ask plus the Kalshi fee, so we measure what a consumer would face. The answer, "
-        "tested with confidence intervals, is no: never trading wins. So the product educates and protects."), n)
+        "trained on the market's own moves, a LangGraph agent with code risk limits and gated rule learning, and "
+        "an LLM tool agent. A replay walks the season day by day, shows the agent only what was public, and fills "
+        "every order at the recorded ask plus the Kalshi fee. The answer, tested with confidence intervals, is "
+        "no: never trading wins."), n)
     callout(s, MARGIN, TOP + 0.1, CW, 0.95,
             "Can a consumer, even one armed with an AI agent and public news, beat the market?", pt=26,
             fill=RGBColor(0xDB, 0xEA, 0xFE), color=NAVY, n=n)
@@ -376,7 +433,7 @@ def build():
         ("We built the strongest consumer we could:", {"bold": True, "color": NAVY, "heading": True}),
         "Public news: ESPN inactive lists and box scores, 3 seasons",
         "Trained models, incl. a neural net trained on the market's own moves",
-        "LLM-capable LangGraph agent; code risk limits; gated rule learning",
+        "LangGraph agent; code risk limits; gated rule learning; LLM tools",
         f"Graded on {K['games']} Kalshi games ({K['price_rows']} price rows); every order pays the recorded "
         f"ask + fee",
     ], pt=17, bullets=True, space=6, slide_no=n)
@@ -386,72 +443,72 @@ def build():
         "**Answer: no.** Tested with confidence intervals, never trading wins, so the product educates and "
         "protects instead."], pt=21, color=WHITE, anchor=MSO_ANCHOR.MIDDLE, space=0, slide_no=n, label="answer")
 
-    # 4 Data: sources --------------------------------------------------------
+    # 4 Market-Graded Learning: the thesis ------------------------------------------
     n = 4
-    s = new_slide(prs, "Data: five public sources, frozen once", (
-        f"Before the evidence, the data. Everything is public. From Kalshi's public API we downloaded every NBA "
-        f"game-winner market, series KXNBAGAME, for 2025-26: {D['markets']} markets on {D['priced_games']} games, "
-        f"and {D['price_rows']} one-minute rows of bid, ask and volume from {D['price_first']} to "
-        f"{D['price_last']}, plus each market's settlement. From ESPN's public site API we took three seasons, "
-        f"{D['seasons']}: {D['games']} games with tip times and season type, {D['box_rows']} player box-score rows "
-        f"for {D['players']} players, and {D['news_rows']} inactive-list entries, which are our news. Box scores "
-        f"and inactive lists train the player and win models M1 to M4; prices drive the replay, costs, closing-line "
-        f"value, the market anchor and M6. We froze everything once as Parquet files; the raw data is not "
-        f"redistributed in the repo, and two commands rebuild it."), n)
-    rows = [["Source", "What it contains", "Rows", "Coverage", "Used for"],
-            ["Kalshi prices (KXNBAGAME)", "1-minute bid, ask, volume", D["price_rows"],
-             f"{D['price_first']} – {D['price_last']}", "Fills, costs, CLV, anchor, M6"],
-            ["Kalshi markets, settlements", "Market → game; yes / no result",
-             f"{D['markets']} / {D['settlements']}", f"{D['priced_games']} games, 2025-26", "Settling P&L"],
-            ["ESPN games", "Schedule, tip time, season type, score", D["games"],
-             f"3 seasons, {D['seasons']}", "Splits, M4 labels"],
-            ["ESPN box scores", "Minutes, points, shots per player", D["box_rows"],
-             f"3 seasons, {D['players']} players", "M1–M4 features"],
-            ["ESPN inactive lists", "Who is out and why (our news)", D["news_rows"],
-             f"{D['news_games']} games, to {D['news_last']}", "News trigger; M3 / M4 after news"]]
-    table(s, rows, MARGIN, TOP + 0.1, [2.75, 3.0, 1.55, 2.75, CW - 10.05], row_h=0.72, pt=15,
-          header_h=0.5, center_cols=(2,))
-    textbox(s, MARGIN, TOP + 4.3, CW, 1.4, [
-        "**All public:** Kalshi's public trade API (historical candlesticks) and ESPN's public site API",
-        "Frozen once as Parquet; raw data not redistributed in the repo (two commands rebuild it)",
-    ], pt=18, bullets=True, space=6, slide_no=n)
+    s = new_slide(prs, "Market-Graded Learning: the closing price is the grader", (
+        f"This is what the title means. Every component is a hypothesis that must pass an evidence gate on recorded "
+        f"prices, and the grader is the market's closing price. The raw win model fails: {K['wf_raw_pnl']} over "
+        f"the season, and recalibrating it does not help. The neural impact model fails: all {K['m6_cfgs']} "
+        f"configurations are worse than predicting no move. What passes defers to the market: the market anchor, "
+        f"{K['wf_anchor_gain']} with p {K['wf_anchor_p']}, and gated learning, which passes only by trading less. "
+        f"The newer agentic parts face the same gate; slide 11. So the finding is the product: if a disciplined "
+        f"agent cannot beat the close, a consumer cannot either. We say “we pass” as often as “we trade”."), n)
+    rows = [["Component", "Market's test", "Verdict"],
+            ["Raw win model (M4) trading", "Beat never trading", f"**Failed:** {K['wf_raw_pnl']}, CI below 0"],
+            ["Recalibrated M4", "Beat the market's Brier score",
+             f"**Failed:** {K['cal_platt']} vs market {K['cal_mkt']}"],
+            ["M6 neural impact model", "Beat “the price won't move”",
+             f"**Failed:** {K['m6_cfgs']} of {K['m6_cfgs']} configurations worse"],
+            ["Market anchor", "Beat the raw model", f"**Passed:** {K['wf_anchor_gain']}, p = {K['wf_anchor_p']}"],
+            ["Gated rule learning", "Beat no learning on CLV $",
+             f"**Passed (trades less):** {K['wf_learn_clv']} CLV, p = {K['wf_learn_clv_p']}"],
+            ["LLM agent, Coach, policy …", "Same gates (slide 11)", "See agentic upgrades"],
+            ["A consumer", f"Beat ~{K['cost_c']}¢ cost; news {K['disc_share']} priced", "**Structurally hard**"]]
+    table(s, rows, MARGIN, TOP + 0.1, [3.55, 4.05, CW - 7.6], row_h=0.55, pt=16, header_h=0.48, emphasis_row=4)
+    callout(s, MARGIN, 5.95, CW, 0.85,
+            "Only the components that defer to the market survive, so the product teaches, lets people practise "
+            "and enforces limits", pt=19, n=n)
 
-    # 5 Data: splits and rules -------------------------------------------------
+    # 5 Data -----------------------------------------------------------------
     n = 5
-    s = new_slide(prs, "Data: time splits and the no-look-ahead rule", (
-        f"How the data is split in time. The win and player models train on two earlier seasons plus 2025-26 up to "
-        f"31 January. The agent develops its rules from November to January, and the test period is 1 February to "
-        f"12 April, {D['test_games']} games. The walk-forward run covers November to April and retrains the win "
-        f"model every month. M6 trains before 15 January and validates on 15 to 31 January. The play-in and play-off "
-        f"games after 12 April, {D['holdout_games']} of them, are a holdout we scored once. The replay enforces "
-        f"no look-ahead: at each decision the agent sees only news, results and quotes published by then. Each "
-        f"inactive list counts as news 30 minutes before tip. Orders fill at the recorded ask plus the Kalshi fee, "
-        f"only with a quote at most 5 minutes old, and at most 10% of the last hour's volume. Limits: one season of "
-        f"prices, game-winner markets only, and the inactive list is our only news; it ends {D['news_last']}, and "
-        f"we have no earlier injury reports, social media or other sportsbooks. Public information only."), n)
-    picture(s, "data_timeline.png", MARGIN, TOP, CW, 3.75)
-    textbox(s, MARGIN, 5.05, CW / 2 - 0.15, 1.9, [
-        ("No look-ahead", {"bold": True, "color": NAVY, "heading": True}),
+    s = new_slide(prs, "Data: five public sources, split in time, no look-ahead", (
+        f"The data is all public. From Kalshi: every NBA game-winner market for 2025-26, {D['markets']} markets on "
+        f"{D['priced_games']} games, {D['price_rows']} one-minute rows of bid, ask and volume, and settlements. From "
+        f"ESPN: three seasons of games, {D['box_rows']} box-score rows and {D['news_rows']} inactive-list entries, "
+        f"which are our news. Models train on games before 1 February; the agent develops on November to January; "
+        f"the test period is 1 February to 12 April, {D['test_games']} games; the walk-forward retrains monthly; "
+        f"and the {D['holdout_games']} play-off games are a holdout scored once. The replay shows the agent only "
+        f"what was public, counts each inactive list as news 30 minutes before tip, and fills at the recorded ask "
+        f"plus the Kalshi fee."), n)
+    rows = [["Source", "What it contains", "Rows", "Used for"],
+            ["Kalshi prices (KXNBAGAME)", "1-minute bid, ask, volume", D["price_rows"], "Fills, costs, CLV, anchor, M6"],
+            ["Kalshi markets, settlements", "Market → game; yes / no result",
+             f"{D['markets']} / {D['settlements']}", "Settling P&L"],
+            ["ESPN games", "Schedule, tip time, score, 3 seasons", D["games"], "Splits, M4 labels"],
+            ["ESPN box scores", "Minutes, points, shots per player", D["box_rows"], "M1–M4 features"],
+            ["ESPN inactive lists", "Who is out and why (our news)", D["news_rows"], "News trigger; M4 after news"]]
+    table(s, rows, MARGIN, TOP + 0.1, [3.1, 3.9, 1.8, CW - 8.8], row_h=0.5, pt=15, header_h=0.45, center_cols=(2,))
+    textbox(s, MARGIN, 4.45, CW / 2 - 0.15, 2.45, [
+        ("Time splits", {"bold": True, "color": NAVY, "heading": True}),
+        "Models train before 1 Feb 2026; agent develops Nov–Jan",
+        f"Test 1 Feb – 12 Apr ({D['test_games']} games); walk-forward retrains monthly",
+        f"Play-offs ({D['holdout_games']} games): holdout scored once",
+    ], pt=16, bullets=True, space=3, slide_no=n, label="splits")
+    textbox(s, MARGIN + CW / 2 + 0.15, 4.45, CW / 2 - 0.15, 2.45, [
+        ("No look-ahead, real costs", {"bold": True, "color": RED, "heading": True}),
         "Agent sees only what was published by then",
-        "Inactive list = news at tip − 30 min",
+        "Inactive list = news at tip − 30 min (ends 7 May)",
         "Fill at ask + fee; quote ≤ 5 min old; ≤ 10% of volume",
     ], pt=16, bullets=True, space=3, slide_no=n, label="rules")
-    textbox(s, MARGIN + CW / 2 + 0.15, 5.05, CW / 2 - 0.15, 1.9, [
-        ("Limits", {"bold": True, "color": RED, "heading": True}),
-        "One season of prices; game-winner markets only",
-        f"News = inactive lists only, to {D['news_last'][:-5]}",
-        "No earlier injury reports, social media or other books",
-    ], pt=16, bullets=True, space=3, slide_no=n, label="limits")
 
-    # 6 Evidence: costs and selectivity --------------------------------------
+    # 6 Evidence: costs ------------------------------------------------------
     n = 6
     s = new_slide(prs, "Evidence 1: costs set a hurdle before you start", (
-        f"First, costs. One hour before tip a $20 order pays half the bid-ask spread plus the Kalshi fee. On "
-        f"average that is {K['cost_c']} cents per contract, {K['cost_pct']} of the price, and {K['cost_cheap_pct']} "
-        f"on cheap contracts. You must beat the price by that much just to break even. On the right, our best agent "
-        f"would have made {K['full_mid']} at the mid but lost {K['full_pnl']} after costs. Even being very selective, "
-        f"{K['trades']} trades out of {K['decisions']} decision points, only {K['beat_close']} beat or matched the "
-        f"closing price."), n)
+        f"First, costs. One hour before tip a $20 order pays half the bid-ask spread plus the Kalshi fee: "
+        f"{K['cost_c']} cents per contract on average, {K['cost_pct']} of the price, and {K['cost_cheap_pct']} on "
+        f"cheap contracts. Our best agent would have made {K['full_mid']} at the mid but lost {K['full_pnl']} after "
+        f"costs. Even very selective, {K['trades']} trades out of {K['decisions']} decision points, only "
+        f"{K['beat_close']} beat or matched the closing price."), n)
     picture(s, "cost_burden.png", MARGIN, TOP, CW, 4.15)
     textbox(s, MARGIN, 5.45, CW / 2 - 0.1, 1.5, [
         f"**{K['cost_c']}¢ per contract** = {K['cost_pct']} of price; **{K['cost_cheap_pct']}** under 20¢",
@@ -465,15 +522,22 @@ def build():
     # 7 Evidence: information speed ----------------------------------------
     n = 7
     s = new_slide(prs, "Evidence 2: the price moves before the news reaches you", (
-        f"Second, speed. On the {K['disc_games']} test games where the inactive list changed our win model by at "
-        f"least a point, the price had already moved {K['disc_before']} points in the news direction before the "
-        f"list was public, and only {K['disc_after']} after. About {K['disc_share']} of the move happened before a "
-        f"retail user reading the list could act."), n)
-    picture(s, "price_discovery.png", MARGIN, TOP, CW, 4.55)
-    textbox(s, MARGIN, 5.85, CW, 1.1, [
-        f"**{K['disc_share']}** of the news-direction move was already in the price when the list was public "
-        f"(+{K['disc_before']} vs +{K['disc_after']} pts, {K['disc_games']} test games)",
-        "List stamped tip − 30 min: our proxy for when a retail user sees it",
+        f"Second, speed. On the {K['disc_games']} test games where the inactive list moved our win model by at "
+        f"least a point, {K['disc_share']} of the price move in the news direction happened before the inactive "
+        f"list, which is when a retail user reading it could act. We then matched the official NBA injury reports: "
+        f"about two-thirds of the move, {K['it_before']} with a confidence interval of {K['it_ci']}, came before "
+        f"the first official report listing the player out, which itself comes a median of about {K['it_lead']} "
+        f"hours before the inactive list. Assuming no publication lag the share is {K['it_nolag']}. Official "
+        f"reports only; beat reporters and social media can be earlier still."), n)
+    picture(s, "price_discovery.png", MARGIN, TOP, 5.6, 3.9, align="left")
+    picture(s, "injury_timing.png", MARGIN + 5.75, TOP, CW - 5.75, 3.9)
+    textbox(s, MARGIN, 5.2, CW, 1.75, [
+        f"**{K['disc_share']}** of the move happens before the inactive list (+{K['disc_before']} vs "
+        f"+{K['disc_after']} pts, {K['disc_games']} test games)",
+        f"About **two-thirds** ({K['it_before']}, CI {K['it_ci']}) comes before the first official injury report, "
+        f"~{K['it_lead']} h earlier",
+        (f"{K['it_nolag']} if reports are public at their slot; official reports only, so news can be earlier",
+         {"pt": 15, "color": GREY}),
     ], pt=18, bullets=True, space=4, slide_no=n)
 
     # 8 Evidence: market beats models ---------------------------------------
@@ -492,206 +556,179 @@ def build():
          {"pt": 16, "color": GREY}),
     ], pt=19, bullets=True, space=10, slide_no=n)
 
-    # 9 Evidence: M6 ---------------------------------------------------------
+    # 9 Deep learning: M6 -----------------------------------------------------
     n = 9
-    s = new_slide(prs, "Evidence 4: even a market-trained neural net finds nothing", (
-        f"Fourth, we trained M6, a neural network whose only job is to predict how the price moves between our "
-        f"decision time and tip-off, using the market's own past reactions. It cannot beat the simplest guess, "
-        f"that the price will not move: {K['m6_mae']} cents average error against {K['zero_mae']}, and R squared "
-        f"about zero on both test and holdout. After the inactive list the price moves only about "
-        f"{K['m6_coef_pct']} of what our win model implies. The M6 agent therefore makes no trades; forced to "
-        f"trade, it loses {K['m6_forced_pnl']}. The price already contains the public information; what is left "
-        f"for the consumer is the cost."), n)
-    picture(s, "m6_vs_baselines.png", MARGIN, TOP, CW, 3.7)
-    textbox(s, MARGIN, 4.95, CW, 1.42, [
-        f"Average error on {K['decisions']} test decision times: **M6 {K['m6_mae']}¢** vs “price won't move” "
-        f"**{K['zero_mae']}¢**; R² ≈ 0 on test and holdout",
-        f"After the list, the price moves ~{K['m6_coef_pct']} of the model's implied shift (coefficient {K['m6_coef']}); "
-        f"M6 agent: 0 trades. Forced: {K['m6_forced_n']} trades, {K['m6_forced_pnl']}",
-    ], pt=18, bullets=True, space=4, slide_no=n)
-    callout(s, MARGIN, 6.42, CW, 0.5,
-            "The price already contains the public information; the consumer is left paying costs", pt=18, n=n)
+    s = new_slide(prs, "Deep learning: a GRU trained on the market's own moves", (
+        f"Our deep-learning component is M6. Its label is the market itself: the move of the home price from the "
+        f"decision time to tip-off, so every decision time is a training row. A 16-unit GRU reads the last six "
+        f"hours of the price in 15-minute steps; it is joined with 18 static features such as the anchor, the "
+        f"clock, M4's news shift and who is out, and an MLP outputs the 10th, 50th and 90th percentiles, trained "
+        f"with pinball loss. It cannot beat “the price won't move”: {K['m6_mae']} against {K['zero_mae']} cents. "
+        f"To check that this is not a tuning accident, we ran a pre-declared grid of {K['m6_cfgs']} configurations, "
+        f"GRU sizes, history lengths, an MLP and a CNN, with {K['m6_seeds']} seeds each: every one is worse than "
+        f"zero move, all {K['m6_cis']} confidence intervals above zero, and none ever predicts the {K['m6_need']} "
+        f"move needed to pay for a trade. Recalibrating the win model does not help either: Brier {K['cal_raw']} "
+        f"raw, {K['cal_platt']} Platt, {K['cal_iso']} isotonic, against {K['cal_mkt']} for the market, because its "
+        f"miscalibration flips between early and late season."), n)
+    textbox(s, MARGIN, TOP + 0.05, 5.0, 4.5, [
+        ("M6 design", {"bold": True, "color": NAVY, "heading": True}),
+        "Label = price move to tip (the market grades it)",
+        "GRU-16 over 6 h of prices, 15-min steps",
+        "+ 18 static features → MLP → 10 / 50 / 90th percentiles",
+        "Pinball loss, early stopping; leak-tested",
+        ("Result", {"bold": True, "color": RED, "heading": True}),
+        f"MAE **{K['m6_mae']}¢** vs zero move **{K['zero_mae']}¢**; agent makes 0 trades",
+    ], pt=16, bullets=True, space=4, slide_no=n, label="m6 design")
+    picture(s, "m6_robustness.png", MARGIN + 5.1, TOP + 0.05, CW - 5.1, 2.55)
+    picture(s, "m6_vs_baselines.png", MARGIN + 5.1, TOP + 2.65, CW - 5.1, 2.0)
+    textbox(s, MARGIN, 5.7, CW, 0.62, [
+        f"**Robustness:** {K['m6_cfgs']} configurations × {K['m6_seeds']} seeds, all worse than zero move "
+        f"(best {K['m6_best_gap']}); none predicts the {K['m6_need']} needed to trade"], pt=16, space=0,
+        slide_no=n, label="grid")
+    textbox(s, MARGIN, 6.33, CW, 0.62, [
+        f"**M4 recalibration:** Brier {K['cal_raw']} raw, {K['cal_platt']} Platt, {K['cal_iso']} isotonic vs market "
+        f"{K['cal_mkt']}; miscalibration changes with season phase"], pt=16, space=0, slide_no=n, label="cal")
 
-    # 10 Evidence: money over time -------------------------------------------
+    # 10 Money over time, tested with CIs ------------------------------------
     n = 10
-    s = new_slide(prs, "Evidence 5: money over time, every line drifts down", (
-        f"Here is the money over time, after fees, one line per strategy; the dashed black line at zero is never "
-        f"trading. Left is the February-to-April test period, right the walk-forward season. Read it like this. "
-        f"The red raw model, which trades whenever its estimate differs from the price, falls steadily: "
-        f"{K['cum_raw_pnl']} on {K['cum_raw_n']} trades in the test period, {K['wf_raw_pnl']} over the season. "
-        f"That steady slope is costs: every trade pays the spread and the fee, and there is no edge to pay them "
-        f"back. Orange, the agent without learning, trades less and falls less, {K['cum_nolearn_pnl']}. Blue, "
-        f"the full agent, learned rules that mostly say do not trade, so its line flattens near zero, "
-        f"{K['full_pnl']}, after dipping to {K['cum_full_low']}. The M6 agent made no trades, so it sits on zero. "
-        f"Learning does not find profit; it flattens the line by trading less. The dotted lines are closing-line "
-        f"value: below zero for everyone, so the agent paid worse than the closing price. No strategy ends "
-        f"above never trading; the next slide tests whether the gaps are more than luck."), n)
-    picture(s, "cumulative_pnl.png", MARGIN, TOP, CW, 4.6)
-    textbox(s, MARGIN, 5.9, CW, 1.05, [
-        f"Raw model falls steadily ({K['cum_raw_pnl']} test, {K['wf_raw_pnl']} season): the slope is costs",
-        f"Learning flattens the line by trading less: full agent {K['full_pnl']} test, {K['wf_full_pnl']} season; "
-        f"M6: 0 trades",
-    ], pt=18, bullets=True, space=4, slide_no=n)
-
-    # 11 Evidence: walk-forward ----------------------------------------------
-    n = 11
-    s = new_slide(prs, "Evidence 6: tested with CIs, never trading wins", (
-        f"Finally, the honest test. We re-ran the whole season walk-forward, retraining the win model every month, "
-        f"with day-clustered bootstrap confidence intervals. Mean closing-line value is below zero for every setup, "
-        f"and every interval lies entirely below zero. The full agent's {K['wf_full_pnl']} is indistinguishable from "
-        f"never trading, p {K['wf_full_p']}; the raw model loses {K['wf_raw_pnl']}. The market anchor is a real "
-        f"improvement, {K['wf_anchor_gain']} with p {K['wf_anchor_p']}, but learning only means trading less. On the "
-        f"play-off holdout the full agent made no trades at all."), n)
-    picture(s, "walkforward.png", MARGIN, TOP + 0.05, 6.5, 3.85, align="left")
-    rows = [["Nov – 12 Apr", "Trades", "P&L [95% CI]"],
+    s = new_slide(prs, "Evidence 4: every line drifts down; never trading wins", (
+        f"Money over time, after fees; the dashed line at zero is never trading. The red raw model falls steadily, "
+        f"{K['cum_raw_pnl']} in the test period and {K['wf_raw_pnl']} over the season: that slope is costs. The "
+        f"agent without learning falls less; the full agent learned rules that mostly say do not trade, so it "
+        f"flattens near zero. Then the honest test: walk-forward over the whole season with the win model retrained "
+        f"monthly and day-clustered bootstrap intervals. Mean closing-line value is below zero for every setup. "
+        f"The full agent's {K['wf_full_pnl']} is indistinguishable from never trading, p {K['wf_full_p']}. The "
+        f"market anchor is real, {K['wf_anchor_gain']}, p {K['wf_anchor_p']}; learning only means trading less. On "
+        f"the play-off holdout the full agent made no trades."), n)
+    picture(s, "cumulative_pnl.png", MARGIN, TOP, CW, 3.5)
+    rows = [["Walk-forward, Nov – 12 Apr", "Trades", "P&L after fees [95% CI]"],
             ["**Never trade**", "0", "**$0**"],
-            ["Full agent", K["wf_full_n"], f"{K['wf_full_pnl']} [{K['wf_full_ci']}]"],
-            ["No learning", K["wf_nolearn_n"], f"{K['wf_nolearn_pnl']} [{K['wf_nolearn_ci']}]"],
+            ["Full agent: anchor + learning", K["wf_full_n"], f"{K['wf_full_pnl']} [{K['wf_full_ci']}]"],
+            ["Anchor, no learning", K["wf_nolearn_n"], f"{K['wf_nolearn_pnl']} [{K['wf_nolearn_ci']}]"],
             ["Raw model", K["wf_raw_n"], f"{K['wf_raw_pnl']} [{K['wf_raw_ci']}]"]]
-    table(s, rows, 7.15, TOP + 0.1, [2.05, 0.95, 2.68], row_h=0.66, pt=16, emphasis_row=1,
-          header_h=0.5, center_cols=(1, 2))
-    textbox(s, 7.15, TOP + 3.3, W - MARGIN - 7.15, 0.7, ["Day-clustered bootstrap; M4 retrained monthly. Chart totals include play-offs, the table does not"],
-            pt=14, color=GREY, slide_no=n, label="wf caption")
-    textbox(s, MARGIN, 5.1, CW, 1.85, [
-        "Mean CLV < 0 for every setup; **every 95% CI entirely below zero**",
-        f"Market anchor is real: {K['wf_anchor_gain']} vs raw model (p = {K['wf_anchor_p']}); learning = trading "
-        f"less (p = {K['wf_learn_p']})",
-        f"Play-off holdout ({K['ho_games']} games): full agent 0 trades; no learning {K['ho_nolearn']}; raw model "
-        f"{K['ho_raw']} with negative CLV (luck)",
-    ], pt=18, bullets=True, space=4, slide_no=n)
+    table(s, rows, MARGIN, 4.8, [3.2, 0.95, 2.85], row_h=0.38, pt=14, emphasis_row=1, header_h=0.4,
+          center_cols=(1, 2))
+    textbox(s, MARGIN + 7.2, 4.75, CW - 7.2, 2.2, [
+        "Mean CLV < 0 for every setup; **every CI below zero**",
+        f"Anchor is real: {K['wf_anchor_gain']} (p = {K['wf_anchor_p']}); learning = trading less "
+        f"(p = {K['wf_learn_p']})",
+        f"Play-off holdout: full agent 0 trades",
+    ], pt=16, bullets=True, space=4, slide_no=n, label="wf bullets")
 
-    # 12 Product as consumer protection -------------------------------------
+    # 11 Agentic upgrades ------------------------------------------------------
+    n = 11
+    filled, pending, _ = agentic_status()
+    orch = (FIG / "orchestrator.png").exists()
+    done = "; ".join(f"{name}: {res}" for name, _, _, res in K["agentic"] if res) or "none yet"
+    s = new_slide(prs, "Agentic upgrades: the same market grade", (
+        f"We then made the agent more agentic, and graded each upgrade the same way, pre-registered before "
+        f"scoring. An LLM tool agent chooses its own as-of tools, with code checking every number and a sceptic "
+        f"asking whether the edge is already priced in. We audited the rule gate against placebo rules, enforced "
+        f"a daily kill switch, tried fractional Kelly sizing, tested the Coach on simulated users, joined pregame, "
+        f"trader and coach under one orchestrator, and tried a learned trade-or-pass policy, a rule language for "
+        f"LLM-written rules, and episodic memory. Results so far: {done}. "
+        f"{len(pending)} of {len(K['agentic'])} are still pending at build time."), n)
+    tw = 8.55 if orch else CW
+    rows = [["Upgrade", "What it is", "Result"]]
+    muted = set()
+    for i, (name, what, _, res) in enumerate(K["agentic"], 1):
+        rows.append([f"**{name}**", what, res or PENDING])
+        if not res:
+            muted.add((i, 2))
+    if orch:
+        table(s, rows, MARGIN, TOP + 0.05, [2.35, 3.75, tw - 6.1], row_h=0.55, pt=12, header_h=0.4, muted=muted)
+        picture(s, "orchestrator.png", MARGIN + tw + 0.15, TOP + 0.05, CW - tw - 0.15, 5.3)
+    else:
+        table(s, rows, MARGIN, TOP + 0.05, [2.9, 5.6, tw - 8.5], row_h=0.55, pt=13, header_h=0.4, muted=muted)
+    textbox(s, MARGIN, 6.65, CW, 0.3, [
+        "Pre-registered before scoring (docs/preregistration_*.md); same replay, costs and bootstrap as above"],
+        pt=12, color=GREY, space=0, slide_no=n, label="prereg")
+
+    # 12 Product: protect, teach, practise ---------------------------------
     n = 12
-    s = new_slide(prs, "Our product: educate and protect the consumer", (
-        f"So, back to the problem: the product educates and protects instead of encouraging bets. The agent passes by default: it declined about "
-        f"{K['pass_share']} of decision points, and on the play-off holdout it did not trade at all. Retail briefs "
-        f"show the bid and ask next to our estimate, and when there is no order they say why. The Coach shows the "
-        f"full break-even after spread and fee, and the League lets people practise with play money. Risk limits and banned words are code the LLM cannot override; all "
-        f"{K['policy']} planted violations were blocked. Even the learned rules ended up protective."), n)
-    picture(s, "agent_workflow.png", MARGIN, TOP, 7.4, 5.75, align="left")
-    textbox(s, 8.1, TOP + 0.15, W - MARGIN - 8.1, 5.6, [
-        f"**Pass by default:** {K['pass_share']} of decision points → no trade",
-        "**No-order reason:** “gap after fees too small or the price already moved”",
-        "**Costs shown:** bid-ask in briefs; Coach shows break-even after spread + fee",
-        "**Code limits:** $50 / order, $100 / game, $300 / day; bans “lock”, “guaranteed”, “risk-free”",
-        f"**{K['policy']}** planted violations blocked",
-        "**Learned rules:** skip ≤ 35¢; skip after a 2¢ move against",
-    ], pt=18, bullets=True, space=8, slide_no=n)
+    s = new_slide(prs, "Our product: protect, teach, practise", (
+        f"So the product educates and protects instead of encouraging bets. Protect: the agent passes by default, "
+        f"about {K['pass_share']} of decision points, and says why; risk limits and banned words are code the LLM "
+        f"cannot override, and all {K['policy']} planted violations were blocked. Teach: the Coach explains a game "
+        f"with only what was public and shows the break-even after spread and fee. Practise: the League gives "
+        f"everyone the same {K['lg_slate']} real past decisions and {K['lg_bankroll']} of play money, and ranks on "
+        f"closing-line value, not profit. In our example league the raw-model bot is up {K['lg_bot_pnl']} with "
+        f"negative CLV, and the badge says costs, not skill."), n)
+    cards = [("Protect: the agent", NAVY, [
+                 f"**Passes by default:** {K['pass_share']} of decision points",
+                 "Says why there is no order",
+                 "Code limits: $50 / order, $100 / game, $300 / day",
+                 f"Bans “lock”, “guaranteed”; **{K['policy']}** planted violations blocked"]),
+             ("Teach: the Coach", ORANGE, [
+                 "Only what was public at that moment",
+                 "Break-even after spread + fee",
+                 "Lessons: priced in, long shots, closing line",
+                 "Paper call, then the close and the agent's choice"]),
+             ("Practise: the League", GREEN, [
+                 f"Same {K['lg_slate']} real decisions, {K['lg_bankroll']} play money",
+                 "Fills at ask + fee, like the agent",
+                 f"**Ranked by CLV**, not profit (≥ {K['lg_min_trades']} trades)",
+                 f"Raw-model bot {K['lg_bot_pnl']} with CLV {K['lg_bot_clv']}: “costs”"])]
+    for i, (head, col, lines) in enumerate(cards):
+        card(s, MARGIN + i * (cw3 + 0.25), TOP + 0.15, cw3, 3.6, head, lines, col, pt=16, n=n)
+    picture(s, "league_reveal.png", MARGIN, TOP + 3.9, CW, 0.95)
+    callout(s, MARGIN, 6.2, CW, 0.65,
+            "Educational, paper money only · only information public at that moment · no promise words", pt=18, n=n)
 
-    # 13 Coach ---------------------------------------------------------------
+    # 13 Team contributions -------------------------------------------------------
     n = 13
-    s = new_slide(prs, "Coach: teach why most bets don't clear costs", (
-        "The Coach turns this evidence into lessons. At a chosen moment it explains the game using only what was "
-        "public and shows the break-even after spread and fee. Lesson cards appear when relevant: price is a "
-        "probability, costs move your break-even, news may be priced in, long shots look cheap. Users make a "
-        "paper call and see the close and what the agent did. Paper money only."), n)
-    steps = [("1  What's going on", ["News so far; model before / after the news",
-                                     "Market now vs 24 h ago; break-even after spread + fee"], BLUE),
-             ("2  Lessons, when relevant", ["Price = probability · costs move break-even",
-                                            "Priced in / chasing · long shots · closing line · passing"], ORANGE),
-             ("3  Your paper call", ["Back a team or pass",
-                                     "Then: close, CLV, result, and what the agent did"], GREEN),
-             ("4  Habit feedback", ["Paying above the close, long shots, chasing",
-                                    "Small samples are mostly luck"], NAVY)]
-    cw2 = (CW - 0.3) / 2
-    for i, (head, lines, col) in enumerate(steps):
-        x = MARGIN + (i % 2) * (cw2 + 0.3)
-        y = TOP + 0.15 + (i // 2) * 2.45
-        card(s, x, y, cw2, 2.25, head, lines, col, pt=18, n=n)
-    callout(s, MARGIN, 6.3, CW, 0.55,
-            "Educational, paper money only · only information public at that moment · no promise words",
-            pt=18, n=n)
+    s = new_slide(prs, "Team contributions", (
+        "The work is split across the team. The pregame news loop polls several news sources before a game and "
+        "turns them into fair odds, pull request 7. The player-feature experiment tested isolated player features "
+        "and probability calibration, pull request 8. In-play news and odds updates are pull request 9. Live, "
+        "read-only Polymarket prices are pull requests 11 and 12. The replay, the agent, the models M4 and M6, "
+        "the evaluation, the Coach and the League are on our main branch. Each part had to face the same market "
+        "grade."), n)
+    rows = [["Work", "PR", "Who", "What it adds"]] + [list(r) for r in K["team"]]
+    table(s, rows, MARGIN, TOP + 0.15, [3.3, 1.2, 2.8, CW - 7.3], row_h=0.72, pt=16, header_h=0.48,
+          center_cols=(1,))
+    callout(s, MARGIN, 5.95, CW, 0.75, "Every part is graded the same way: by the market's closing price", pt=19, n=n)
 
-    # 14 League ----------------------------------------------------------------
+    # 14 Demo -----------------------------------------------------------------
     n = 14
-    s = new_slide(prs, "League: practise against the real market with play money", (
-        f"The Coach teaches; the League lets people practise, with the fun but without the harm. Everyone gets the "
-        f"same {K['lg_slate']} real past decisions and {K['lg_bankroll']} of play money, sees only what was public, "
-        f"and backs a team or passes. Orders fill at the ask plus fee, then the close and result are revealed. We "
-        f"rank on closing-line value, not profit, with a skill-or-luck badge from our bootstrap; house bots play "
-        f"the same slate. Here a user beat the close and still lost, while the raw-model bot is up $15 with "
-        f"negative CLV: costs, not skill."), n)
-    picture(s, "league_reveal.png", MARGIN, TOP + 0.05, CW, 1.9)
-    rows = [["Example league", "Trades", "Mean CLV", "Beat close", "P&L", "Skill or luck?"]] + \
-           [list(r) for r in K["lg_rows"]]
-    table(s, rows, MARGIN, TOP + 2.15, [2.15, 0.95, 1.35, 1.35, 1.15, 1.75], row_h=0.42, pt=15, header_h=0.45,
-          center_cols=(1, 2, 3, 4))
-    textbox(s, 9.45, TOP + 2.1, W - MARGIN - 9.45, 2.65, [
-        "Same seeded slate for everyone",
-        "Only as-of prices, news, Coach brief",
-        "Fills at ask + fee, like the agent",
-        f"**Ranked by mean CLV** (≥ {K['lg_min_trades']} trades), not P&L",
-        "Badge: bootstrap CI of CLV",
-    ], pt=15, bullets=True, space=4, slide_no=n, label="league how")
-    callout(s, MARGIN, 6.05, CW, 0.8,
-            "Raw-model bot: +$15 but negative CLV → “costs”. Winning money is not skill · play money only",
-            pt=18, n=n)
-
-    # 15 Honest scope ---------------------------------------------------------
-    n = 15
-    s = new_slide(prs, "Honest scope: what “unfair” means here", (
-        "To be precise: unfair here means structural disadvantages, namely costs, speed and expertise. It does not "
-        "mean manipulation or fraud, and we make no accusation against Kalshi. One disclosure: we designed the "
-        "market anchor and the reviewer after seeing the first February-to-April results, so that window is not a "
-        "clean holdout. That is why the walk-forward season and the untouched play-off holdout are our headline "
-        "tests. The data limits are on slide 5; beyond those, long-shot bias "
-        "was not clearly supported in our data. The well-being numbers on the problem slide are published "
-        "research, not our measurement."), n)
-    card(s, MARGIN, TOP + 0.15, 5.6, 5.55, "What we claim", [
-        "Structural disadvantages: costs, speed, expertise",
-        "**Not** manipulation or fraud",
-        "**No** accusation against Kalshi or any venue",
-        "Paper money; public data only",
-    ], NAVY, pt=18, n=n)
-    card(s, MARGIN + 5.9, TOP + 0.15, CW - 5.9, 5.55, "Caveats and disclosure", [
-        "**Disclosure:** anchor and reviewer designed after seeing Feb–Apr results, so that window is not a clean "
-        "holdout; walk-forward and play-off holdout are the honest checks",
-        "Data limits on slide 5: one season, inactive lists as the only news",
-        "Costs for a $20 order at tip − 60 min; long-shot bias not clearly supported",
-        "Well-being figures are published research, not ours",
-    ], RED, pt=18, n=n)
-
-    # 16 Demo -----------------------------------------------------------------
-    n = 16
     s = new_slide(prs, "Live demo: streamlit run app.py", (
         "Now the demo, focused on protection. On the replayed night, watch the agent see the news, compare its "
         "estimate with the bid and ask, and usually decline with a reason. In the Coach, I'll make a paper call "
-        "and compare it with the close. In the League tab I'll join a league, make one call on the shared slate, "
-        "watch the closing line and result being revealed, and show the leaderboard ranked by closing-line value "
-        "next to the house bots. Then a quick look at the learned rules and planted violations being blocked. If "
-        "anything fails, we have a backup recording."), n)
+        "and compare it with the close. In the League tab I'll make one call on the shared slate, watch the "
+        "closing line and result being revealed, and show the leaderboard ranked by closing-line value next to "
+        "the house bots. Then a quick look at the learned rules and planted violations being blocked. If anything "
+        "fails, we have a backup recording."), n)
     rows = [["Tab", "What to watch"],
             ["Replayed night", "News → estimate vs bid-ask → usually no order, with the reason"],
             ["Coach", "Break-even after spread + fee; paper call vs the close and the agent"],
             ["League", "One call on the shared slate → close revealed → ranked by CLV next to the house bots"],
-            ["Channel briefs", "Retail: model vs market and no-order reason; no market language for media / team"],
             ["Learning", "Gate keeps protective rules (skip long shots, skip chasing)"],
-            ["Safety", f"Planted violations blocked ({K['policy']})"],
-            ["Models", "Held-out results and the market beating our model"]]
-    table(s, rows, MARGIN, TOP + 0.15, [2.6, CW - 2.6], row_h=0.6, pt=17)
-    callout(s, MARGIN, 6.3, CW, 0.55, "Backup: recorded run of the same demo", pt=18, n=n)
+            ["Safety", f"Planted violations blocked ({K['policy']})"]]
+    table(s, rows, MARGIN, TOP + 0.15, [2.6, CW - 2.6], row_h=0.7, pt=18)
+    callout(s, MARGIN, 6.2, CW, 0.6, "Backup: recorded run of the same demo", pt=18, n=n)
 
-    # 17 Recommendations ------------------------------------------------------
-    n = 17
-    s = new_slide(prs, "Recommendations, next steps and Q&A", (
+    # 15 Recommendations, scope, Q&A ---------------------------------------------
+    n = 15
+    s = new_slide(prs, "Recommendations, honest scope and Q&A", (
         "Our recommendations follow from the evidence. Before any order, show the all-in cost and the break-even "
-        "probability, not just the price. Warn by default when news is likely already priced in. Put education, "
-        "like our Coach, and play-money practice, like our League, in front of the first trade, and, as the Lancet "
-        "Commission argues, treat betting harm as a public-health issue. For our own work: enforce a "
-        "daily-loss stop, use timestamped injury reports, and extend to player-prop markets. Thank you, we are "
-        "happy to take questions."), n)
-    card(s, MARGIN, TOP + 0.15, 6.4, 4.0, "For products and policy", [
+        "probability. Warn by default when news is likely already priced in. Put education and play-money practice "
+        "in front of the first trade, and treat betting harm as a public-health issue, as the Lancet Commission "
+        "argues. Honest scope: unfair here means structural disadvantages, costs, speed and expertise, not "
+        "manipulation or fraud, and we make no accusation against Kalshi. We designed the market anchor and the "
+        "reviewer after seeing the first February-to-April results, so the walk-forward season and the play-off "
+        "holdout are our headline tests. Thank you, we are happy to take questions."), n)
+    card(s, MARGIN, TOP + 0.15, 6.4, 3.9, "For products and policy", [
         "Show the all-in cost and break-even before every order",
         "Default warning: “this news is likely priced in”",
         "Education and play-money practice before the first trade",
         "Treat betting harm as a public-health issue (Lancet)",
-    ], NAVY, pt=18, n=n)
-    card(s, MARGIN + 6.7, TOP + 0.15, CW - 6.7, 4.0, "Our next steps", [
-        "Show the full break-even in every retail brief",
-        "Enforce a daily-loss stop",
-        "Timestamped injury reports; player-prop markets",
-    ], ORANGE, pt=18, n=n)
-    textbox(s, MARGIN, 5.55, CW, 1.2, [("Thank you. Questions?", {"bold": True})], pt=40, color=NAVY,
+    ], NAVY, pt=17, n=n)
+    card(s, MARGIN + 6.7, TOP + 0.15, CW - 6.7, 3.9, "Honest scope", [
+        "“Unfair” = costs, speed, expertise; **not** fraud; no accusation against Kalshi",
+        "Anchor and reviewer designed after seeing Feb–Apr; walk-forward and play-offs are the honest tests",
+        "One season, inactive lists as our news; paper money",
+    ], RED, pt=16, n=n)
+    textbox(s, MARGIN, 5.45, CW, 1.3, [("Thank you. Questions?", {"bold": True})], pt=40, color=NAVY,
             align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, space=0, slide_no=n)
 
     return prs
@@ -717,13 +754,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="print the fit report for every text box")
     args = ap.parse_args()
+    sync_figures()
     prs = build()
     prs.save(OUT)
     if args.check:
         for row in _fit_report:
             print("slide %2d  %-42s  %.2f / %.2f in" % row)
     problems = check(prs)
+    filled, pending, waiting = agentic_status()
     print(f"wrote {OUT.relative_to(HERE.parent)} ({len(prs.slides)} slides)")
+    print(f"agentic results filled: {', '.join(filled) or 'none'}; pending: {', '.join(pending) or 'none'}")
+    if waiting:
+        print(f"NOTE: result files exist for pending rows, fill K['agentic']: {', '.join(waiting)}")
     for p in problems:
         print("WARNING:", p)
     return 1 if problems else 0

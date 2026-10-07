@@ -1,72 +1,87 @@
 # Presentation deck (Fri 9 Oct 2026)
 
-**Narrative:** the deck opens with a three-part consumer problem. (1) Betting is mainstream and
-people want to understand it. (2) Betting markets are structurally tilted against consumers; that
-part is our own measurement. (3) Published research shows betting harms well-being. Then comes the
-research question: can a consumer, even one armed with an AI agent and public news, beat the market?
-Our agent is the evidence that the answer is no, so the product educates and protects consumers.
-"Unfair" here means structural disadvantages (costs, speed, expertise), not manipulation or fraud.
-We make no accusation against Kalshi.
+**Narrative: "Market-Graded Learning".** The market's closing price grades every component of the
+agent: the models, the learned rules and the LLM. Only the components that defer to the market
+survive (the market anchor, and gated learning that trades less); every component with more
+freedom (the raw win model, the M6 neural net) fails. If a disciplined agent with our data cannot
+beat the close, a consumer cannot either, so the product educates and protects consumers. The
+deck opens with a three-part consumer problem: betting is mainstream, the markets are structurally
+tilted (our measurement) and betting harms well-being (published research). "Unfair" here means
+structural disadvantages (costs, speed, expertise), not manipulation or fraud. We make no
+accusation against Kalshi. The framing follows `docs/agentic_review.md`, "How to present the agent".
 
-`nba_agent_deck.pptx` is a 16:9 deck of 17 slides with speaker notes on every slide. It is
+`nba_agent_deck.pptx` is a 16:9 deck of 15 slides with speaker notes on every slide. It is
 built by `build_deck.py` from the figures in `figures/`, which are copies of
-`evaluation/results/*.png`, so this folder is self-contained.
+`evaluation/results/*.png`, so this folder is self-contained. The rehearsal script with per-slide
+timing is `script.md`.
 
 ## Rebuild
 
 ```bash
 python -m evaluation.consumer_fairness      # costs, price discovery, long-shot check (needs data/frozen)
 python -m evaluation.cumulative_pnl         # cumulative P&L chart from the saved runs in runs/
-python -m evaluation.data_overview          # data table counts (data_overview.csv) and data_timeline.png
-cp evaluation/results/{product_workflow,cost_burden,price_discovery,m4_vs_market,m6_vs_baselines,walkforward,cumulative_pnl,data_timeline,longshot_calibration,agent_workflow}.png presentation/figures/
+python -m evaluation.data_overview          # data table counts (data_overview.csv)
+cp evaluation/results/{product_workflow,cost_burden,price_discovery,m4_vs_market,m6_vs_baselines,cumulative_pnl,agent_workflow}.png presentation/figures/
 # figures/league_reveal.png is a screenshot of the League tab (streamlit run app.py, demo league friday-league)
 python presentation/build_deck.py           # writes presentation/nba_agent_deck.pptx
-python presentation/build_deck.py --check   # also prints the estimated fit of every text box
+python presentation/build_deck.py --check   # also prints the estimated fit of every text box and table
 ```
 
+The build copies `injury_timing.png`, `m6_robustness.png` and `orchestrator.png` from
+`evaluation/results/` into `figures/` automatically when they exist (or are newer). Slide 11 shows
+`orchestrator.png` next to the table only if that file exists.
+
 Every number we measured is in the `K` dict at the top of `build_deck.py`, with its source. The
-data counts on slides 4–5 are in the `D` dict (measured by `evaluation/data_overview.py`), and the
+data counts on slide 5 are in the `D` dict (measured by `evaluation/data_overview.py`), and the
 external research numbers on slide 2 are in a separate `EXT` dict, with their references.
-The script warns, and exits with status 1, if a shape leaves the slide, a text box is
+The script warns, and exits with status 1, if a shape leaves the slide, a text box or table is
 estimated to overflow, or a slide has no speaker notes.
 
-**M4 Brier score:** the deck uses the README's definition, M4 0.186 against the market's 0.164,
-both 1 hour before tip on 501 test games. Slide 8 footnotes the at-tip pair: M4 with the inactive
-list 0.183, market at tip 0.163.
+**Agentic upgrades (slide 11).** `K["agentic"]` has one row per upgrade: name, what it is, the
+result files in `evaluation/results/` it comes from, and the result (`None` shows "pending").
+When a result file arrives, copy its headline into the row and rebuild. The build prints which
+rows are filled, which are pending, and which pending rows already have a result file.
+
+**M4 Brier score:** slide 8 uses the README's definition, M4 0.186 against the market's 0.164,
+both 1 hour before tip on 501 test games, and footnotes the at-tip pair (M4 with the inactive
+list 0.183, market at tip 0.163). The recalibration line on slide 9 uses the 0.183 definition
+(absences known), as in `m4_calibration.md`.
 
 ## Slides and timing (target: about 10 minutes including the demo)
 
-The time limit has not been confirmed, so adjust the timings if needed.
+The time limit has not been confirmed, so adjust the timings if needed. Full wording: `script.md`.
 
 | # | Slide | Time |
 | --- | --- | --- |
-| 1 | Title: Betting markets are tilted against consumers | 0:15 |
-| 2 | The problem: three things consumers face (want to learn / markets tilted / betting causes harm) | 0:45 |
-| 3 | Research question, what we built to test it (`product_workflow.png`), and the answer | 0:30 |
-| 4 | Data: five public sources, frozen once (table of sources, rows, coverage, use) | 0:35 |
-| 5 | Data: time splits and the no-look-ahead rule (`data_timeline.png`, rules, limits) | 0:35 |
-| 6 | Evidence 1: costs set a hurdle before you start (`cost_burden.png`, with the selectivity funnel) | 0:35 |
-| 7 | Evidence 2: the price moves before the news reaches you (`price_discovery.png`) | 0:25 |
+| 1 | Title: Market-Graded Learning (the thesis in one sentence) | 0:15 |
+| 2 | The problem: three things consumers face | 0:35 |
+| 3 | Research question, what we built (`product_workflow.png`), and the answer | 0:30 |
+| 4 | Market-Graded Learning: the closing price is the grader (component / test / verdict table) | 0:40 |
+| 5 | Data: five public sources, split in time, no look-ahead | 0:30 |
+| 6 | Evidence 1: costs set a hurdle (`cost_burden.png`, selectivity funnel) | 0:30 |
+| 7 | Evidence 2: the price moves before the news (`price_discovery.png`, `injury_timing.png`) | 0:35 |
 | 8 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:20 |
-| 9 | Evidence 4: even a market-trained neural net finds nothing (`m6_vs_baselines.png`) | 0:25 |
-| 10 | Evidence 5: money over time, every line drifts down (`cumulative_pnl.png`) | 0:35 |
-| 11 | Evidence 6: tested with CIs, never trading wins (`walkforward.png`) | 0:25 |
-| 12 | Our product: educate and protect the consumer (`agent_workflow.png`) | 0:30 |
-| 13 | Coach: teach why most bets don't clear costs | 0:20 |
-| 14 | League: practise against the real market with play money (`league_reveal.png`, example leaderboard) | 0:30 |
-| 15 | Honest scope: what "unfair" means here (disclosure, long-shot result, external-research note) | 0:20 |
-| 16 | Live demo: `streamlit run app.py` (now including one League call) | 2:30 |
-| 17 | Recommendations, next steps and Q&A | 0:20 |
-| | **Total** | **about 9:55** |
+| 9 | Deep learning: M6 GRU design, result, robustness grid; M4 recalibration (`m6_robustness.png`, `m6_vs_baselines.png`) | 0:45 |
+| 10 | Evidence 4: money over time and the walk-forward CIs (`cumulative_pnl.png`, table) | 0:40 |
+| 11 | Agentic upgrades: the same market grade (table; `orchestrator.png` if present) | 0:35 |
+| 12 | Our product: protect, teach, practise (agent, Coach, League; `league_reveal.png`) | 0:35 |
+| 13 | Team contributions (PRs #7, #8, #9, #11/#12, and the replay/agent/evaluation work) | 0:20 |
+| 14 | Live demo: `streamlit run app.py` | 2:15 |
+| 15 | Recommendations, honest scope and Q&A | 0:30 |
+| | **Total** | **about 9:35** |
 
-That leaves a few seconds for transitions. The 5 minutes of Q&A follow. The old slides 3
-(research question) and 4 (what we built) overlapped, so they are merged into slide 3 to make room for
-the League slide. The old long-shot and "who sits on the other side" slides were cut. The long-shot
-result is now a caveat on slide 15, and `figures/longshot_calibration.png` is kept as a backup for Q&A.
-The data limits moved from the scope slide to slide 5. If time is short, shorten slide 11, whose story slide 10 already tells, or skip the League call in the demo.
-If the live demo fails, play the backup recording on slide 16.
+That leaves about 25 seconds for transitions before the 5 minutes of Q&A.
 
-## Data (slides 4–5)
+Changes from the 17-slide version: the title now states the thesis and a new slide 4 shows the
+market grading every component. The two data slides are merged (the timeline figure is dropped;
+splits and rules are bullets). The walk-forward CI slide is merged into the cumulative P&L slide.
+The product, Coach and League slides are one slide. Honest scope is merged into Recommendations.
+New: the injury-report timing on slide 7, the deep-learning slide 9, agentic upgrades on slide 11
+and team contributions on slide 13. `figures/walkforward.png`, `data_timeline.png` and
+`longshot_calibration.png` are kept as backups for Q&A. If time is short, shorten slide 5 or skip
+the League call in the demo. If the live demo fails, play the backup recording on slide 14.
+
+## Data (slide 5)
 
 Measured from `data/frozen/*.parquet` by `evaluation/data_overview.py` (`evaluation/results/data_overview.csv`).
 All sources are public; the raw data is gitignored and not redistributed (`data/sample/` holds a small
@@ -126,6 +141,18 @@ These were checked against the full texts in October 2026. The slide labels this
   over 4 points → 74 trades, of which 27 (36%) beat or matched the close.
 - **Information speed** (`consumer_fairness.md`): on 193 test games, 91% of the news-direction
   move happened before the inactive list was public (+1.80 vs +0.18 points).
+- **Injury-report timing** (`injury_timing.md`): on the same 193 games, about two-thirds of the
+  move, 67% [47%, 85%], came before the first official NBA injury report listing the key absent
+  player Out/Doubtful (report counted public 15 minutes after its slot; 49% with no lag). The
+  report comes a median of 6.0 hours before the inactive list. 77 of the reports predate the 24 h
+  anchor, so their pre-report share is zero by construction. Official reports only; beat reporters
+  and social media can be earlier.
+- **M4 recalibration** (`m4_calibration.md`): Brier 0.183 raw, 0.185 Platt, 0.184 isotonic, against
+  0.164 for the market 1 h before tip. M4's out-of-sample Platt slope is below 1 in Oct–Jan and
+  above 1 in Feb–Apr, so a pooled calibrator fits neither.
+- **M6 robustness** (`m6_robustness.md`): 9 configurations (GRU 16/64/128 units, 6/12/24 h
+  history, static-feature MLP, 1D CNN) × 3 seeds. All are worse than zero move; all 18 gap CIs lie
+  above zero; best gap +0.017¢ (GRU-64, 12 h). None predicts the 5.5¢ move needed to trade.
 - **The market beats our model:** see the M4 Brier note above.
 - **M6** (`m6_heldout.csv`, `m6_ablation.md`): on 771 test decision times, M6's mean error is
   0.867¢ against 0.833¢ for "price won't move", with R² ≈ 0 on test and holdout. After the list the
@@ -149,13 +176,15 @@ These were checked against the full texts in October 2026. The slide labels this
   slope is costs. Learning flattens the line by trading less, not by finding profit.
 - **Long-shot bias: not clearly supported** (1 win in 66 against 7.4% implied, z = −1.8). Long
   shots still return −13.4% against −2.2% for heavy favourites, because of costs.
-- **League (slide 14, `agents/league.py`):** a $1,000 play-money bankroll, stakes of $5–$50, a seeded
+- **League (slide 12, `agents/league.py`):** a $1,000 play-money bankroll, stakes of $5–$50, a seeded
   slate of 10 real decision points from the test period, and the same fills as the agent (ask + fee).
   Players are ranked by mean CLV per contract once they have at least 5 trades. The skill-or-luck badge
   comes from the day-clustered bootstrap in `evaluation/stats.py`. The example leaderboard and the
   screenshot come from the demo league `friday-league`. Its two users' plays are illustrative, not a
   measurement; the house bots ran offline on the same slate. In it the raw-model bot is up +$15.27 with
   a mean CLV of −0.63¢, so its badge is "costs".
+- **Team contributions (slide 13):** names are as the authors appear on the GitHub PRs
+  (`K["team"]`); edit there if the team prefers full names.
 - **Disclosure (slide 15):** the market anchor and the reviewer were designed after seeing the
   Feb–Apr results, so that window is not a clean holdout. The walk-forward season and the
   play-off holdout are the honest checks.
