@@ -1074,6 +1074,69 @@ annotators finish.
 **ChatGPT / plain-LLM baseline:** see the LLM tool-agent section
 (`docs/preregistration_llm_agent.md`, arm B in `evaluation/llm_agent_eval.py`).
 
+#### Coach agent + simulated users
+
+`python -m evaluation.coach_sim` (pre-registered in `docs/preregistration_coach.md`).
+**This is a simulation of compliance, not a user study.** Before a pick, the Coach agent
+(`agents/coach_agent.py`) plans which as-of checks to run: break-even after fees, the
+move since the 24 h anchor, long-shot price, news freshness, the M4 shift and the
+user's habits. It then picks one lesson and nudges `pass`, `caution` or nothing; it
+never suggests trading more. Four rule-based personas (price chaser, long-shot
+lover, overtrader, cautious) play the same 20 seeded League slates × 10 test-period
+decisions. Each persona plays without the Coach, and with it at compliance c = 0.5 and
+1.0. The compliance draws are shared across arms, so the comparison is paired. Full
+tables: `coach_sim.md`.
+
+| Persona, c = 1 (with − without) | Δ CLV $ [95% slate CI] | Δ fees | Δ P&L [95% CI] | Trades |
+| --- | --- | --- | --- | --- |
+| Price chaser | +$17 [−4, +33] | −$83 | +$111 [−201, +431] | 158 → 20 |
+| Long-shot lover | +$72 [+53, +90] | −$141 | +$1,056 [+303, +1,746] | 152 → 43 |
+| Overtrader | +$88 [+65, +111] | −$156 | +$590 [−128, +1,166] | 200 → 56 |
+| Cautious | +$24 [+14, +36] | −$44 | +$115 [−369, +520] | 53 → 18 |
+
+- **The Coach helps by braking.** Fees fall for every persona. CLV $ rises with a CI
+  above zero for three of the four personas. The day-clustered CIs from
+  `evaluation/stats.py` agree.
+- **It does not make trades better.** Mean CLV per contract does not improve for any
+  persona, because every persona's trades lose about the half-spread plus fee.
+- **Were the nudges right?** 75% of flagged trades had negative CLV, but so did 75% of
+  all trades. The Coach flags 99% of trades, so it barely discriminates. Only 4 trades
+  went un-nudged, too few to test whether pass-nudged trades did worse.
+
+![Coach simulation](evaluation/results/coach_sim.png)
+
+**Demo:** the Coach tab shows the agent's step trace and its nudge before you confirm a
+pick. To open the historical page by default, run
+`APP_DEFAULT_PAGE=history streamlit run app.py`, or add `?page=history` to the URL. Without
+either, the app opens on Live Markets as before.
+
+#### Multi-agent orchestrator
+
+`python -m agents.orchestrator --date 2026-03-10 [--games 2]` runs one night through a
+LangGraph supervisor in a fixed order: pregame (`PregameAgent` polls news and sets fair
+odds) → trader (`MarketAgent`, using the pregame expected lost-minutes shares as its
+investigation) → Coach (explains the trader's decision) → briefs (four channels). All
+four share one as-of time (tip − 60 min), typed state and a message log. The handoff
+trace is saved to `runs/orchestrator/<date>.json`.
+
+- **No look-ahead:** any timestamp or citation a component returns that is later than
+  the decision time is rejected as an error.
+- **Graceful degradation:** a failing component becomes an error message. The night
+  still completes: the trader falls back to official statuses, and the Coach explains
+  without the agent panel.
+- **Tests:** `tests/test_orchestrator.py` covers routing order, identical as-of times,
+  rejection of future data, degradation and empty nights.
+- **Example:** on 10 Mar 2026 (2 games) the pregame agent found no new factors, the
+  trader passed on both games (best gap 2.9 and 1.9 points, below the 4-point threshold)
+  and the Coach explained the passes.
+- This is the thin version. It adds no new trading evaluation.
+
+![Orchestrator graph](evaluation/results/orchestrator.png)
+
+#### Learned trade/pass policy
+
+_Results pending: `python -m evaluation.learned_policy {extract,select,test,holdout}`._
+
 ### Testing
 
 Tests live in `tests/`. They use small hand-made tables, need no network and
