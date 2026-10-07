@@ -25,6 +25,7 @@ DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40),
           "gemini-3.5-flash-lite": (0.10, 0.40),   # assumed equal to 2.5 Flash-Lite
           "gemini-2.5-pro": (1.25, 10.0)}
+MAX_WAIT = 300                 # seconds; a longer retry hint means the daily quota is spent
 
 
 def parse_json(text: str):

@@ -89,6 +89,24 @@ def run_all(gate: str):
               notebook=mem_tpl_dev.notebook, memory=mem_tpl_dev.memory, gate=gate)
 
 
+def run_one(name: str, gate: str):
+    """One setup in its own process; test setups warm-start from the saved development notebook and memory."""
+    from forecast.api import Forecaster
+
+    tables, forecaster = load_frozen(), Forecaster.load()
+    window, setup = name.split("-", 1)
+    span = DEV if window == "dev" else TEST
+    notebook = memory = None
+    if window == "test" and setup != "no_learning":
+        dev = RUNS / "memory" / f"dev-{setup}"
+        notebook = Notebook.load(dev / "notebook.json")
+        if setup.startswith("memory"):
+            memory = EpisodicMemory.load(dev / "memory.json")
+    print(f"{name}: gate={gate}", flush=True)
+    run_setup(name, tables, *span, forecaster=forecaster, notebook=notebook, memory=memory,
+              learn=setup in ("template", "memory_template"), use_memory=setup.startswith("memory"), gate=gate)
+
+
 def summary_row(label, setup, table, meta=None) -> dict:
     b = bootstrap(table)
     row = {"window": label, "setup": setup, "days": len(table), "trades": int(table.trades.sum())}
@@ -184,10 +202,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--gate", choices=["split", "legacy", "auto"], default="auto")
+    ap.add_argument("--only", help="run one setup, e.g. dev-memory or test-memory_template, then exit")
     args = ap.parse_args()
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RUNS / "memory").mkdir(parents=True, exist_ok=True)
     gate = pick_gate() if args.gate == "auto" else args.gate
+    if args.only:
+        run_one(args.only, gate)
+        return
     if not args.report_only:
         run_all(gate)
     report(gate)

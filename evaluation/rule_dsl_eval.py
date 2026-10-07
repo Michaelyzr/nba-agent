@@ -86,6 +86,25 @@ def run_all(gate: str):
               notebook=dsl_dev.notebook)
 
 
+def run_one(name: str, gate: str, proposer_kind: str = "auto"):
+    """One setup in its own process; test setups warm-start from the saved development notebook."""
+    from forecast.api import Forecaster
+
+    tables, forecaster = load_frozen(), Forecaster.load()
+    window, setup = name.split("-", 1)
+    span = DEV if window == "dev" else TEST
+    notebook = None
+    if window == "test" and setup != "no_learning":
+        notebook = Notebook.load(RUNS / "rule_dsl" / f"dev-{setup}" / "notebook.json")
+    proposer = None
+    if proposer_kind == "stub":
+        proposer = stub_proposer()
+        proposer.__name__ = "stub-search"
+    print(f"{name}: gate={gate}; proposer={proposer_kind}", flush=True)
+    run_setup(name, tables, *span, forecaster=forecaster, notebook=notebook, learn=setup != "no_learning",
+              dsl=setup == "dsl", gate=gate, proposer=proposer)
+
+
 def summary_row(label, setup, table, meta=None) -> dict:
     b = bootstrap(table)
     row = {"window": label, "setup": setup, "days": len(table), "trades": int(table.trades.sum())}
@@ -199,10 +218,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--gate", choices=["split", "legacy", "auto"], default="auto")
+    ap.add_argument("--only", help="run one setup, e.g. dev-dsl or test-template, then exit (parallel runs)")
+    ap.add_argument("--proposer", choices=["auto", "stub"], default="auto",
+                    help="auto: Gemini if GEMINI_API_KEY is set, else the stub search; stub: always the stub")
     args = ap.parse_args()
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RUNS / "rule_dsl").mkdir(parents=True, exist_ok=True)
     gate = pick_gate() if args.gate == "auto" else args.gate
+    if args.only:
+        run_one(args.only, gate, args.proposer)
+        return
     if not args.report_only:
         run_all(gate)
     report(gate)

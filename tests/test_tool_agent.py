@@ -123,6 +123,47 @@ def test_cache_hits_on_rerun(tmp_path):
     assert a2.llm.backend.calls == 0                                  # stub never contacted
 
 
+class _QuotaError(Exception):
+    code = 429
+
+
+def _gemini(errors, monkeypatch):
+    """GeminiBackend without a network client: the first len(errors) calls raise, then it answers."""
+    from types import SimpleNamespace
+
+    from agents import llm_client
+    sleeps = []
+    monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    b = llm_client.GeminiBackend.__new__(llm_client.GeminiBackend)
+    b.model, b.max_retries, b.min_interval, b._last = "gemini-test", 3, 0.0, 0.0
+    b._lock = __import__("threading").Lock()
+    b._config = lambda system: None
+    queue = list(errors)
+
+    def generate_content(**kw):
+        if queue:
+            raise _QuotaError(queue.pop(0))
+        return SimpleNamespace(text='{"ok": true}', usage_metadata=SimpleNamespace(prompt_token_count=3,
+                                                                                   candidates_token_count=2))
+    b.client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+    return b, sleeps
+
+
+def test_rate_limit_is_retried_after_the_hinted_wait(monkeypatch):
+    b, sleeps = _gemini(["429 RESOURCE_EXHAUSTED. Please retry in 7.5s."], monkeypatch)
+    text, usage = b.generate("system", "prompt")
+    assert text == '{"ok": true}' and usage["tokens_in"] == 3
+    assert sleeps == [8.5]
+
+
+def test_spent_daily_quota_fails_fast_and_is_not_cached(monkeypatch, tmp_path):
+    b, sleeps = _gemini(["429 RESOURCE_EXHAUSTED. Please retry in 19h21m10.7s."], monkeypatch)
+    llm = CachedLLM(b, cache_dir=tmp_path)
+    out = llm.ask("analyst", "system", "prompt")
+    assert out["error"] and out["json"] is None and not sleeps
+    assert not list(tmp_path.rglob("*.json"))
+
+
 def test_invalid_llm_json_is_a_pass():
     a = agent(fn=lambda *x: "not json at all", sceptic=False)
     decisions, fills, _ = run(a, tables_with_history())
