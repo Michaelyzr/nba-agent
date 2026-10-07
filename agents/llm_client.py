@@ -22,7 +22,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "runs" / "llm_cache"
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # USD per million tokens (input, output), Google AI Studio paid tier list prices; an estimate only.
-PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40), "gemini-2.5-pro": (1.25, 10.0)}
+PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40),
+          "gemini-3.5-flash-lite": (0.10, 0.40),   # assumed equal to 2.5 Flash-Lite
+          "gemini-2.5-pro": (1.25, 10.0)}
 
 
 def parse_json(text: str):
@@ -45,6 +47,8 @@ def parse_json(text: str):
 
 
 def cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
+    if not model.startswith("gemini"):
+        return 0.0
     price_in, price_out = PRICES.get(model, PRICES["gemini-3.8-flash"])
     return (tokens_in * price_in + tokens_out * price_out) / 1e6
 
@@ -93,6 +97,8 @@ class GeminiBackend:
                 if not retryable or attempt == self.max_retries:
                     raise
                 hint = re.search(r"retry in ([\d.]+)s", str(exc)) or re.search(r"'retryDelay': '(\d+)s'", str(exc))
+                if re.search(r"retry in \d+h", str(exc)) or (hint and float(hint.group(1)) > MAX_WAIT):
+                    raise                                  # daily quota spent: fail this call, do not sleep for hours
                 time.sleep(max(delay, float(hint.group(1)) + 1) if hint else delay)
                 delay = min(delay * 2, 60)
 

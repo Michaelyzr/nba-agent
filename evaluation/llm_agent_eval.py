@@ -244,7 +244,7 @@ def report_window(tag: str, start: str, end: str, tables, price_index) -> tuple:
             row.update({m: b.loc[m, "estimate"], f"{m}_lo": b.loc[m, "ci_low"], f"{m}_hi": b.loc[m, "ci_high"]})
         rows.append(row)
         for ref in ("anchor", "never"):
-            if ref == s or ref not in tabs:
+            if ref == s or ref not in tabs or s == "never":
                 continue
             d = paired(t, tabs[ref])
             for m in ("mean_clv", "clv_dollars", "pnl"):
@@ -262,7 +262,12 @@ def report_window(tag: str, start: str, end: str, tables, price_index) -> tuple:
             pairs.append({"window": tag, "a": "tool_sceptic", "b": "tool", "metric": m, "estimate": r.estimate,
                           "ci_low": r.ci_low, "ci_high": r.ci_high, "p_a_gt_b": r.p_a_gt_b})
     meta = {s: json.loads((base / s / "meta.json").read_text()) for s in present if (base / s / "meta.json").exists()}
-    return pd.DataFrame(rows), pd.DataFrame(pairs), pd.DataFrame(diags), {"tabs": tabs, "meta": meta, "days": days}
+    diags = pd.DataFrame(diags)
+    if len(diags):
+        from agents.llm_client import cost_usd
+        models = diags.setup.map(lambda s: str(meta.get(s, {}).get("model", "")))
+        diags["cost_usd"] = [cost_usd(m, i, o) for m, i, o in zip(models, diags.tokens_in, diags.tokens_out)]
+    return pd.DataFrame(rows), pd.DataFrame(pairs), diags, {"tabs": tabs, "meta": meta, "days": days}
 
 
 def chart(tabs_by_window: dict, path: Path):
@@ -327,7 +332,14 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
         m = extra["meta"]
         model = next((v["model"] for k, v in m.items() if k in LLM_SETUPS), "–")
         sub = next((v["subsample"] for v in m.values()), 1.0)
-        md += [f"## {tag}: {extra['days'][0]} – {extra['days'][-1]} ({len(extra['days'])} game-days)", "",
+        md += [f"## {tag}: {extra['days'][0]} – {extra['days'][-1]} ({len(extra['days'])} game-days)", ""]
+        if model == "heuristic-stub":
+            md += ["**Stub results, not Gemini.** Every LLM call was answered by the deterministic heuristic stub "
+                   "(`agents.tool_agent.heuristic_reply`: anchor + M4 news shift through the tool protocol; the "
+                   "sceptic rejects when the price already moved 3¢ toward the trade). This proves the pipeline "
+                   "end to end; it says nothing about how an LLM would trade. Tokens are character-count estimates "
+                   "and latency is local.", ""]
+        md += [
                f"LLM: `{model}`, temperature 0. Decision points: "
                + ("all" if sub >= 1 else f"fixed {sub:.0%} subsample (seed {next(iter(m.values()))['seed']}), same for every setup")
                + ".", "",
@@ -367,9 +379,10 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
     if probe:
         md += ["## Memorisation probe", "", probe["summary"], ""]
     md += [f"![Cumulative P&L and CLV by setup]({stem}.png)", "",
-           "Costs are list-price estimates from token counts (Gemini 2.5 Flash: $0.30 per million input tokens, "
-           "$2.50 per million output tokens) and include calls served from the cache, i.e. the cost of a fresh run. "
-           "Latency is per API call as measured when the response was first fetched."]
+           "Costs are estimates from token counts at the list prices in `agents/llm_client.PRICES` "
+           "(Gemini 3.5 Flash-Lite assumed at the 2.5 Flash-Lite price, $0.10 / $0.40 per million input / output "
+           "tokens; the runs themselves used the free tier) and include calls served from the cache, i.e. the cost "
+           "of a fresh run. Latency is per API call as measured when the response was first fetched."]
     (RESULTS / f"{stem}.md").write_text("\n".join(md) + "\n")
     print((RESULTS / f"{stem}.md").read_text())
 
