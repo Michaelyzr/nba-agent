@@ -297,8 +297,8 @@ label = {g.game_id: f"{g.away_team} @ {g.home_team}" for g in tonight.itertuples
 gid = st.sidebar.selectbox("Game", list(label), format_func=label.get)
 game = next(g for g in tonight.itertuples() if g.game_id == gid)
 
-night, pregame, coach_tab, briefs, learning, safety, models = st.tabs(
-    ["Replayed night", "Pregame news loop", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
+night, pregame, loop_sample, coach_tab, briefs, learning, safety, models = st.tabs(
+    ["Replayed night", "Pregame news loop", "News loop sample", "Coach: learn the market", "Channel briefs", "Learning", "Safety", "Models"])
 decision_times = sorted({t for t in tables["news"].loc[tables["news"].game_id == gid, "published_at"]
                          if game.tip_time - replay.NEWS_WINDOW <= t < game.tip_time} | {game.tip_time - replay.LEAD})
 fmt_time = lambda t: f"{pd.Timestamp(t):%H:%M} UTC"
@@ -395,8 +395,16 @@ with pregame:
         if evidence_path.exists():
             with st.expander("Original articles and posts"):
                 st.dataframe(pd.read_json(evidence_path, lines=True), hide_index=True)
+        if snapshots[-1].get("report"):
+            with st.expander("Automatic news-impact brief"):
+                st.markdown(snapshots[-1]["report"]["markdown"])
+                st.download_button("Download brief (.md)", snapshots[-1]["report"]["markdown"], file_name="pregame-report.md")
         st.caption("Questionable/probable/doubtful weights are scenario assumptions pending calibration. "
                    f"Snapshot and source logs: {output}")
+
+with loop_sample:
+    from agents.loop_dashboard import render_demo
+    render_demo("main_news_loop_sample")
 
 with coach_tab:
     st.info(coach.NOTICE)

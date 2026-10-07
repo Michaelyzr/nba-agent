@@ -1,0 +1,331 @@
+{
+  "config": {
+    "pipeline": "inplay-v1",
+    "game_id": "401811041",
+    "tip_time": "2026-04-12T22:00:00+00:00",
+    "initial_p_home": null,
+    "max_score_age": 30,
+    "point_value": 0.12,
+    "sigma": 14.0,
+    "model": "inplay-diffusion-prototype",
+    "coefs": null,
+    "intercept": null
+  },
+  "prior": {
+    "p_home": 0.728776634529693,
+    "as_of": "2026-04-12T22:00:00+00:00",
+    "model": "demo-history-record"
+  },
+  "score": {
+    "game_id": "401811041",
+    "phase": "final",
+    "home_score": 113,
+    "away_score": 111,
+    "period": 4,
+    "clock_seconds": 0.0,
+    "observed_at": "2026-04-12T23:38:30+00:00",
+    "updated_at": "2026-04-12T23:38:30+00:00",
+    "source": "synthetic_inplay_demo",
+    "player_minutes": {
+      "3917376": 27.75,
+      "4432573": 30.1
+    },
+    "player_teams": {
+      "3917376": 1610612738,
+      "4432573": 1610612753
+    },
+    "roster": [
+      3917376,
+      4432573
+    ],
+    "demo_label": "\u7ec8\u573a\u505c\u6b62"
+  },
+  "last_as_of": "2026-04-12T23:38:30+00:00",
+  "latest": {
+    "pipeline": "inplay",
+    "game_id": "401811041",
+    "as_of": "2026-04-12T23:38:30+00:00",
+    "model": "inplay-diffusion-prototype",
+    "quote_state": "final",
+    "score": {
+      "game_id": "401811041",
+      "phase": "final",
+      "home_score": 113,
+      "away_score": 111,
+      "period": 4,
+      "clock_seconds": 0.0,
+      "observed_at": "2026-04-12T23:38:30+00:00",
+      "updated_at": "2026-04-12T23:38:30+00:00",
+      "source": "synthetic_inplay_demo",
+      "player_minutes": {
+        "3917376": 27.75,
+        "4432573": 30.1
+      },
+      "player_teams": {
+        "3917376": 1610612738,
+        "4432573": 1610612753
+      },
+      "roster": [
+        3917376,
+        4432573
+      ],
+      "demo_label": "\u7ec8\u573a\u505c\u6b62"
+    },
+    "p_home": 1.0,
+    "p_away": 0.0,
+    "home_decimal_odds": 1.0,
+    "away_decimal_odds": null,
+    "new_event_ids": [],
+    "factors": [
+      {
+        "event_id": "7a06586cab58a201d514dfcf",
+        "item_id": "bb5ce6ed803019d1cb7a100d",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "status": "returned",
+        "published_at": "2026-04-12T23:02:46+00:00",
+        "observed_at": "2026-04-12T23:02:46+00:00",
+        "source": "espn_rss",
+        "url": "",
+        "text": "Jaylen Brown returned to the game (synthetic correction)",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u6743\u5a01\u56de\u5f52\u786e\u8ba4\uff08ESPN\u5c42\u7ea7\uff09",
+        "publication_to_observation_seconds": 0.0,
+        "confirmation": "primary"
+      },
+      {
+        "event_id": "173feba921a5dba0efe3e1da",
+        "item_id": "4cc1b2bce416ae4eef2ed50e",
+        "game_id": "401811041",
+        "player_id": 4432573,
+        "status": "ejected",
+        "published_at": "2026-04-12T23:30:36+00:00",
+        "observed_at": "2026-04-12T23:30:36+00:00",
+        "source": "nba_live",
+        "url": "",
+        "text": "Paolo Banchero was ejected",
+        "synthetic": true,
+        "source_label": "\u5408\u6210 NBA \u5b98\u65b9\u6bd4\u8d5b\u4e8b\u4ef6",
+        "publication_to_observation_seconds": 0.0,
+        "confirmation": "primary"
+      }
+    ],
+    "conflicts": [
+      {
+        "player_id": 4432573,
+        "selected": {
+          "event_id": "173feba921a5dba0efe3e1da",
+          "item_id": "4cc1b2bce416ae4eef2ed50e",
+          "game_id": "401811041",
+          "player_id": 4432573,
+          "status": "ejected",
+          "published_at": "2026-04-12T23:30:36+00:00",
+          "observed_at": "2026-04-12T23:30:36+00:00",
+          "source": "nba_live",
+          "url": "",
+          "text": "Paolo Banchero was ejected",
+          "synthetic": true,
+          "source_label": "\u5408\u6210 NBA \u5b98\u65b9\u6bd4\u8d5b\u4e8b\u4ef6",
+          "publication_to_observation_seconds": 0.0,
+          "confirmation": "primary"
+        },
+        "alternatives": [
+          {
+            "event_id": "7d4abc73453dfed5cf23d823",
+            "item_id": "7d40e69e968bf4ad9955384c",
+            "game_id": "401811041",
+            "player_id": 4432573,
+            "status": "returned",
+            "published_at": "2026-04-12T23:30:38+00:00",
+            "observed_at": "2026-04-12T23:30:38+00:00",
+            "source": "x:shamscharania",
+            "url": "",
+            "text": "Paolo Banchero has returned to the game",
+            "synthetic": true,
+            "source_label": "\u5408\u6210\u6b21\u7ea7\u56de\u5f52\u8bef\u62a5",
+            "publication_to_observation_seconds": 0.0
+          }
+        ]
+      }
+    ],
+    "source_coverage": [
+      {
+        "source": "synthetic_demo",
+        "state": "synthetic",
+        "transport": "offline_table"
+      }
+    ],
+    "errors": [],
+    "news_health": "ok",
+    "model_trained": false,
+    "heldout_validation": null,
+    "calibration_status": "validation_required",
+    "model_parameters": {
+      "sigma": 14.0
+    },
+    "assumptions": {
+      "point_value_per_lost_minute": 0.12,
+      "uncertain_status_loss": {
+        "ejected": 1.0,
+        "fouled_out": 1.0,
+        "injury_out": 1.0,
+        "left_injured": 0.35,
+        "questionable_return": 0.5,
+        "doubtful_return": 0.75,
+        "returned": 0.0,
+        "rescinded": 0.0
+      }
+    },
+    "odds_basis": "fair decimal odds, no bookmaker margin",
+    "score_observation_age_seconds": 0.0,
+    "score_source_age_seconds": 0.0,
+    "report": {
+      "report_id": "392babcb0f28a492779610f2",
+      "pipeline": "inplay",
+      "as_of": "2026-04-12T23:38:30+00:00",
+      "headline": "ORL @ BOS \u00b7 \u8d5b\u4e2d\u66f4\u65b0",
+      "summary": "\u6bd4\u8d5b\u5df2\u7ed3\u675f\uff0cBOS \u83b7\u80dc\uff1b\u5faa\u73af\u505c\u6b62\uff0c\u7ec8\u573a\u7ed3\u679c\u4e0d\u662f\u65b0\u7684\u9884\u6d4b\u3002",
+      "synthetic": true,
+      "quote_state": "final",
+      "p_home": 1.0,
+      "home_decimal_odds": 1.0,
+      "away_decimal_odds": null,
+      "previous_p_home": 0.999,
+      "reference_p_home": null,
+      "total_delta_pp": 0.10000000000000009,
+      "active_news_effect_pp": null,
+      "new_event_effect_pp": null,
+      "news_effect": null,
+      "new_evidence": [],
+      "factors": [
+        {
+          "player": "Jaylen Brown",
+          "status": "\u5df2\u56de\u5f52\u6bd4\u8d5b",
+          "source": "\u5408\u6210\u6743\u5a01\u56de\u5f52\u786e\u8ba4\uff08ESPN\u5c42\u7ea7\uff09"
+        },
+        {
+          "player": "Paolo Banchero",
+          "status": "\u88ab\u9a71\u9010",
+          "source": "\u5408\u6210 NBA \u5b98\u65b9\u6bd4\u8d5b\u4e8b\u4ef6"
+        }
+      ],
+      "conflict_count": 1,
+      "notes": [
+        "\u5408\u6210\u65b0\u95fb\u3001\u6bd4\u5206\u4e0e\u53d1\u5e03\u60c5\u666f\uff0c\u4ec5\u7528\u4e8e\u529f\u80fd\u6f14\u793a\uff0c\u4e0d\u662f\u5b9e\u9645\u62a5\u9053\u6216\u5386\u53f2\u5b9e\u51b5\u3002",
+        "\u8d54\u7387\u4e3a\u6a21\u578b\u516c\u5e73\u8d54\u7387\uff0c\u4e0d\u542b\u5e84\u5bb6\u5229\u6da6\uff1b\u6d88\u606f\u6743\u91cd\u548c\u8d5b\u4e2d\u539f\u578b\u9700\u8981\u5386\u53f2\u6821\u51c6\u3002",
+        "\u5b58\u5728\u51b2\u7a81\u8bc1\u636e\uff0c\u91c7\u7528\u5f53\u524d\u4f53\u7cfb\u7684\u6765\u6e90\u4f18\u5148\u7ea7\uff0c\u4fdd\u7559\u5176\u4ed6\u62a5\u9053\u4f9b\u6838\u9a8c\u3002"
+      ],
+      "trace": [
+        {
+          "stage": "retrieve",
+          "detail": "\u672c\u8f6e\u63a5\u6536 0 \u6761\u65b0\u7684\u7403\u5458\u6d88\u606f"
+        },
+        {
+          "stage": "extract",
+          "detail": "\u4fdd\u7559 2 \u4e2a\u7403\u5458\u72b6\u6001\uff0c1 \u4e2a\u51b2\u7a81"
+        },
+        {
+          "stage": "forecast",
+          "detail": "inplay-diffusion-prototype \u00b7 final"
+        },
+        {
+          "stage": "report",
+          "detail": "\u4f7f\u7528\u6a21\u578b\u8f93\u51fa\u4e0e\u539f\u59cb\u8bc1\u636e\u751f\u6210\u7b80\u62a5"
+        },
+        {
+          "stage": "record",
+          "detail": "\u5199\u5165\u672c\u4f53\u7cfb\u7684\u5feb\u7167\u3001\u7b80\u62a5\u548c\u6062\u590d\u72b6\u6001"
+        }
+      ],
+      "markdown": "# ORL @ BOS \u00b7 \u8d5b\u4e2d\u66f4\u65b0\n\n\u89c2\u5bdf\u65f6\u95f4\uff1a2026-04-12T23:38:30+00:00\n\n\u6bd4\u8d5b\u5df2\u7ed3\u675f\uff0cBOS \u83b7\u80dc\uff1b\u5faa\u73af\u505c\u6b62\uff0c\u7ec8\u573a\u7ed3\u679c\u4e0d\u662f\u65b0\u7684\u9884\u6d4b\u3002\n\n## \u5f53\u524d\u56e0\u7d20\n\n- Jaylen Brown\uff1a\u5df2\u56de\u5f52\u6bd4\u8d5b\uff1b\u6765\u6e90 \u5408\u6210\u6743\u5a01\u56de\u5f52\u786e\u8ba4\uff08ESPN\u5c42\u7ea7\uff09\u3002\n- Paolo Banchero\uff1a\u88ab\u9a71\u9010\uff1b\u6765\u6e90 \u5408\u6210 NBA \u5b98\u65b9\u6bd4\u8d5b\u4e8b\u4ef6\u3002\n\n## \u672c\u8f6e\u8bc1\u636e\n\n\u672c\u8f6e\u6ca1\u6709\u65b0\u7684\u7403\u5458\u6d88\u606f\uff1b\u91cd\u590d\u62a5\u9053\u4e0d\u4f1a\u518d\u6b21\u53e0\u52a0\u5f71\u54cd\u3002\n\n## \u8bf4\u660e\n\n- \u5408\u6210\u65b0\u95fb\u3001\u6bd4\u5206\u4e0e\u53d1\u5e03\u60c5\u666f\uff0c\u4ec5\u7528\u4e8e\u529f\u80fd\u6f14\u793a\uff0c\u4e0d\u662f\u5b9e\u9645\u62a5\u9053\u6216\u5386\u53f2\u5b9e\u51b5\u3002\n- \u8d54\u7387\u4e3a\u6a21\u578b\u516c\u5e73\u8d54\u7387\uff0c\u4e0d\u542b\u5e84\u5bb6\u5229\u6da6\uff1b\u6d88\u606f\u6743\u91cd\u548c\u8d5b\u4e2d\u539f\u578b\u9700\u8981\u5386\u53f2\u6821\u51c6\u3002\n- \u5b58\u5728\u51b2\u7a81\u8bc1\u636e\uff0c\u91c7\u7528\u5f53\u524d\u4f53\u7cfb\u7684\u6765\u6e90\u4f18\u5148\u7ea7\uff0c\u4fdd\u7559\u5176\u4ed6\u62a5\u9053\u4f9b\u6838\u9a8c\u3002\n"
+    },
+    "forecast_audit": {
+      "state": "\u4e0d\u9002\u7528\uff1a\u65e0\u8d5b\u4e2d\u9884\u6d4b",
+      "scenarios": [],
+      "decomposition": []
+    }
+  },
+  "candidates": {
+    "3917376": {
+      "x:shamscharania": {
+        "event_id": "e35591b0fa4723b4c3dea023",
+        "item_id": "598d37af8590bd3ba8c01006",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "status": "left_injured",
+        "published_at": "2026-04-12T22:27:51+00:00",
+        "observed_at": "2026-04-12T22:27:51+00:00",
+        "source": "x:shamscharania",
+        "url": "",
+        "text": "Jaylen Brown left for the locker room with an ankle injury",
+        "synthetic": true,
+        "source_label": "\u5408\u6210 Shams \u60c5\u666f",
+        "publication_to_observation_seconds": 0.0
+      },
+      "espn_rss": {
+        "event_id": "7a06586cab58a201d514dfcf",
+        "item_id": "bb5ce6ed803019d1cb7a100d",
+        "game_id": "401811041",
+        "player_id": 3917376,
+        "status": "returned",
+        "published_at": "2026-04-12T23:02:46+00:00",
+        "observed_at": "2026-04-12T23:02:46+00:00",
+        "source": "espn_rss",
+        "url": "",
+        "text": "Jaylen Brown returned to the game (synthetic correction)",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u6743\u5a01\u56de\u5f52\u786e\u8ba4\uff08ESPN\u5c42\u7ea7\uff09",
+        "publication_to_observation_seconds": 0.0
+      }
+    },
+    "4432573": {
+      "nba_live": {
+        "event_id": "173feba921a5dba0efe3e1da",
+        "item_id": "4cc1b2bce416ae4eef2ed50e",
+        "game_id": "401811041",
+        "player_id": 4432573,
+        "status": "ejected",
+        "published_at": "2026-04-12T23:30:36+00:00",
+        "observed_at": "2026-04-12T23:30:36+00:00",
+        "source": "nba_live",
+        "url": "",
+        "text": "Paolo Banchero was ejected",
+        "synthetic": true,
+        "source_label": "\u5408\u6210 NBA \u5b98\u65b9\u6bd4\u8d5b\u4e8b\u4ef6",
+        "publication_to_observation_seconds": 0.0
+      },
+      "x:shamscharania": {
+        "event_id": "7d4abc73453dfed5cf23d823",
+        "item_id": "7d40e69e968bf4ad9955384c",
+        "game_id": "401811041",
+        "player_id": 4432573,
+        "status": "returned",
+        "published_at": "2026-04-12T23:30:38+00:00",
+        "observed_at": "2026-04-12T23:30:38+00:00",
+        "source": "x:shamscharania",
+        "url": "",
+        "text": "Paolo Banchero has returned to the game",
+        "synthetic": true,
+        "source_label": "\u5408\u6210\u6b21\u7ea7\u56de\u5f52\u8bef\u62a5",
+        "publication_to_observation_seconds": 0.0
+      }
+    }
+  },
+  "episodes": {},
+  "seen": [
+    "173feba921a5dba0efe3e1da",
+    "7a06586cab58a201d514dfcf",
+    "7d4abc73453dfed5cf23d823",
+    "b494dcfe254e776e06064d00",
+    "e35591b0fa4723b4c3dea023"
+  ],
+  "seen_items": [
+    "173feba921a5dba0efe3e1da",
+    "7a06586cab58a201d514dfcf",
+    "7d4abc73453dfed5cf23d823",
+    "b494dcfe254e776e06064d00",
+    "e35591b0fa4723b4c3dea023"
+  ],
+  "stopped": true,
+  "provider": {}
+}

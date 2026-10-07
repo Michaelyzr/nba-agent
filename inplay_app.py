@@ -57,6 +57,10 @@ def render():
     frame = pd.DataFrame(rows)
     frame["as_of"] = pd.to_datetime(frame.as_of, utc=True)
     st.line_chart(frame.set_index("as_of")[["p_home", "p_away"]])
+    if last.get("report"):
+        st.subheader("自动分析简报")
+        st.markdown(last["report"]["markdown"])
+        st.download_button("下载当前简报 (.md)", last["report"]["markdown"], file_name="inplay-report.md")
     for key, title in (("factors", "Player events applied"), ("player_effects", "Remaining player impact"),
                        ("source_coverage", "Retrieval coverage"), ("errors", "Source errors")):
         if last.get(key):

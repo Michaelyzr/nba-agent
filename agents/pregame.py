@@ -301,6 +301,9 @@ class PregameAgent:
 
     def _record(self, state):
         snapshot = state["snapshot"]
+        from agents.news_report import make_report, persist_report
+        snapshot["report"] = make_report(snapshot, self.game, self.players, self.latest, state["new_rows"])
+        persist_report(self.output, snapshot["report"])
         self._append("snapshots.jsonl", snapshot)
         self.latest = snapshot
         self._save_state(state["now"])

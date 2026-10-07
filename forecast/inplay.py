@@ -53,6 +53,8 @@ class InPlayWinModel:
 
     @property
     def name(self):
+        if self.fitted is not None and hasattr(self.fitted, "kind"):
+            return f"inplay-{self.fitted.kind}-calibrated"
         return "inplay-logistic" if self.fitted is not None else "inplay-diffusion-prototype"
 
     def predict(self, score, prior, news_margin=0.0):
