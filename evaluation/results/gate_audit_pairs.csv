@@ -1,0 +1,4 @@
+period,comparison,metric,estimate,ci_low,ci_high,p_one_sided
+test,Legacy gate + learning − Never trade,mean_clv,-0.00348837209302325,-0.00649322916666666,7.601838162403239e-18,0.9900049975012494
+test,Legacy gate + learning − Never trade,clv_dollars,-35.24999999999997,-60.29012499999998,-11.547124999999935,0.9970014992503748
+test,Legacy gate + learning − Never trade,pnl,-247.27,-718.2989999999998,264.9269999999992,0.8305847076461769

@@ -40,7 +40,7 @@ LABELS = {
     "legacy_full": "Legacy gate + learning",
     "split_full": "Split gate + learning",
     "split_kill": "Split gate + learning + kill switch",
-    "split_nolearn": "Split gate, no learning",
+    "split_nolearn": "No learning (gate never runs)",
     "legacy_nolearn": "Legacy gate, no learning",
     "never": "Never trade",
 }
