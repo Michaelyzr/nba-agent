@@ -1149,6 +1149,34 @@ so there is no comparison with CIs against the agents or never trade.
 To finish: `python -m evaluation.learned_policy extract`, then `test`, then `holdout`.
 Extraction is resumable by month.
 
+#### LLM rules in a safe DSL
+
+**Evaluation not run (time); design + tests only.** Pre-registered in
+`docs/preregistration_rules_memory.md`. `agents/rule_dsl.py` lets the reviewer write free-form rules
+in a small grammar: `when <field> <=|>= <number> [and ...] do skip | min_edge x | stake_scale x`, over
+`side_price`, `gap`, `market_move`, `model_shift`, `hours_to_tip` and `news_age_minutes`, with bounded
+constants and at most 3 conditions. A hand-written parser (never `eval`) compiles each rule to the
+notebook's `when`/`do` JSON. `notebook.validate` runs again, and every valid rule still goes through the
+unchanged `MarketAgent` gate. Invalid text is logged with a reason and never reaches the gate. The proposer
+is Gemini when a key is set, with responses cached; otherwise a deterministic grid search over the same
+language. Tests: `tests/test_rule_dsl.py`. Only the development warm-up for the template arm ran
+(30 fills, 2 active rules, split gate). The DSL arm and the test window were not scored, so we have no
+parse-valid rate, no gate pass rate and no CIs. To finish, run these in order:
+`python -m evaluation.rule_dsl_eval --only dev-dsl --proposer stub`, then `--only test-template`, then
+`--only test-dsl --proposer stub`, then `--report-only`.
+
+#### Episodic memory
+
+**Evaluation not run (time); design + tests only.** Pre-registered in
+`docs/preregistration_rules_memory.md`. `agents/memory.py` stores every settled trade as an episode with
+six z-scored situation features. Before a trade it recalls the 20 nearest episodes settled before now and
+skips the trade when there are at least 40 episodes and the neighbours' mean CLV is −0.01 or worse. Memory
+can only remove trades. Each vetoed candidate is kept as a shadow episode with the CLV it would have had,
+so later recalls can see it. Tests: `tests/test_memory.py`, including the as-of rule that an episode is
+invisible before its game is final. The test window was not scored. To finish: `python -m
+evaluation.memory_eval --only dev-memory`, `--only dev-memory_template`, then the matching `test-*` setups,
+then `--report-only`.
+
 ### Testing
 
 Tests live in `tests/`. They use small hand-made tables, need no network and
