@@ -78,28 +78,30 @@ closing price.
 > value is below zero for every setup; the full agent's minus $25 is indistinguishable from never
 > trading. The anchor is the one real effect. In the play-offs the full agent made no trades.
 
-### 11. Agentic upgrades (0:35) [5:55]
+### 11. Agentic upgrades (0:45) [6:05]
 
-> We then made the agent more agentic and graded each upgrade the same way, pre-registered before
-> scoring: an LLM tool agent with a priced-in sceptic, a gate audit against placebo rules, a kill
-> switch, Kelly sizing, the Coach on simulated users, an orchestrator, a learned policy, a rule
-> language and memory. [Read the filled results from the table; for pending rows say "running,
-> in the report".]
+> We graded each agentic upgrade the same way. The new gate kept 5 of 11 rules and cut trades
+> from 129 to 53: plus $18 of CLV, no better per trade, and never trading still wins. Random
+> placebo rules pass it just as often. The Coach raises simulated users' CLV, up to $88, by
+> cutting their trades. The plain LLM made 5 trades in 304, the same as never trading.
+> [Tool agent: "pending, re-running on DeepSeek" unless `K["llm_tool"]` is filled.] Every
+> upgrade, graded by the market, converges on the same answer: trade less. The market is hard to
+> beat after fees, which is exactly why the product is education, not a trading bot.
 
-### 12. Our product: protect, teach, practise (0:35) [6:30]
+### 12. Our product: protect, teach, practise (0:35) [6:40]
 
 > So the product protects, teaches and lets people practise. The agent passes by default, 90% of
 > the time, and says why; limits are code the LLM can't override; 9 of 9 planted violations were
 > blocked. The Coach shows the break-even after costs. The League ranks on closing-line value, not
 > profit: our raw-model bot is up $15 with negative CLV, and the badge says "costs".
 
-### 13. Team contributions (0:20) [6:50]
+### 13. Team contributions (0:20) [7:00]
 
 > The team built the pregame news loop, PR 7; the player-feature experiment, PR 8; in-play
 > updates, PR 9; and live Polymarket prices, PRs 11 and 12. The replay, agent, models and
 > evaluation are on our main branch. Each part faced the same market grade.
 
-### 14. Live demo (2:15) [9:05]
+### 14. Live demo (2:15) [9:15]
 
 - Replayed night: news, then estimate against bid and ask, then usually no order, with the reason.
 - Coach: one paper call, compared with the close and the agent.
@@ -107,7 +109,7 @@ closing price.
 - Safety: a planted violation blocked.
 - If anything fails, switch to the backup recording.
 
-### 15. Recommendations, honest scope and Q&A (0:30) [9:35]
+### 15. Recommendations, honest scope and Q&A (0:30) [9:45]
 
 > Show the all-in cost and break-even before every order; warn when news is likely priced in; put
 > education and play-money practice before the first trade. Honest scope: unfair means costs,
@@ -116,6 +118,6 @@ closing price.
 
 ---
 
-**Buffer:** about 25 seconds. If running long, shorten slide 5 to one sentence or skip the
+**Buffer:** about 15 seconds. If running long, shorten slide 5 to one sentence or skip the
 League call in the demo. Backup figures for Q&A: `figures/walkforward.png`,
 `figures/data_timeline.png`, `figures/longshot_calibration.png`.

@@ -37,10 +37,26 @@ external research numbers on slide 2 are in a separate `EXT` dict, with their re
 The script warns, and exits with status 1, if a shape leaves the slide, a text box or table is
 estimated to overflow, or a slide has no speaker notes.
 
-**Agentic upgrades (slide 11).** `K["agentic"]` has one row per upgrade: name, what it is, the
-result files in `evaluation/results/` it comes from, and the result (`None` shows "pending").
-When a result file arrives, copy its headline into the row and rebuild. The build prints which
-rows are filled, which are pending, and which pending rows already have a result file.
+**Agentic upgrades (slide 11).** `K["agentic"]` (defined just after `K`) has one row per upgrade:
+name, what it is, the result files in `evaluation/results/` it comes from, and the result (`None`
+shows "pending"; a result starting "Not run" is shown muted). The numbers in the results are `K`
+keys (`ga_*` gate audit, `pl_rate` placebo, `co_*` Coach, `llm_*` LLM agent), so updating a number
+changes the table and the speaker notes together. The build prints which rows are filled, which
+are pending, and which pending rows already have a result file. The slide closes with the
+`TRADE_LESS` message, which is also the last line of the speaker notes.
+
+**Filling in the LLM tool agent later (one line).** When `evaluation/results/llm_agent.md` has the
+DeepSeek tool-agent arms, set one key in `K` and rebuild:
+
+```python
+"llm_tool": "8 trades, CLV $ −$2 [−5, +1] vs never; sceptic vetoed 3 of 9",   # was None ("pending")
+```
+
+The "LLM tool agent + sceptic" row then shows that text instead of a muted "pending", the speaker
+notes say "The tool agent with the sceptic scored <your text>.", and the build stops listing it as
+pending. Keep it to about 100 characters (two lines); `--check` warns if it does not fit. If the
+plain-LLM or deterministic numbers change in the rerun, update `llm_plain_n`, `llm_plain_clv`,
+`llm_det_n`, `llm_det_clv` and `llm_points` too, and the slide 11 line in `script.md`.
 
 **M4 Brier score:** slide 8 uses the README's definition, M4 0.186 against the market's 0.164,
 both 1 hour before tip on 501 test games, and footnotes the at-tip pair (M4 with the inactive
@@ -63,14 +79,14 @@ The time limit has not been confirmed, so adjust the timings if needed. Full wor
 | 8 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:20 |
 | 9 | Deep learning: M6 GRU design, result, robustness grid; M4 recalibration (`m6_robustness.png`, `m6_vs_baselines.png`) | 0:45 |
 | 10 | Evidence 4: money over time and the walk-forward CIs (`cumulative_pnl.png`, table) | 0:40 |
-| 11 | Agentic upgrades: the same market grade (table; `orchestrator.png` if present) | 0:35 |
+| 11 | Agentic upgrades: the market's answer is "trade less" (table, `orchestrator.png`, closing message) | 0:45 |
 | 12 | Our product: protect, teach, practise (agent, Coach, League; `league_reveal.png`) | 0:35 |
 | 13 | Team contributions (PRs #7, #8, #9, #11/#12, and the replay/agent/evaluation work) | 0:20 |
 | 14 | Live demo: `streamlit run app.py` | 2:15 |
 | 15 | Recommendations, honest scope and Q&A | 0:30 |
-| | **Total** | **about 9:35** |
+| | **Total** | **about 9:45** |
 
-That leaves about 25 seconds for transitions before the 5 minutes of Q&A.
+That leaves about 15 seconds for transitions before the 5 minutes of Q&A.
 
 Changes from the 17-slide version: the title now states the thesis and a new slide 4 shows the
 market grading every component. The two data slides are merged (the timeline figure is dropped;

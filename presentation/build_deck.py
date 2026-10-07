@@ -85,24 +85,18 @@ K = {
     "cum_full_low": "−$131",
     # League (agents/league.py), demo league league_data/friday-league.json
     "lg_bankroll": "$1,000", "lg_min_trades": "5", "lg_slate": "10", "lg_bot_pnl": "+$15", "lg_bot_clv": "−0.63¢",
-    # Agentic upgrades (slide 11): (component, what it is, result files, result). Result None = pending.
-    # Fill the result from the named evaluation/results/*.md once it exists, then rebuild.
-    "agentic": [
-        ("LLM tool agent + sceptic", "LLM picks as-of tools; code checks every number; a sceptic asks "
-         "“already priced in?”", ["llm_agent"], "Not scored (API quota); all 32 valid calls passed"),  # llm_agent.md
-        ("Gate audit + placebo", "Rule gate on held-out days; reviewer vs random rules",
-         ["gate_audit", "gate_placebo"], "Random rules pass as often (57% vs 57%)"),   # gate_placebo.md, split gate
-        ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"],
-         "Never triggered (worst day −$54)"),                                          # gate_audit.md, split gate
-        ("Fractional Kelly", "¼-Kelly sizing, fee in the formula, vs flat $20", ["kelly"], None),
-        ("Coach, simulated users", "Biased personas play League slates with and without Coach nudges",
-         ["coach_sim"], "Users trade less, lose less CLV; per-trade CLV no better"),   # coach_sim.md, 20 x 10
-        ("Orchestrator", "Supervisor graph: pregame → trader → coach → briefs for one night", [], None),
-        ("Learned policy", "Trade / pass classifier on as-of features, chosen on Nov–Jan only",
-         ["learned_policy"], None),
-        ("Rule DSL", "LLM writes free-form rules, compiled to a safe DSL, still gated", ["rule_dsl"], None),
-        ("Episodic memory", "Retrieve similar past situations and their outcomes", ["memory"], None),
-    ],
+    # Agentic upgrades (slide 11). Gate audit, split vs legacy gate, test window (gate_audit.md)
+    "ga_split": "5 of 11", "ga_legacy": "0 of 24", "ga_trades": "129 → 53", "ga_clv_gain": "+$18 [+1, +34]",
+    "ga_worst_day": "−$54",
+    "pl_rate": "57%",                                                          # gate_placebo.md, split gate
+    # coach_sim.md, compliance c = 1, Δ CLV $ with − without Coach [slate CI]
+    "co_over": "+$88 [+65, +111]", "co_long": "+$72 [+53, +90]", "co_caut": "+$24 [+14, +36]",
+    "co_chase": "+$17 [−4, +33]", "co_cut": "66–87%", "co_flag": "99%",
+    # llm_agent.md, 40% subsample of test decision points
+    "llm_points": "304", "llm_plain_n": "5", "llm_plain_clv": "−$1", "llm_det_n": "53", "llm_det_clv": "−$19",
+    # Tool agent + sceptic (DeepSeek re-run): None shows "pending". Fill with one short string, e.g.
+    # "8 trades, CLV $ −$2 [−5, +1] vs never; sceptic vetoed 3 of 9"
+    "llm_tool": None,
     # Team contributions (slide 13): PRs on GitHub; names as the author appears on the PR.
     "team": [
         ("Pregame news and fair-odds loop", "#7", "codingMiiichael", "Multi-source news polling → fair odds"),
@@ -113,6 +107,36 @@ K = {
          "walk-forward, Coach, League"),
     ],
 }
+
+TRADE_LESS = ("Every agentic upgrade, graded by the market, converges on the same answer: trade less. The market "
+              "is hard to beat after fees, which is exactly why the product is education, not a trading bot.")
+
+# Agentic upgrades (slide 11): (component, what it is, result files, result). Result None = pending;
+# a result starting "Not run" is shown muted. The tool-agent row is K["llm_tool"].
+K["agentic"] = [
+    ("Gate audit", "Rule gate judged on held-out days, by CLV $", ["gate_audit"],
+     f"Kept {K['ga_split']} (legacy {K['ga_legacy']}); trades {K['ga_trades']}; CLV $ {K['ga_clv_gain']}, "
+     f"per trade no better; never trading still wins"),
+    ("Placebo rules", "Random rules through the same gate", ["gate_placebo"],
+     f"Random rules pass {K['pl_rate']}, same as the reviewer's: learning works by trading less"),
+    ("Kill switch", "$100 daily realised-loss stop", ["gate_audit"],
+     f"Enforced, never tripped at $20 stakes (worst day {K['ga_worst_day']}); property-tested"),
+    ("Fractional Kelly", "¼-Kelly with the fee vs flat $20", ["kelly"], "Not run (time)"),
+    ("Coach, simulated users", "Biased personas follow nudges (compliance 1.0)", ["coach_sim"],
+     f"CLV $ {K['co_chase'].split(' ')[0]} to {K['co_over'].split(' ')[0]} for all 4 personas; trades "
+     f"−{K['co_cut']}; flags {K['co_flag']}, so the gain is trading less"),
+    ("Plain LLM", "One LLM call per decision, no tools", ["llm_agent"],
+     f"{K['llm_plain_n']} trades in {K['llm_points']} decisions, CLV $ {K['llm_plain_clv']} = never trading "
+     f"(deterministic agent: {K['llm_det_n']} trades, {K['llm_det_clv']})"),
+    ("LLM tool agent + sceptic", "Picks as-of tools; code checks numbers; sceptic can veto", ["llm_agent"],
+     K["llm_tool"]),
+    ("Orchestrator", "Pregame → trader → Coach → briefs, one as-of time", [],
+     "Built and tested (diagram); no new trading evaluation"),
+    ("Learned policy", "Trade / pass model, selected on Nov–Jan", ["learned_policy"],
+     "Selection chose never trade; test not scored"),
+    ("Rule DSL + memory", "LLM rules in a safe DSL; recall of similar past trades", ["rule_dsl", "memory"],
+     "Built and unit-tested; not evaluated"),
+]
 
 # Data, measured from data/frozen/*.parquet by evaluation/data_overview.py (data_overview.csv).
 D = {
@@ -463,7 +487,7 @@ def build():
             ["Market anchor", "Beat the raw model", f"**Passed:** {K['wf_anchor_gain']}, p = {K['wf_anchor_p']}"],
             ["Gated rule learning", "Beat no learning on CLV $",
              f"**Passed (trades less):** {K['wf_learn_clv']} CLV, p = {K['wf_learn_clv_p']}"],
-            ["LLM agent, Coach, policy …", "Same gates (slide 11)", "See agentic upgrades"],
+            ["LLM agent, Coach, gate audit …", "Same gates (slide 11)", "**Help only by trading less**"],
             ["A consumer", f"Beat ~{K['cost_c']}¢ cost; news {K['disc_share']} priced", "**Structurally hard**"]]
     table(s, rows, MARGIN, TOP + 0.1, [3.55, 4.05, CW - 7.6], row_h=0.55, pt=16, header_h=0.48, emphasis_row=4)
     callout(s, MARGIN, 5.95, CW, 0.85,
@@ -618,32 +642,46 @@ def build():
 
     # 11 Agentic upgrades ------------------------------------------------------
     n = 11
-    filled, pending, _ = agentic_status()
     orch = (FIG / "orchestrator.png").exists()
-    done = "; ".join(f"{name}: {res}" for name, _, _, res in K["agentic"] if res) or "none yet"
-    s = new_slide(prs, "Agentic upgrades: the same market grade", (
-        f"We then made the agent more agentic, and graded each upgrade the same way, pre-registered before "
-        f"scoring. An LLM tool agent chooses its own as-of tools, with code checking every number and a sceptic "
-        f"asking whether the edge is already priced in. We audited the rule gate against placebo rules, enforced "
-        f"a daily kill switch, tried fractional Kelly sizing, tested the Coach on simulated users, joined pregame, "
-        f"trader and coach under one orchestrator, and tried a learned trade-or-pass policy, a rule language for "
-        f"LLM-written rules, and episodic memory. Results so far: {done}. "
-        f"{len(pending)} of {len(K['agentic'])} are still pending at build time."), n)
-    tw = 8.55 if orch else CW
+    llm_tool = (f"The tool agent with the sceptic scored {K['llm_tool']}." if K["llm_tool"] else
+                "The tool agent and the sceptic are pending: the Gemini quota ran out and they are being re-run "
+                "on DeepSeek.")
+    s = new_slide(prs, "Agentic upgrades: the market's answer is “trade less”", (
+        f"We then made the agent more agentic and graded each upgrade the same way, pre-registered before "
+        f"scoring. Gate audit: the split gate, which judges a rule on held-out days by CLV dollars, kept "
+        f"{K['ga_split']} proposed rules where the legacy gate kept {K['ga_legacy']}. Trades fell from "
+        f"{K['ga_trades'].replace(' → ', ' to ')} and CLV dollars improved by {K['ga_clv_gain']}, but mean CLV per "
+        f"trade did not improve and it still does not beat never trading. The placebo test says why: random rules "
+        f"pass the split gate {K['pl_rate']} of the time, the same as the reviewer's picks, so learning works by "
+        f"trading less, not by finding better rules. The kill switch is enforced but never tripped at $20 stakes; "
+        f"property tests show it blocks orders after a trip. Kelly sizing was not run. The Coach on simulated "
+        f"users with full compliance raises CLV dollars for every persona: overtrader {K['co_over']}, long-shot "
+        f"lover {K['co_long']}, cautious {K['co_caut']}, price chaser {K['co_chase']}, whose interval includes "
+        f"zero, and cuts trades by "
+        f"{K['co_cut']}. But it flags {K['co_flag']} of trades, so again the gain is trading less. The plain LLM "
+        f"made {K['llm_plain_n']} trades in {K['llm_points']} decisions, CLV {K['llm_plain_clv']}, the same as "
+        f"never trading; the deterministic agent made {K['llm_det_n']} trades, CLV {K['llm_det_clv']}. {llm_tool} "
+        f"The orchestrator is built, shown on the right. The learned policy's selection step chose never trade, "
+        f"and the test was not scored. The rule language and memory are built and tested but not evaluated. "
+        f"The message: {TRADE_LESS}"), n)
+    tw = 8.9 if orch else CW
     rows = [["Upgrade", "What it is", "Result"]]
     muted = set()
     for i, (name, what, _, res) in enumerate(K["agentic"], 1):
         rows.append([f"**{name}**", what, res or PENDING])
-        if not res:
+        if not res or res.startswith("Not run"):
             muted.add((i, 2))
     if orch:
-        table(s, rows, MARGIN, TOP + 0.05, [2.35, 3.75, tw - 6.1], row_h=0.55, pt=12, header_h=0.4, muted=muted)
-        picture(s, "orchestrator.png", MARGIN + tw + 0.15, TOP + 0.05, CW - tw - 0.15, 5.3)
+        table(s, rows, MARGIN, TOP + 0.05, [1.95, 2.55, tw - 4.5], row_h=0.47, pt=11, header_h=0.34,
+              muted=muted, label="agentic table")
+        picture(s, "orchestrator.png", MARGIN + tw + 0.15, TOP + 0.05, CW - tw - 0.15, 4.2)
+        textbox(s, MARGIN + tw + 0.15, TOP + 4.35, CW - tw - 0.15, 0.55, [
+            "Pre-registered before scoring; same replay, costs and day-clustered bootstrap as above"],
+            pt=11, color=GREY, space=0, slide_no=n, label="prereg")
     else:
-        table(s, rows, MARGIN, TOP + 0.05, [2.9, 5.6, tw - 8.5], row_h=0.55, pt=13, header_h=0.4, muted=muted)
-    textbox(s, MARGIN, 6.65, CW, 0.3, [
-        "Pre-registered before scoring (docs/preregistration_*.md); same replay, costs and bootstrap as above"],
-        pt=12, color=GREY, space=0, slide_no=n, label="prereg")
+        table(s, rows, MARGIN, TOP + 0.05, [2.4, 4.4, tw - 6.8], row_h=0.47, pt=11, header_h=0.34,
+              muted=muted, label="agentic table")
+    callout(s, MARGIN, 6.36, CW, 0.56, TRADE_LESS, pt=14, n=n)
 
     # 12 Product: protect, teach, practise ---------------------------------
     n = 12
@@ -766,7 +804,7 @@ def main():
     print(f"wrote {OUT.relative_to(HERE.parent)} ({len(prs.slides)} slides)")
     print(f"agentic results filled: {', '.join(filled) or 'none'}; pending: {', '.join(pending) or 'none'}")
     if waiting:
-        print(f"NOTE: result files exist for pending rows, fill K['agentic']: {', '.join(waiting)}")
+        print(f"NOTE: result files exist for pending rows; check them and fill K: {', '.join(waiting)}")
     for p in problems:
         print("WARNING:", p)
     return 1 if problems else 0
