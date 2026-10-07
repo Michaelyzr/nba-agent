@@ -72,29 +72,30 @@ The time limit has not been confirmed, so adjust the timings if needed. Full wor
 | 1 | Title: Market-Graded Learning (the thesis in one sentence) | 0:15 |
 | 2 | The problem: three things consumers face | 0:35 |
 | 3 | Research question, what we built (`product_workflow.png`), and the answer | 0:30 |
-| 4 | Market-Graded Learning: the closing price is the grader (component / test / verdict table) | 0:40 |
-| 5 | Data: five public sources, split in time, no look-ahead | 0:30 |
-| 6 | Evidence 1: costs set a hurdle (`cost_burden.png`, selectivity funnel) | 0:30 |
-| 7 | Evidence 2: the price moves before the news (`price_discovery.png`, `injury_timing.png`) | 0:35 |
-| 8 | Evidence 3: the market beats our model (`m4_vs_market.png`) | 0:20 |
+| 4 | How the agent works: decide loop, learn loop, people, guardrails, market as grader (`agent_architecture.png`, from `make_agent_architecture.py`) | 0:45 |
+| 5 | Market-Graded Learning: the closing price is the grader (component / test / verdict table) | 0:35 |
+| 6 | Data: five public sources, split in time, no look-ahead | 0:25 |
+| 7 | Evidence 1: costs, and a price that moves before the news (`cost_burden.png`, `price_discovery.png`) | 0:45 |
+| 8 | Evidence 2: the market beats our model (`m4_vs_market.png`) | 0:20 |
 | 9 | Deep learning: M6 GRU design, result, robustness grid; M4 recalibration (`m6_robustness.png`, `m6_vs_baselines.png`) | 0:45 |
-| 10 | Evidence 4: money over time and the walk-forward CIs (`cumulative_pnl.png`, table) | 0:40 |
+| 10 | Evidence 3: money over time and the walk-forward CIs (`cumulative_pnl.png`, table) | 0:35 |
 | 11 | Agentic upgrades: the market's answer is "trade less" (table, `orchestrator.png`, closing message) | 0:45 |
-| 12 | Our product: protect, teach, practise (agent, Coach, League; `league_reveal.png`) | 0:35 |
-| 13 | Team contributions (PRs #7, #8, #9, #11/#12, and the replay/agent/evaluation work) | 0:20 |
-| 14 | Live demo: `streamlit run app.py` | 2:15 |
+| 12 | Our product: protect, teach, practise (agent, Coach, League; `league_reveal.png`) | 0:30 |
+| 13 | Why agentic (each box of slide 4 answers the problem) and team contributions | 0:35 |
+| 14 | Live demo: `streamlit run app.py` | 2:00 |
 | 15 | Recommendations, honest scope and Q&A | 0:30 |
-| | **Total** | **about 9:45** |
+| | **Total** | **about 9:50** |
 
-That leaves about 15 seconds for transitions before the 5 minutes of Q&A.
+That leaves about 10 seconds for transitions before the 5 minutes of Q&A.
 
 Changes from the 17-slide version: the title now states the thesis and a new slide 4 shows the
 market grading every component. The two data slides are merged (the timeline figure is dropped;
 splits and rules are bullets). The walk-forward CI slide is merged into the cumulative P&L slide.
 The product, Coach and League slides are one slide. Honest scope is merged into Recommendations.
-New: the injury-report timing on slide 7, the deep-learning slide 9, agentic upgrades on slide 11
+The agent architecture slide 4 was added and the costs and information-speed slides were merged
+into slide 7 (`injury_timing.png` moves to Q&A backup; its numbers stay in the bullets). New: the injury-report timing on slide 7, the deep-learning slide 9, agentic upgrades on slide 11
 and team contributions on slide 13. `figures/walkforward.png`, `data_timeline.png` and
-`longshot_calibration.png` are kept as backups for Q&A. If time is short, shorten slide 5 or skip
+`longshot_calibration.png` are kept as backups for Q&A. If time is short, shorten slide 6 or skip
 the League call in the demo. If the live demo fails, play the backup recording on slide 14.
 
 ## Data (slide 5)

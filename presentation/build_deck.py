@@ -110,6 +110,10 @@ K = {
         ("Replay, agent and evaluation", "branch", "Michael Ngan", "As-of replay, M4 / M6, LangGraph agent, gate, "
          "walk-forward, Coach, League"),
     ],
+    # Worked decision for slide 4 (replay trace, test window)
+    "example": {"game": "CLE at POR", "news": "Deni Avdija is out, 32.8 minutes and 26 points a game",
+                "shift": "−8.7", "anchor": "42.5%", "est": "33.8%", "price": "55¢", "fee": "1.73¢",
+                "gap": "9.5¢", "qty": "36", "close": "62.5¢", "clv": "+7.5¢", "pnl": "+$15.57"},
 }
 
 TRADE_LESS = ("Every agentic upgrade, graded by the market, converges on the same answer: trade less. The market "
@@ -472,8 +476,35 @@ def build():
         "**Answer: no.** Tested with confidence intervals, never trading wins, so the product educates and "
         "protects instead."], pt=21, color=WHITE, anchor=MSO_ANCHOR.MIDDLE, space=0, slide_no=n, label="answer")
 
-    # 4 Market-Graded Learning: the thesis ------------------------------------------
+    # 4 How the agent works ---------------------------------------------------------
     n = 4
+    ex = K["example"]
+    s = new_slide(prs, "How the agent works: decide, learn, graded by the close", (
+        f"This is the agent. The top row is the decide loop, a LangGraph graph. A trigger, news or the clock an "
+        f"hour before tip, wakes it; it then chooses which as-of tools to call, prices, news, rotations, and our "
+        f"models M4 and M6, which only see what was public. It estimates a probability, the market anchor plus "
+        f"the model's news shift, or an LLM analyst; trades only if the gap after spread and fee is at least 4 "
+        f"cents; an LLM sceptic asks whether the news is already priced in and can veto; code re-checks every "
+        f"number; risk caps and a kill switch the LLM cannot override; then a confirm step, and an order or, "
+        f"about {K['pass_share']} of the time, a pass with the reason. One example: {ex['game']}. "
+        f"{ex['news']}. M4's shift is {ex['shift']} points, so the anchor of {ex['anchor']} becomes "
+        f"{ex['est']}. The agent bought POR “no” at {ex['price']}, fee {ex['fee']}, a gap of {ex['gap']} after "
+        f"costs, {ex['qty']} contracts. The close was {ex['close']}: closing-line value {ex['clv']}, profit "
+        f"{ex['pnl']}. The bottom row is the learn loop: at the close every trade is settled and graded by CLV, "
+        f"a reviewer proposes one rule, and the gate keeps it only if it helps on held-out days; kept rules feed "
+        f"back into the decision. The Coach and League turn the same analysis into education. The closing price "
+        f"grades every box."), n)
+    picture(s, "agent_architecture.png", MARGIN, TOP - 0.05, CW, 4.6)
+    cw4 = (CW - 0.45) / 4
+    for i, txt in enumerate([
+            "**Autonomy:** it decides when to act, what to look at, and whether to trade",
+            f"**Safety:** code limits and a kill switch; **{K['policy']}** planted violations blocked",
+            "**Learning:** rules graded by the market on held-out days, placebo-audited",
+            "**People in the loop:** humans confirm; Coach and League teach with its analysis"]):
+        callout(s, MARGIN + i * (cw4 + 0.15), 5.7, cw4, 1.15, txt, pt=14, n=n)
+
+    # 5 Market-Graded Learning: the thesis ------------------------------------------
+    n = 5
     s = new_slide(prs, "Market-Graded Learning: the closing price is the grader", (
         f"This is what the title means. Every component is a hypothesis that must pass an evidence gate on recorded "
         f"prices, and the grader is the market's closing price. The raw win model fails: {K['wf_raw_pnl']} over "
@@ -498,8 +529,8 @@ def build():
             "Only the components that defer to the market survive, so the product teaches, lets people practise "
             "and enforces limits", pt=19, n=n)
 
-    # 5 Data -----------------------------------------------------------------
-    n = 5
+    # 6 Data -----------------------------------------------------------------
+    n = 6
     s = new_slide(prs, "Data: five public sources, split in time, no look-ahead", (
         f"The data is all public. From Kalshi: every NBA game-winner market for 2025-26, {D['markets']} markets on "
         f"{D['priced_games']} games, {D['price_rows']} one-minute rows of bid, ask and volume, and settlements. From "
@@ -530,48 +561,42 @@ def build():
         "Fill at ask + fee; quote ≤ 5 min old; ≤ 10% of volume",
     ], pt=16, bullets=True, space=3, slide_no=n, label="rules")
 
-    # 6 Evidence: costs ------------------------------------------------------
-    n = 6
-    s = new_slide(prs, "Evidence 1: costs set a hurdle before you start", (
+    # 7 Evidence: costs and information speed ---------------------------------
+    n = 7
+    s = new_slide(prs, "Evidence 1: costs, and a price that moves before the news", (
         f"First, costs. One hour before tip a $20 order pays half the bid-ask spread plus the Kalshi fee: "
         f"{K['cost_c']} cents per contract on average, {K['cost_pct']} of the price, and {K['cost_cheap_pct']} on "
         f"cheap contracts. Our best agent would have made {K['full_mid']} at the mid but lost {K['full_pnl']} after "
-        f"costs. Even very selective, {K['trades']} trades out of {K['decisions']} decision points, only "
-        f"{K['beat_close']} beat or matched the closing price."), n)
-    picture(s, "cost_burden.png", MARGIN, TOP, CW, 4.15)
-    textbox(s, MARGIN, 5.45, CW / 2 - 0.1, 1.5, [
+        f"costs; only {K['beat_close']} of its {K['trades']} trades beat or matched the close. Second, speed. On the "
+        f"{K['disc_games']} test games where the inactive list moved our win model by at least a point, "
+        f"{K['disc_share']} of the price move in the news direction happened before the inactive list, when a "
+        f"retail user could act. Against the official NBA injury reports, about two-thirds, {K['it_before']} with "
+        f"a confidence interval of {K['it_ci']}, came before the first report listing the player out, which comes "
+        f"about {K['it_lead']} hours before the inactive list; {K['it_nolag']} assuming no publication lag. These "
+        f"two facts are why the agent passes by default and why its trigger matters."), n)
+    hw = (CW - 0.3) / 2
+    picture(s, "cost_burden.png", MARGIN, TOP, hw, 2.5)
+    picture(s, "price_discovery.png", MARGIN + hw + 0.3, TOP, hw, 2.5)
+    textbox(s, MARGIN, TOP + 2.65, hw, 0.5, [("Costs", {"bold": True, "color": ORANGE, "heading": True})],
+            pt=20, space=0, slide_no=n, label="costs head")
+    textbox(s, MARGIN, TOP + 3.1, hw, 2.6, [
         f"**{K['cost_c']}¢ per contract** = {K['cost_pct']} of price; **{K['cost_cheap_pct']}** under 20¢",
         f"Best agent, Feb–Apr: {K['full_mid']} at mid → **{K['full_pnl']}** after costs",
-    ], pt=18, bullets=True, space=4, slide_no=n)
-    textbox(s, MARGIN + CW / 2 + 0.1, 5.45, CW / 2 - 0.1, 1.5, [
-        f"{K['decisions']} decision points → {K['gap4']} with gap > 4 pts → **{K['trades']} trades**",
-        f"Only **{K['beat_close']}** beat or matched the close",
-    ], pt=18, bullets=True, space=4, slide_no=n)
-
-    # 7 Evidence: information speed ----------------------------------------
-    n = 7
-    s = new_slide(prs, "Evidence 2: the price moves before the news reaches you", (
-        f"Second, speed. On the {K['disc_games']} test games where the inactive list moved our win model by at "
-        f"least a point, {K['disc_share']} of the price move in the news direction happened before the inactive "
-        f"list, which is when a retail user reading it could act. We then matched the official NBA injury reports: "
-        f"about two-thirds of the move, {K['it_before']} with a confidence interval of {K['it_ci']}, came before "
-        f"the first official report listing the player out, which itself comes a median of about {K['it_lead']} "
-        f"hours before the inactive list. Assuming no publication lag the share is {K['it_nolag']}. Official "
-        f"reports only; beat reporters and social media can be earlier still."), n)
-    picture(s, "price_discovery.png", MARGIN, TOP, 5.6, 3.9, align="left")
-    picture(s, "injury_timing.png", MARGIN + 5.75, TOP, CW - 5.75, 3.9)
-    textbox(s, MARGIN, 5.2, CW, 1.75, [
-        f"**{K['disc_share']}** of the move happens before the inactive list (+{K['disc_before']} vs "
-        f"+{K['disc_after']} pts, {K['disc_games']} test games)",
-        f"About **two-thirds** ({K['it_before']}, CI {K['it_ci']}) comes before the first official injury report, "
-        f"~{K['it_lead']} h earlier",
-        (f"{K['it_nolag']} if reports are public at their slot; official reports only, so news can be earlier",
-         {"pt": 15, "color": GREY}),
-    ], pt=18, bullets=True, space=4, slide_no=n)
+        f"{K['decisions']} decision points → **{K['trades']} trades**; only **{K['beat_close']}** beat the close",
+    ], pt=17, bullets=True, space=6, slide_no=n, label="costs")
+    textbox(s, MARGIN + hw + 0.3, TOP + 2.65, hw, 0.5, [("Speed", {"bold": True, "color": BLUE, "heading": True})],
+            pt=20, space=0, slide_no=n, label="speed head")
+    textbox(s, MARGIN + hw + 0.3, TOP + 3.1, hw, 2.6, [
+        f"**{K['disc_share']}** of the move before the inactive list (+{K['disc_before']} vs +{K['disc_after']} "
+        f"pts, {K['disc_games']} games)",
+        f"**~⅔** ({K['it_before']}, CI {K['it_ci']}) before the first official injury report, ~{K['it_lead']} h "
+        f"earlier",
+        (f"{K['it_nolag']} with no publication lag; official reports only", {"pt": 14, "color": GREY}),
+    ], pt=17, bullets=True, space=6, slide_no=n, label="speed")
 
     # 8 Evidence: market beats models ---------------------------------------
     n = 8
-    s = new_slide(prs, "Evidence 3: the market beats our model", (
+    s = new_slide(prs, "Evidence 2: the market beats our model", (
         f"Third, expertise. On {K['m4_games']} test games our win model's Brier score one hour before tip is "
         f"{K['m4_brier']}, against {K['mkt_brier']} for the market at the same moment; lower is better. When they "
         f"disagree by more than five points, the market is right in both directions."), n)
@@ -627,7 +652,7 @@ def build():
 
     # 10 Money over time, tested with CIs ------------------------------------
     n = 10
-    s = new_slide(prs, "Evidence 4: every line drifts down; never trading wins", (
+    s = new_slide(prs, "Evidence 3: every line drifts down; never trading wins", (
         f"Money over time, after fees; the dashed line at zero is never trading. The red raw model falls steadily, "
         f"{K['cum_raw_pnl']} in the test period and {K['wf_raw_pnl']} over the season: that slope is costs. The "
         f"agent without learning falls less; the full agent learned rules that mostly say do not trade, so it "
@@ -728,16 +753,17 @@ def build():
     # 13 Team contributions -------------------------------------------------------
     n = 13
     s = new_slide(prs, "Why an agentic framework, and who built which part", (
-        f"Why an agent and not one classifier? The problem is event-driven: news arrives at random times and "
-        f"{K['disc_share']} of the move comes before the inactive list, about two-thirds before the first official "
-        f"report, so the hard decision is when to act; the agent's trigger, investigate, decide loop makes that "
-        f"decision. It uses tools over as-of data, prices, news, rotations and models, and the tools enforce no "
-        f"look-ahead. Decisions are multi-step with code checks, risk caps and a kill switch, which matters for "
-        f"gambling harm. Learning is graded by the market through the gate, and the placebo shows honestly that it "
-        f"works by trading less. The Coach and League turn the analysis into education, and the orchestrator ties "
-        f"the team's parts together. The counter-argument, a single classifier would do, is answered by our own "
-        f"data: the model alone loses {K['wf_raw_pnl']} over {K['wf_raw_n']} trades; the decision process around "
-        f"it, anchoring, thresholds and abstention, adds {K['wf_anchor_gain']}, p {K['wf_anchor_p']}. "
+        f"Why an agent and not one classifier? Each box of the slide 4 diagram answers a feature of the problem. "
+        f"The problem is event-driven: news arrives at random times and {K['disc_share']} of the move comes before "
+        f"the inactive list, about two-thirds before the first official report, so the hard decision is when to "
+        f"act; that is the trigger. What to look at is the as-of tools, which enforce no look-ahead. Whether to "
+        f"trade is the edge test and the LLM sceptic, and the code checks, risk caps and kill switch make sure "
+        f"the LLM can never override a limit, which matters for gambling harm. The learn loop is graded by the "
+        f"market through the gate, and the placebo shows honestly that it works by trading less. The Coach and "
+        f"League are the people in the loop. The counter-argument, a single classifier would do, is answered by "
+        f"our own data: the model alone loses {K['wf_raw_pnl']} over {K['wf_raw_n']} trades; the decision process "
+        f"around it, the diagram's anchor, edge threshold and pass, adds {K['wf_anchor_gain']}, p "
+        f"{K['wf_anchor_p']}. "
         "The work is split across the team. The pregame news loop polls several news sources before a game and "
         "turns them into fair odds, pull request 7. The player-feature experiment tested isolated player features "
         "and probability calibration, pull request 8. In-play news and odds updates are pull request 9. Live, "
@@ -745,13 +771,13 @@ def build():
         "the evaluation, the Coach and the League are on our main branch. Each part had to face the same market "
         "grade."), n)
     textbox(s, MARGIN, TOP + 0.05, 6.3, 4.6, [
-        ("Why agentic: the problem's structure", {"bold": True, "color": NAVY, "heading": True}),
-        f"**When to act:** news is asynchronous; {K['disc_share']} of the move before the inactive list, "
-        f"~⅔ before the first report → trigger → investigate → decide",
-        "**Tools over as-of data:** prices, news, rotations, models; no look-ahead",
-        "**Multi-step + safety:** checks, risk caps, kill switch, blocked orders",
-        "**Market-graded learning:** review → gate → rules; placebo-audited",
-        "**Human in the loop:** Coach and League teach; orchestrator joins the team's parts",
+        ("Why agentic: each box of slide 4 answers the problem", {"bold": True, "color": NAVY, "heading": True}),
+        f"**When to act = trigger:** news is asynchronous; {K['disc_share']} of the move before the inactive "
+        f"list, ~⅔ before the first report",
+        "**What to look at = as-of tools:** prices, news, rotations, M4 / M6; no look-ahead",
+        "**Whether to trade = edge + sceptic:** code checks, risk caps, kill switch; LLM can't override",
+        "**Learn loop:** CLV → reviewer → held-out gate → rules; placebo-audited",
+        "**People:** Coach and League teach with the same analysis",
     ], pt=15, bullets=True, space=4, slide_no=n, label="why agentic")
     rows = [["Work", "PR", "Who"]] + [[r[0], r[1], r[2]] for r in K["team"]]
     table(s, rows, MARGIN + 6.5, TOP + 0.05, [3.0, 0.95, CW - 6.5 - 3.95], row_h=0.62, pt=12, header_h=0.4,
