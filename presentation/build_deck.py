@@ -95,7 +95,7 @@ K = {
         ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"], None),
         ("Fractional Kelly", "¼-Kelly sizing, fee in the formula, vs flat $20", ["kelly"], None),
         ("Coach, simulated users", "Biased personas play League slates with and without Coach nudges",
-         ["coach_sim"], None),
+         ["coach_sim"], "Users trade less, lose less CLV; per-trade CLV no better"),   # coach_sim.md, 20 x 10
         ("Orchestrator", "Supervisor graph: pregame → trader → coach → briefs for one night", [], None),
         ("Learned policy", "Trade / pass classifier on as-of features, chosen on Nov–Jan only",
          ["learned_policy"], None),
