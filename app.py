@@ -35,17 +35,23 @@ PAGES = ("NBA Polymarket Live Markets", "Historical replay and agent")
 st.set_page_config(page_title="NBA late-news agent", layout="wide")
 
 
+def resolve_default_page(query: str, env: str) -> str:
+    """Historical page when ?page=history or APP_DEFAULT_PAGE=history (query wins); otherwise Live Markets."""
+    for value in (query, env):
+        v = (value or "").strip().lower()
+        if v in ("history", "historical"):
+            return PAGES[1]
+        if v in ("live", "polymarket"):
+            return PAGES[0]
+    return PAGES[0]
+
+
 def demo_default_page() -> str:
-    """Historical page when APP_DEFAULT_PAGE=history or ?page=history; otherwise Live Markets."""
-    query = ""
     try:
         query = str(st.query_params.get("page", "") or "")
     except Exception:
         query = ""
-    env = os.environ.get("APP_DEFAULT_PAGE", "")
-    if query.lower() in ("history", "historical") or env.strip().lower() in ("history", "historical"):
-        return "Historical replay and agent"
-    return "NBA Polymarket Live Markets"
+    return resolve_default_page(query, os.environ.get("APP_DEFAULT_PAGE", ""))
 
 
 @st.cache_resource
