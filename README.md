@@ -1174,6 +1174,43 @@ so there is no comparison with CIs against the agents or never trade.
 To finish: `python -m evaluation.learned_policy extract`, then `test`, then `holdout`.
 Extraction is resumable by month.
 
+#### LLM tool agent (agentic upgrade)
+
+Pre-registered in `docs/preregistration_llm_agent.md` (committed before any test run). Code:
+`agents/tool_agent.py`, `agents/tools.py`, `agents/llm_client.py`, `evaluation/llm_agent_eval.py`.
+Full tables: `evaluation/results/llm_agent.md`. The tool agent lets Gemini call as-of tools (quote, anchor,
+price history, news, M4, M6, fee, edge) and propose `buy | pass` with cited numbers. Code checks the citations,
+the grounding of the estimate and the 4¢ gap after fees; an optional second call, the "priced-in sceptic",
+can only veto. The README's "ChatGPT baseline" is arm B: one plain LLM call with the same information as text
+and the same trading rule.
+
+**Model actually used: `gemini-3.5-flash-lite`**, temperature 0, free tier. The pre-registered
+`gemini-2.5-flash` now returns 404 for new API keys, and `gemini-3.8-flash` allows only 20 free requests per day.
+To fit the quota and the deadline, every arm was scored on the same fixed **40% subsample** of test decision
+points (seed 7606: 304 of 771). The anchor and never-trade arms are on the same days.
+
+| Test 1 Feb – 12 Apr, 40% of decision points | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] |
+| --- | --- | --- | --- | --- |
+| A. Deterministic anchor agent (no learning) | 53 | −0.0042 [−0.0090, +0.0015] | −$19 [−36, −1] | −$236 [−538, +73] |
+| B. Plain LLM (ChatGPT-style baseline) | 5 | −0.0030 [−0.0150, +0.0150] | −$1 [−4, +2] | −$31 [−96, +22] |
+| C. Tool agent, no sceptic | not run | | | |
+| D. Tool agent + priced-in sceptic | not run | | | |
+| Never trade | 0 | – | $0 | $0 |
+
+- **The plain LLM almost never trades.** Its probability cleared the 4¢ gap after fees at only 5 of 304 decision
+  points. Its output was valid in 303 of 304 cases (1 invalid JSON). It is statistically indistinguishable from
+  never trading: P&L −$31 [−96, +22], CLV $ −$1 [−4, +2].
+- **It "beats" the anchor agent on CLV dollars only by trading less:** paired +$18 [+1, +35], p = 0.02. Mean CLV
+  per trade is no better: +0.0012 [−0.0090, +0.0155]. As before, the anchor agent loses CLV dollars against never
+  trading (−$19 [−36, −1]).
+- **The tool agent arms were not scored.** The free daily quota ran out partway through arm C. On a nested
+  117-point subsample, the 32 analyst decisions that returned all chose **pass** (0 invalid); the other 85 hit the
+  quota. So we have no result for "tool agent vs anchor" or for the sceptic. Rerun command:
+  `python -m evaluation.llm_agent_eval --window test --backend gemini --model gemini-3.5-flash-lite --subsample 0.4 --setups tool,tool_sceptic --workers 3 --min-interval 12 --report test`
+  (cached calls are free).
+- **Cost:** $0 actually spent (free tier). At list prices, the plain arm's 175k input and 16k output tokens
+  would cost about $0.02. Latency was 2.8 s per call, including rate-limit waits.
+
 #### LLM rules in a safe DSL
 
 **Evaluation not run (time); design + tests only.** Pre-registered in
