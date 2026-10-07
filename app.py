@@ -19,6 +19,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+import market_grades
 import replay
 from agents import coach, coach_agent, league
 from agents.briefs import channel_briefs, outlook
@@ -358,9 +359,9 @@ label = {g.game_id: f"{g.away_team} @ {g.home_team}" for g in tonight.itertuples
 gid = st.sidebar.selectbox("Game", list(label), format_func=label.get)
 game = next(g for g in tonight.itertuples() if g.game_id == gid)
 
-night, pregame, coach_tab, league_tab, briefs, learning, safety, models = st.tabs(
-    ["Replayed night", "Pregame news loop", "Coach: learn the market", "League: practise with play money",
-     "Channel briefs", "Learning", "Safety", "Models"])
+night, graded, pregame, coach_tab, league_tab, briefs, learning, safety, models = st.tabs(
+    ["Replayed night", "Graded by the market", "Pregame news loop", "Coach: learn the market",
+     "League: practise with play money", "Channel briefs", "Learning", "Safety", "Models"])
 decision_times = sorted({t for t in tables["news"].loc[tables["news"].game_id == gid, "published_at"]
                          if game.tip_time - replay.NEWS_WINDOW <= t < game.tip_time} | {game.tip_time - replay.LEAD})
 fmt_time = lambda t: f"{pd.Timestamp(t):%H:%M} UTC"
@@ -390,6 +391,23 @@ with night:
             st.subheader("Fills tonight (settled)")
             st.dataframe(fills[["market_ticker", "side", "p_model", "price", "contracts", "fee", "close_price", "clv",
                                 "pnl"]].round(3), hide_index=True)
+
+with graded:
+    if agent is not None:
+        g_fills = fills[fills.game_id == gid] if len(fills) else fills
+        g_source = "the agent run on the Replayed night tab"
+    elif run and (run / "fills.parquet").exists():
+        g_fills = pd.read_parquet(run / "fills.parquet")
+        g_fills = g_fills[g_fills.game_id == gid]
+        g_source = f"saved run {run.relative_to(replay.RUNS)}"
+    else:
+        g_fills, g_source = None, "the selected run has no saved fills"
+
+    def g_prices(ticker, start, end):
+        p = view_at(tables, end).prices(ticker)
+        return p[(p.ts >= start) & (p.ts <= end)]
+
+    market_grades.render(g_fills, g_source, game.tip_time, g_prices, RESULTS)
 
 with pregame:
     from uuid import uuid4

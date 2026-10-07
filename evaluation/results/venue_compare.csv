@@ -1,0 +1,45 @@
+venue,time,games,section,pair,mean_pp,median_pp,p90_pp,venues,n,cheapest,mean_cost_over_best_c,share,combo,arb_games,arb_share,median_edge_c,max_edge_c,median_cost_c,metric,days,value,ci_low,ci_high
+kalshi,t24h,500.0,coverage,,,,,,,,,,,,,,,,,,,,
+kalshi,t1h,501.0,coverage,,,,,,,,,,,,,,,,,,,,
+kalshi,close,501.0,coverage,,,,,,,,,,,,,,,,,,,,
+polymarket,t24h,498.0,coverage,,,,,,,,,,,,,,,,,,,,
+polymarket,t1h,498.0,coverage,,,,,,,,,,,,,,,,,,,,
+polymarket,close,498.0,coverage,,,,,,,,,,,,,,,,,,,,
+draftkings,close,501.0,coverage,,,,,,,,,,,,,,,,,,,,
+draftkings,open,501.0,coverage,,,,,,,,,,,,,,,,,,,,
+,t24h,497.0,gap,kalshi vs polymarket,0.54565226935437,0.5000000000000004,1.0147984701382762,,,,,,,,,,,,,,,,
+,t1h,498.0,gap,kalshi vs polymarket,0.43787185022107056,0.3316831683168264,1.0000000000000009,,,,,,,,,,,,,,,,
+,close,498.0,gap,kalshi vs polymarket,0.427427699190517,0.29207920792078956,1.0000000000000009,,,,,,,,,,,,,,,,
+,close,501.0,gap,kalshi vs draftkings,1.01731868227888,0.8960374710456853,1.9966835739367972,,,,,,,,,,,,,,,,
+,close,498.0,gap,polymarket vs draftkings,1.0041287570681696,0.8525474387757304,2.1137201160640595,,,,,,,,,,,,,,,,
+draftkings,close,,best_price,,,,,kalshi / polymarket / draftkings,996.0,310.0,0.6367906664098657,0.3112449799196787,,,,,,,,,,,
+kalshi,close,,best_price,,,,,kalshi / polymarket / draftkings,996.0,461.0,0.41794681781516113,0.46285140562248994,,,,,,,,,,,
+polymarket,close,,best_price,,,,,kalshi / polymarket / draftkings,996.0,225.0,0.4468296692207847,0.22590361445783133,,,,,,,,,,,
+draftkings,close,,best_price,,,,,kalshi / draftkings,1002.0,404.0,0.47522450599739413,0.4031936127744511,,,,,,,,,,,
+kalshi,close,,best_price,,,,,kalshi / draftkings,1002.0,598.0,0.25617102436580286,0.5968063872255489,,,,,,,,,,,
+kalshi,t1h,,best_price,,,,,kalshi / polymarket,996.0,713.0,0.23689523845381488,0.7158634538152611,,,,,,,,,,,
+polymarket,t1h,,best_price,,,,,kalshi / polymarket,996.0,283.0,0.2706449297188761,0.28413654618473894,,,,,,,,,,,
+kalshi,t24h,,best_price,,,,,kalshi / polymarket,994.0,411.0,0.5789154426559351,0.4134808853118712,,,,,,,,,,,
+polymarket,t24h,,best_price,,,,,kalshi / polymarket,994.0,583.0,0.17085925553319972,0.5865191146881288,,,,,,,,,,,
+,t24h,497.0,arbitrage,,,,,,,,,,kalshi home + polymarket away,0.0,0.0,,-1.2595750000000017,104.34807500000001,,,,,
+,t24h,497.0,arbitrage,,,,,,,,,,polymarket home + kalshi away,0.0,0.0,,-1.362075000000007,104.4092,,,,,
+,t1h,498.0,arbitrage,,,,,,,,,,kalshi home + polymarket away,0.0,0.0,,-0.9376749999999934,104.01292500000001,,,,,
+,t1h,498.0,arbitrage,,,,,,,,,,polymarket home + kalshi away,0.0,0.0,,-1.1986749999999935,103.938175,,,,,
+,close,501.0,arbitrage,,,,,,,,,,draftkings home + kalshi away,0.0,0.0,,-1.2429156862745039,104.12779411764706,,,,,
+,close,498.0,arbitrage,,,,,,,,,,draftkings home + polymarket away,0.0,0.0,,-1.2144204545454507,104.17642045454545,,,,,
+,close,501.0,arbitrage,,,,,,,,,,kalshi home + draftkings away,1.0,0.001996007984031936,0.12472020202020095,0.12472020202020095,103.98761404958678,,,,,
+,close,498.0,arbitrage,,,,,,,,,,kalshi home + polymarket away,0.0,0.0,,-0.9376749999999934,104.043025,,,,,
+,close,498.0,arbitrage,,,,,,,,,,polymarket home + draftkings away,1.0,0.002008032128514056,0.4263371212121281,0.4263371212121281,103.96898824041814,,,,,
+,close,498.0,arbitrage,,,,,,,,,,polymarket home + kalshi away,1.0,0.002008032128514056,0.6923250000000047,0.6923250000000047,103.843675,,,,,
+kalshi,close,498.0,sharpness,,,,,,,,,,,,,,,,brier,64.0,0.16136415285267566,0.14693941638023816,0.1756151370463627
+kalshi,close,498.0,sharpness,,,,,,,,,,,,,,,,log_loss,64.0,0.4908572272841039,0.45620679426265703,0.5249558386865676
+polymarket,close,498.0,sharpness,,,,,,,,,,,,,,,,brier,64.0,0.16182879116465865,0.14739532648717435,0.17605032766662113
+polymarket,close,498.0,sharpness,,,,,,,,,,,,,,,,log_loss,64.0,0.49218209712600436,0.45721753565935364,0.5260174078345985
+draftkings,close,498.0,sharpness,,,,,,,,,,,,,,,,brier,64.0,0.162850257401879,0.14887225184609787,0.1767255089704361
+draftkings,close,498.0,sharpness,,,,,,,,,,,,,,,,log_loss,64.0,0.49628468939177506,0.4633644717186721,0.528951701561192
+,close,,sharpness_diff,kalshi - polymarket,,,,,,,,,,,,,,,brier,,-0.0004646383119829891,-0.0009206646728092527,-5.960893679443516e-06
+,close,,sharpness_diff,kalshi - polymarket,,,,,,,,,,,,,,,log_loss,,-0.0013248698419004745,-0.002612109584178035,-1.3737651512266978e-05
+,close,,sharpness_diff,kalshi - draftkings,,,,,,,,,,,,,,,brier,,-0.0014861045492033402,-0.002072634515835847,-0.0008532305474058431
+,close,,sharpness_diff,kalshi - draftkings,,,,,,,,,,,,,,,log_loss,,-0.005427462107671186,-0.007192664721204022,-0.003510419525204026
+,close,,sharpness_diff,polymarket - draftkings,,,,,,,,,,,,,,,brier,,-0.0010214662372203512,-0.0017433571494137221,-0.00029523521405204364
+,close,,sharpness_diff,polymarket - draftkings,,,,,,,,,,,,,,,log_loss,,-0.004102592265770711,-0.0062565734670795925,-0.0017184536674078985

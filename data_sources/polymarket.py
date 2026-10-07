@@ -21,6 +21,7 @@ import argparse
 import json
 import math
 import re
+import time
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -39,6 +40,7 @@ CLOB = "https://clob.polymarket.com"
 CACHE = RAW / "polymarket"
 LIVE_HISTORY = ROOT / "data" / "live" / "polymarket_nba_snapshots.parquet"
 HALF_SPREAD = 0.01
+POLITE_DELAY = 0.25
 WINDOW = pd.Timedelta(30, unit="h")
 NBA_TEAM_CODES = {
     "atl", "bos", "bkn", "cha", "chi", "cle", "dal", "den", "det", "gsw",
@@ -641,6 +643,34 @@ def events(start: date, end: date) -> list[dict]:
         offset += 100
 
 
+def events_by_slug(start: date, end: date) -> list[dict]:
+    """One small Gamma lookup per known game (nba-<away>-<home>-<ET date>).
+
+    The tag_slug listing returns every prop market and pages of 10+ MB, so for a
+    fixed game list this is far cheaper. The moneyline market shares the event
+    slug, so /markets?slug= (fast) is used instead of /events (5+ s per call).
+    """
+    games = read_table("games")
+    games = games[(games.date >= str(start)) & (games.date <= str(end))]
+    folder = CACHE / "events"
+    folder.mkdir(parents=True, exist_ok=True)
+    out = []
+    for g in games.itertuples():
+        slug = f"nba-{g.away_team.lower()}-{g.home_team.lower()}-{g.date}"
+        path = folder / f"{slug}.json"
+        if path.exists():
+            event = json.loads(path.read_text())
+        else:
+            time.sleep(POLITE_DELAY)
+            page = get_json(f"{GAMMA}/markets", {"slug": slug, "closed": "true"})
+            event = {"slug": slug, "markets": [m for m in page or []
+                                               if m.get("sportsMarketType", "moneyline") == "moneyline"]}
+            path.write_text(json.dumps(event))
+        if event["markets"]:
+            out.append(event)
+    return out
+
+
 def parse_slug(slug: str) -> dict:
     """nba-was-bkn-2026-02-07 -> away WAS, home BKN, date 2026-02-07 (Eastern)."""
     _, away, home, *day = slug.split("-")
@@ -651,6 +681,7 @@ def history(token: str, tip: pd.Timestamp) -> pd.DataFrame:
     path = CACHE / f"{token[:40]}.parquet"
     if path.exists():
         return pd.read_parquet(path)
+    time.sleep(POLITE_DELAY)
     page = get_json(f"{CLOB}/prices-history", {"market": token, "fidelity": 1,
                                                 "startTs": int((tip - WINDOW).timestamp()),
                                                 "endTs": int((tip + pd.Timedelta(hours=4)).timestamp())})
@@ -660,11 +691,14 @@ def history(token: str, tip: pd.Timestamp) -> pd.DataFrame:
     return frame
 
 
-def build(start: date, end: date):
+def build(start: date, end: date, by_slug: bool = False):
+    """by_slug: look games up one by one and fetch only the first outcome's
+    history; the second outcome's traded price is taken as 1 - p (the two
+    tokens are complementary on the CLOB)."""
     games = read_table("games")
     codes = nickname_codes()
     markets, prices, settlements = [], [], []
-    for e in events(start, end):
+    for e in (events_by_slug(start, end) if by_slug else events(start, end)):
         info = parse_slug(e["slug"])
         for m in e.get("markets", []):
             if m.get("sportsMarketType") != "moneyline" or not m.get("gameStartTime"):
@@ -672,6 +706,7 @@ def build(start: date, end: date):
             tip = pd.Timestamp(m["gameStartTime"])
             outcomes, tokens = json.loads(m["outcomes"]), json.loads(m["clobTokenIds"])
             finals = json.loads(m.get("outcomePrices") or "[]")
+            first = None
             for i, (name, token) in enumerate(zip(outcomes, tokens)):
                 team = codes.get(name.lower())
                 if team is None:
@@ -679,7 +714,10 @@ def build(start: date, end: date):
                 ticker = f"PM-{e['slug']}-{team}"
                 markets.append({"venue": "polymarket", "market_ticker": ticker, "kind": "game", **info,
                                 "team": team, "player_id": None, "line": None, "title": m.get("question", "")})
-                h = history(token, tip)
+                if by_slug and first is not None:
+                    h = first.assign(p=1 - first.p)
+                else:
+                    h = first = history(token, tip)
                 prices.append(pd.DataFrame({
                     "venue": "polymarket", "market_ticker": ticker,
                     "ts": pd.to_datetime(h.t, unit="s", utc=True),
@@ -724,6 +762,8 @@ def main():
                     help="historical replay start date; requires --end")
     ap.add_argument("--end", type=date.fromisoformat,
                     help="historical replay end date; requires --start")
+    ap.add_argument("--by-slug", action="store_true",
+                    help="historical: look up each known game by slug instead of listing all NBA events")
     ap.add_argument("--limit", type=int, default=20, help="maximum live markets to print")
     ap.add_argument("--timeout", type=float, default=10, help="per-request timeout in seconds")
     ap.add_argument("--json", action="store_true", help="print the normalized live result as JSON")
@@ -732,7 +772,7 @@ def main():
     if bool(args.start) != bool(args.end):
         ap.error("--start and --end must be provided together")
     if args.start and args.end:
-        build(args.start, args.end)
+        build(args.start, args.end, args.by_slug)
         return
 
     snapshot = PolymarketClient(timeout=args.timeout).fetch_live_nba()

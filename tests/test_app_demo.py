@@ -40,5 +40,7 @@ def test_history_page_renders_with_coach_agent(monkeypatch):
     assert not at.exception, at.exception
     assert at.sidebar.radio[0].value == "Historical replay and agent"
     assert any("Coach" in t.label for t in at.tabs)
+    assert [t.label for t in at.tabs][:2] == ["Replayed night", "Graded by the market"]
+    assert any(s.value == "Scoreboard: every setup graded by the market" for s in at.subheader)
     assert any(s.value.startswith("Coach agent") for s in at.subheader)
     assert any(list(df.value.columns) == ["step", "check", "why", "finding"] for df in at.dataframe)

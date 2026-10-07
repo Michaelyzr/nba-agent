@@ -1,0 +1,314 @@
+{
+ "agent": "pregame",
+ "label": "Pregame news agent, night of 2026-02-01",
+ "games": {
+  "401810565": {
+   "matchup": "CLE @ POR",
+   "tip_time": "2026-02-02T02:00:00+00:00",
+   "polls": [
+    {
+     "as_of": "2026-02-01T20:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": null,
+     "delta_from_baseline": null,
+     "expected_lost_share": null,
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": null,
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-01T20:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-01T21:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-01T22:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-01T23:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-02T00:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-02T01:00:00+00:00",
+     "p_home": 0.4164,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 2.4015,
+      "away_decimal_odds": 1.7135
+     }
+    },
+    {
+     "as_of": "2026-02-02T01:30:00+00:00",
+     "p_home": 0.3294,
+     "baseline_p_home": 0.4164,
+     "delta_from_baseline": -0.087,
+     "expected_lost_share": {
+      "4683021": 1.0
+     },
+     "factors": [
+      {
+       "player": "Deni Avdija",
+       "status": "out",
+       "news_id": "espn-401810565-4683021",
+       "published_at": "2026-02-02T01:30:00+00:00",
+       "source": "espn_inactive"
+      }
+     ],
+     "new_news_ids": [
+      "espn-401810565-4683021"
+     ],
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 3.0359,
+      "away_decimal_odds": 1.4912
+     }
+    }
+   ],
+   "game_outcome": {
+    "game_id": "401810565",
+    "matchup": "CLE @ POR",
+    "home": "POR",
+    "away": "CLE",
+    "home_pts": 111,
+    "away_pts": 130,
+    "winner": "CLE",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-CLE",
+      "team": "CLE",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01CLEPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:27:06.985559+00:00"
+     }
+    ],
+    "positions": [],
+    "note": "The pregame agent places no bets.",
+    "headline": "CLE 130 @ POR 111: CLE won by 19."
+   }
+  },
+  "401810557": {
+   "matchup": "MIL @ BOS",
+   "tip_time": "2026-02-01T20:30:00+00:00",
+   "polls": [
+    {
+     "as_of": "2026-02-01T14:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": null,
+     "delta_from_baseline": null,
+     "expected_lost_share": null,
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": null,
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T14:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T15:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T16:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T17:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T18:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T19:30:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    },
+    {
+     "as_of": "2026-02-01T20:00:00+00:00",
+     "p_home": 0.8146,
+     "baseline_p_home": 0.8146,
+     "delta_from_baseline": 0.0,
+     "expected_lost_share": {},
+     "factors": [],
+     "new_news_ids": null,
+     "news_health": "ok",
+     "fair_odds": {
+      "home_decimal_odds": 1.2277,
+      "away_decimal_odds": 5.3926
+     }
+    }
+   ],
+   "game_outcome": {
+    "game_id": "401810557",
+    "matchup": "MIL @ BOS",
+    "home": "BOS",
+    "away": "MIL",
+    "home_pts": 107,
+    "away_pts": 79,
+    "winner": "BOS",
+    "margin": 28,
+    "overtime_periods": 0,
+    "final_at": "2026-02-01T23:30:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+      "team": "BOS",
+      "settled_yes": 1,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+      "team": "MIL",
+      "settled_yes": 0,
+      "settled_at": "2026-02-01T23:17:27.353041+00:00"
+     }
+    ],
+    "positions": [],
+    "note": "The pregame agent places no bets.",
+    "headline": "MIL 79 @ BOS 107: BOS won by 28."
+   }
+  }
+ }
+}

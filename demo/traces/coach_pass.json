@@ -1,0 +1,386 @@
+{
+ "agent": "coach",
+ "label": "Coach: MIL @ BOS",
+ "game_id": "401810557",
+ "matchup": "MIL @ BOS",
+ "tip_time": "2026-02-01T20:30:00+00:00",
+ "as_of": "2026-02-01T19:30:00+00:00",
+ "snapshot": {
+  "home": "BOS",
+  "away": "MIL",
+  "p_home_before": 0.8146,
+  "p_home_after": 0.8146,
+  "shift": 0.0,
+  "out": [],
+  "pick": null,
+  "as_of": "2026-02-01T19:30:00+00:00",
+  "sides": {
+   "MIL": {
+    "team": "MIL",
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "bid": 0.15,
+    "ask": 0.16,
+    "mid": 0.155,
+    "fee": 0.0094,
+    "breakeven": 0.1694,
+    "anchor": 0.195,
+    "move": -0.04,
+    "p_model": 0.1854,
+    "p": 0.195,
+    "gap": 0.0256
+   },
+   "BOS": {
+    "team": "BOS",
+    "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+    "bid": 0.84,
+    "ask": 0.85,
+    "mid": 0.845,
+    "fee": 0.0089,
+    "breakeven": 0.8589,
+    "anchor": 0.825,
+    "move": 0.02,
+    "p_model": 0.8146,
+    "p": 0.825,
+    "gap": -0.0339
+   }
+  },
+  "news": []
+ },
+ "explanation": [
+  "MIL at BOS, tip-off in 1.0 hours.",
+  "No injury news yet.",
+  "Our model gives BOS a 81% chance to win.",
+  "The market prices BOS at 84% to 85%; 24 hours before tip the mid was 82%, a move of +2.0 points.",
+  "The market is usually better informed than our model, so we start from its earlier price and add only our news shift: BOS 82%, MIL 18%.",
+  "No team clears fees by our 4% threshold (best: MIL at +2.6 points). Passing is the disciplined call."
+ ],
+ "picks": [
+  {
+   "team": "MIL",
+   "history": "new user",
+   "steps": [
+    {
+     "step": 1,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "ask": 0.16,
+      "fee": 0.0094,
+      "breakeven": 0.1694,
+      "estimate": 0.195,
+      "gap": 0.0256
+     }
+    },
+    {
+     "step": 2,
+     "check": "priced_in",
+     "why": "the MIL price moved -4.0 points since 24 hours before tip",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "anchor": 0.195,
+      "mid": 0.155,
+      "move": -0.04,
+      "news_shift": 0.0
+     }
+    },
+    {
+     "step": 3,
+     "check": "long_shot",
+     "why": "MIL is the underdog at 16%",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.16,
+      "payout_multiple": 6.25,
+      "loses_if_price_right": 0.84
+     }
+    }
+   ],
+   "skipped": [
+    "habits",
+    "news_freshness",
+    "m4_shift"
+   ],
+   "nudge": "caution",
+   "lesson": {
+    "id": "long_shot",
+    "title": "Long shots look cheap",
+    "body": "MIL at 16% pays about 6.2 times your money, which feels attractive. But it loses about 84% of the time if the price is right, and an over-confident model sees fake value here most often. Our learning agent taught itself to skip sides priced at 35 cents or less."
+   },
+   "message": "Be careful with MIL. Our estimate for MIL is only +2.6 points above the break-even after fees, below our 4% threshold. At 16%, MIL is a long shot: it loses about 84% of the time if the price is right. Lesson: Long shots look cheap. Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 0,
+    "trades": 0,
+    "trade_rate": 0.0,
+    "chase_share": 0.0,
+    "long_shot_share": 0.0,
+    "negative_edge_share": 0.0,
+    "overtrading": false,
+    "chasing": false,
+    "long_shot_habit": false
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "MIL",
+   "history": "user who chases moves (4 earlier buys after price jumps)",
+   "steps": [
+    {
+     "step": 1,
+     "check": "habits",
+     "why": "you have made 4 calls; look for habits before judging this one",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "decisions": 4,
+      "trades": 4,
+      "trade_rate": 1.0,
+      "chase_share": 1.0,
+      "long_shot_share": 1.0,
+      "overtrading": true,
+      "chasing": true,
+      "long_shot_habit": true
+     }
+    },
+    {
+     "step": 2,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "ask": 0.16,
+      "fee": 0.0094,
+      "breakeven": 0.1694,
+      "estimate": 0.195,
+      "gap": 0.0256
+     }
+    },
+    {
+     "step": 3,
+     "check": "priced_in",
+     "why": "the MIL price moved -4.0 points since 24 hours before tip",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "anchor": 0.195,
+      "mid": 0.155,
+      "move": -0.04,
+      "news_shift": 0.0
+     }
+    },
+    {
+     "step": 4,
+     "check": "long_shot",
+     "why": "MIL is the underdog at 16%",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.16,
+      "payout_multiple": 6.25,
+      "loses_if_price_right": 0.84
+     }
+    }
+   ],
+   "skipped": [
+    "news_freshness",
+    "m4_shift"
+   ],
+   "nudge": "caution",
+   "lesson": {
+    "id": "long_shot",
+    "title": "Long shots look cheap",
+    "body": "MIL at 16% pays about 6.2 times your money, which feels attractive. But it loses about 84% of the time if the price is right, and an over-confident model sees fake value here most often. Our learning agent taught itself to skip sides priced at 35 cents or less."
+   },
+   "message": "Be careful with MIL. Our estimate for MIL is only +2.6 points above the break-even after fees, below our 4% threshold. At 16%, MIL is a long shot: it loses about 84% of the time if the price is right. You traded 100% of your decisions so far; most decisions have no edge after fees. 100% of your trades came after the price had moved your way. Lesson: Long shots look cheap. Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 4,
+    "trades": 4,
+    "trade_rate": 1.0,
+    "chase_share": 1.0,
+    "long_shot_share": 1.0,
+    "negative_edge_share": 1.0,
+    "overtrading": true,
+    "chasing": true,
+    "long_shot_habit": true
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "BOS",
+   "history": "new user",
+   "steps": [
+    {
+     "step": 1,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.85,
+      "fee": 0.0089,
+      "breakeven": 0.8589,
+      "estimate": 0.825,
+      "gap": -0.0339
+     }
+    },
+    {
+     "step": 2,
+     "check": "priced_in",
+     "why": "the BOS price moved +2.0 points since 24 hours before tip",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "anchor": 0.825,
+      "mid": 0.845,
+      "move": 0.02,
+      "news_shift": 0.0
+     }
+    }
+   ],
+   "skipped": [
+    "habits",
+    "long_shot",
+    "news_freshness",
+    "m4_shift"
+   ],
+   "nudge": "pass",
+   "lesson": {
+    "id": "priced_in",
+    "title": "Is the news already in the price?",
+    "body": "The MIL price has moved -4.0 points since 24 hours before tip, while our model's news shift for MIL is -0.0 points. Markets react within minutes. Buying after a big move ('chasing') usually means paying for news everyone already knows."
+   },
+   "message": "Consider passing on BOS. BOS costs 85% plus a 0.9-cent fee, so it breaks even at 85.9%, above our estimate of 82.5%. The BOS price already moved +2.0 points since 24 hours before tip, while the model's news shift for BOS is +0.0 points: the news is probably priced in. Lesson: Is the news already in the price? Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 0,
+    "trades": 0,
+    "trade_rate": 0.0,
+    "chase_share": 0.0,
+    "long_shot_share": 0.0,
+    "negative_edge_share": 0.0,
+    "overtrading": false,
+    "chasing": false,
+    "long_shot_habit": false
+   },
+   "mode": "rules"
+  },
+  {
+   "team": "BOS",
+   "history": "user who chases moves (4 earlier buys after price jumps)",
+   "steps": [
+    {
+     "step": 1,
+     "check": "habits",
+     "why": "you have made 4 calls; look for habits before judging this one",
+     "flag": true,
+     "severe": false,
+     "result": {
+      "decisions": 4,
+      "trades": 4,
+      "trade_rate": 1.0,
+      "chase_share": 1.0,
+      "long_shot_share": 1.0,
+      "overtrading": true,
+      "chasing": true,
+      "long_shot_habit": true
+     }
+    },
+    {
+     "step": 2,
+     "check": "break_even",
+     "why": "every trade starts with the price plus fee versus our estimate",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "ask": 0.85,
+      "fee": 0.0089,
+      "breakeven": 0.8589,
+      "estimate": 0.825,
+      "gap": -0.0339
+     }
+    },
+    {
+     "step": 3,
+     "check": "priced_in",
+     "why": "the BOS price moved +2.0 points since 24 hours before tip",
+     "flag": true,
+     "severe": true,
+     "result": {
+      "anchor": 0.825,
+      "mid": 0.845,
+      "move": 0.02,
+      "news_shift": 0.0
+     }
+    },
+    {
+     "step": 4,
+     "check": "long_shot",
+     "why": "you often buy cheap contracts",
+     "flag": false,
+     "severe": false,
+     "result": {
+      "ask": 0.85,
+      "payout_multiple": 1.1765,
+      "loses_if_price_right": 0.15
+     }
+    }
+   ],
+   "skipped": [
+    "news_freshness",
+    "m4_shift"
+   ],
+   "nudge": "pass",
+   "lesson": {
+    "id": "priced_in",
+    "title": "Is the news already in the price?",
+    "body": "The MIL price has moved -4.0 points since 24 hours before tip, while our model's news shift for MIL is -0.0 points. Markets react within minutes. Buying after a big move ('chasing') usually means paying for news everyone already knows."
+   },
+   "message": "Consider passing on BOS. BOS costs 85% plus a 0.9-cent fee, so it breaks even at 85.9%, above our estimate of 82.5%. The BOS price already moved +2.0 points since 24 hours before tip, while the model's news shift for BOS is +0.0 points: the news is probably priced in. You traded 100% of your decisions so far; most decisions have no edge after fees. 100% of your trades were long shots. Lesson: Is the news already in the price? Educational simulation on past games with paper money. Not betting advice. Real-money prediction markets are for adults only where legal, and most bets lose after fees. If betting stops being fun, contact your local problem-gambling support service.",
+   "habits": {
+    "decisions": 4,
+    "trades": 4,
+    "trade_rate": 1.0,
+    "chase_share": 1.0,
+    "long_shot_share": 1.0,
+    "negative_edge_share": 1.0,
+    "overtrading": true,
+    "chasing": true,
+    "long_shot_habit": true
+   },
+   "mode": "rules"
+  }
+ ],
+ "game_outcome": {
+  "game_id": "401810557",
+  "matchup": "MIL @ BOS",
+  "home": "BOS",
+  "away": "MIL",
+  "home_pts": 107,
+  "away_pts": 79,
+  "winner": "BOS",
+  "margin": 28,
+  "overtime_periods": 0,
+  "final_at": "2026-02-01T23:30:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-BOS",
+    "team": "BOS",
+    "settled_yes": 1,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB01MILBOS-MIL",
+    "team": "MIL",
+    "settled_yes": 0,
+    "settled_at": "2026-02-01T23:17:27.353041+00:00"
+   }
+  ],
+  "positions": [],
+  "note": "The Coach places no bets; the market settlement shows which pending pick would have won.",
+  "headline": "MIL 79 @ BOS 107: BOS won by 28."
+ }
+}

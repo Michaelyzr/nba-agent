@@ -1,0 +1,115 @@
+{
+ "agent": "review",
+ "source": "runs/results/test-full (published test-period run)",
+ "nodes": [
+  "settle",
+  "review",
+  "gate",
+  "save_rule",
+  "reject_rule"
+ ],
+ "edges": [
+  [
+   "START",
+   "settle"
+  ],
+  [
+   "settle",
+   "review"
+  ],
+  [
+   "review",
+   "gate"
+  ],
+  [
+   "review",
+   "END"
+  ],
+  [
+   "gate",
+   "save_rule"
+  ],
+  [
+   "gate",
+   "reject_rule"
+  ],
+  [
+   "save_rule",
+   "END"
+  ],
+  [
+   "reject_rule",
+   "END"
+  ]
+ ],
+ "save_rule": {
+  "day": "2026-02-10",
+  "path": [
+   "settle",
+   "review",
+   "gate",
+   "save_rule"
+  ],
+  "steps": [
+   {
+    "node": "settle",
+    "log": [
+     "2026-02-10: {\"fills\": 1, \"staked\": 20.0, \"pnl_after_fees\": -21.18, \"fees\": 1.18, \"mean_clv\": -0.005, \"brier\": 0.081, \"max_drawdown\": 0.0}"
+    ]
+   },
+   {
+    "node": "review",
+    "log": [
+     "[offline rules] {\"when\": {\"market_kind\": \"game\", \"side_price_max\": 0.35}, \"do\": {\"action\": \"skip_market\", \"params\": {}}, \"blame_category\": \"model_wrong\"}"
+    ]
+   },
+   {
+    "node": "gate",
+    "log": [
+     "accepted: mean CLV -0.0014 -> +0.0050 over 15 changed trades, P&L -148.75 -> +106.34"
+    ]
+   },
+   {
+    "node": "save_rule",
+    "log": [
+     "r023 active from 2026-02-11 06:30:00+00:00"
+    ]
+   }
+  ]
+ },
+ "reject_rule": {
+  "day": "2026-02-09",
+  "path": [
+   "settle",
+   "review",
+   "gate",
+   "reject_rule"
+  ],
+  "steps": [
+   {
+    "node": "settle",
+    "log": [
+     "2026-02-09: {\"fills\": 3, \"staked\": 59.36, \"pnl_after_fees\": -18.27, \"fees\": 2.91, \"mean_clv\": 0.002, \"brier\": 0.129, \"max_drawdown\": 20.85}"
+    ]
+   },
+   {
+    "node": "review",
+    "log": [
+     "[offline rules] {\"when\": {\"market_kind\": \"game\", \"market_move_max\": -0.02}, \"do\": {\"action\": \"skip_market\", \"params\": {}}, \"blame_category\": \"market_priced_in\"}"
+    ]
+   },
+   {
+    "node": "gate",
+    "log": [
+     "rejected: mean CLV -0.0021 -> +0.0014 over 31 changed trades, P&L -144.81 -> +17.88"
+    ]
+   },
+   {
+    "node": "reject_rule",
+    "log": [
+     "r022: mean CLV -0.0021 -> +0.0014 over 31 changed trades, P&L -144.81 -> +17.88"
+    ]
+   }
+  ]
+ }
+}
