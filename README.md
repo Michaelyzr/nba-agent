@@ -1045,25 +1045,50 @@ Pre-registered in `docs/preregistration_gate.md` before any of these runs.
 Code: `--gate {legacy,split,split-edge}`, `--kill-switch 100`,
 `--sizing kelly --kelly-fraction 0.25`. Safety invariants live in
 `tests/test_safety_properties.py`. **Window (deadline):** 1 Feb – 12 Apr 2026
-(learning arms warm up on Nov–Jan); the primary walk-forward season is
-optional via `python -m evaluation.gate_audit --period wf`.
+only, offline rules, $20 flat stakes. Learning arms start with an empty notebook on
+1 Feb (no Nov–Jan warm-up), so this is not the published protocol; the walk-forward
+season (`--period wf --warm-dev`) was not run. 95% CIs: day-clustered bootstrap,
+2000 replicates, seed 7606.
 
 | Script | Output |
 | --- | --- |
 | `python -m evaluation.gate_audit` | `evaluation/results/gate_audit.{md,csv}` — legacy vs split gate, with/without the enforced kill switch, vs never trade |
 | `python -m evaluation.gate_placebo` | `evaluation/results/gate_placebo.{md,csv}` — reviewer vs random templates / random slices under each gate |
-| `python -m evaluation.kelly` | `evaluation/results/kelly.{md,csv}` — flat $20 vs ¼-Kelly (fee in the formula), vs never trade |
+| `python -m evaluation.kelly` | **Not run (time).** Code kept: flat $20 vs ¼-Kelly with the fee in the formula |
 
-Headline findings (fill in from the result files after the run):
+| Test period, 1 Feb – 12 Apr | Rules proposed / accepted | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] | Worst day | Kill-switch trips |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Legacy gate + learning | 24 / 0 | 129 | −0.0035 [−0.0065, +0.0000] | −$35 [−60, −12] | −$247 [−718, +265] | −$83 | 0 |
+<!-- SPLIT_ROWS -->
+| No learning (gate never runs) | – | 129 | −0.0035 [−0.0065, +0.0000] | −$35 [−60, −12] | −$247 [−718, +265] | −$83 | 0 |
+| Never trade | – | 0 | – | $0 | $0 | $0 | 0 |
 
-- **H1 (held-out gate days):** fewer rules should pass under `split` than under
-  `legacy`. See pass rates and `rules_active` in the result files.
-- **H2 (placebo):** under `legacy`, the reviewer's pass rate should be similar
-  to random templates / slices (learning mainly reduces exposure).
-- **H3 (kill switch):** enforced stop improves worst-day P&L without changing
-  mean CLV (CI of the paired mean-CLV difference includes 0).
-- **H4 (Kelly):** ¼-Kelly is not expected to beat flat $20 on P&L or CLV $;
-  report as a null unless the P&L CI of Kelly − flat lies above 0.
+What the numbers say:
+
+- **Without the Nov–Jan warm-up, the legacy gate keeps nothing.** It rejected all
+  24 proposed rules, so the legacy learning agent is identical to the agent with no
+  learning (−$247). The published −$32 for "full agent + learning" relied on rules
+  carried over from development.
+<!-- SPLIT_TEXT -->
+- **Placebo (`gate_placebo.md`, 7 review points, 11 templates and 5 random slices
+  each).** Random slices (dropping a random hash bucket of trades) pass the split
+  gate **57%** of the time [Wilson CI 41%, 72%], against **0%** [0%, 10%] under
+  legacy and **14%** [6%, 29%] under split-edge. As pre-registered, judging by CLV
+  dollars rewards trading less whenever the average trade has negative CLV.
+  The reviewer's own pick passes split 57% of the time, the same as random slices
+  (difference +0% [−29%, +29%]).
+  Under legacy it passes 29%, against 0% for random slices (difference +29% [+0%, +71%],
+  borderline). So H2, "the reviewer is no better than random", cannot be rejected.
+  H1 is not supported: the reviewer passes the split gate *more* often than legacy
+  (+29% [−29%, +71%]).
+  Accepted rules do not do better on the next 7 days than rejected ones:
+  forward CLV $, accepted − rejected, is −$0.76 [−2.59, +1.23] under split and
+  −$2.39 [−4.38, −0.69] under legacy. The gate cannot tell lessons from noise.
+- **Kill switch:** enforced in `replay.py` ($100 daily realised loss, settled games
+  only, trips logged in `kill_switch.json`). No test-period setup lost more than
+  $100 in a day at $20 stakes, so the switch never tripped. H3 cannot be tested on this
+  window; the unit and property tests show that it blocks orders after a trip.
+- **Kelly (H4): not run (time).**
 
 **Reviewer labels (E2):** 30 losing trades sampled with seed 7606 from
 `runs/results/test-full` into `evaluation/labels/reviewer_label_sheet.csv`.
