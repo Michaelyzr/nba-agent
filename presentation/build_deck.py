@@ -89,10 +89,11 @@ K = {
     # Fill the result from the named evaluation/results/*.md once it exists, then rebuild.
     "agentic": [
         ("LLM tool agent + sceptic", "LLM picks as-of tools; code checks every number; a sceptic asks "
-         "“already priced in?”", ["llm_agent"], None),
+         "“already priced in?”", ["llm_agent"], "Not scored (API quota); all 32 valid calls passed"),  # llm_agent.md
         ("Gate audit + placebo", "Rule gate on held-out days; reviewer vs random rules",
          ["gate_audit", "gate_placebo"], "Random rules pass as often (57% vs 57%)"),   # gate_placebo.md, split gate
-        ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"], None),
+        ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"],
+         "Never triggered (worst day −$54)"),                                          # gate_audit.md, split gate
         ("Fractional Kelly", "¼-Kelly sizing, fee in the formula, vs flat $20", ["kelly"], None),
         ("Coach, simulated users", "Biased personas play League slates with and without Coach nudges",
          ["coach_sim"], "Users trade less, lose less CLV; per-trade CLV no better"),   # coach_sim.md, 20 x 10
