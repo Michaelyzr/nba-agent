@@ -48,6 +48,16 @@ the plain LLM (B). To finish once the quota resets (cached calls are free):
 
     python -m evaluation.llm_agent_eval --window test --backend gemini --model gemini-3.5-flash-lite --subsample 0.4 --setups tool,tool_sceptic --workers 3 --min-interval 12 --report test
 
+**DeepSeek re-run: pending.** `--backend deepseek` (DeepSeek `deepseek-chat`, OpenAI-compatible API, temperature 0,
+JSON mode) re-runs B, C and D on one model, a further deviation from the pre-registered Gemini 2.5 Flash. On
+7 Oct the DeepSeek key authenticated but every call returned HTTP 402 "Insufficient Balance", so nothing was
+scored. Expected cost at about $0.27 / $1.10 per million input / output tokens: roughly $0.5 for all three arms
+on the 40% subsample (scaled from the stub run's token counts). Command, which reuses this anchor and keeps the
+Gemini plain run as a secondary row (B′):
+
+    mkdir -p runs/llm_agent/test-deepseek && cp -R runs/llm_agent/test/anchor runs/llm_agent/test-deepseek/ && cp -R runs/llm_agent/test/plain runs/llm_agent/test-deepseek/plain_gemini
+    python -m evaluation.llm_agent_eval --window test --name test-deepseek --backend deepseek --subsample 0.4 --setups plain,tool,tool_sceptic --workers 4 --report test-deepseek
+
 ![Cumulative P&L and CLV by setup](llm_agent.png)
 
 Costs are estimates from token counts at the list prices in `agents/llm_client.PRICES` (Gemini 3.5 Flash-Lite assumed at the 2.5 Flash-Lite price, $0.10 / $0.40 per million input / output tokens; the runs themselves used the free tier) and include calls served from the cache, i.e. the cost of a fresh run. Latency is per API call as measured when the response was first fetched.

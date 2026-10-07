@@ -1215,9 +1215,13 @@ points (seed 7606: 304 of 771). The anchor and never-trade arms are on the same 
   trading (−$19 [−36, −1]).
 - **The tool agent arms were not scored.** The free daily quota ran out partway through arm C. On a nested
   117-point subsample, the 32 analyst decisions that returned all chose **pass** (0 invalid); the other 85 hit the
-  quota. So we have no result for "tool agent vs anchor" or for the sceptic. Rerun command:
-  `python -m evaluation.llm_agent_eval --window test --backend gemini --model gemini-3.5-flash-lite --subsample 0.4 --setups tool,tool_sceptic --workers 3 --min-interval 12 --report test`
-  (cached calls are free).
+  quota. So we have no result for "tool agent vs anchor" or for the sceptic. A DeepSeek backend
+  (`--backend deepseek`, `deepseek-chat`) is now in place to re-run B, C and D on one model, but the DeepSeek
+  account had no balance (HTTP 402) when we tried, so it has not run yet. That would also be a deviation from the
+  pre-registered Gemini 2.5 Flash. Command (copies the existing anchor and Gemini plain runs alongside):
+
+      mkdir -p runs/llm_agent/test-deepseek && cp -R runs/llm_agent/test/anchor runs/llm_agent/test-deepseek/ && cp -R runs/llm_agent/test/plain runs/llm_agent/test-deepseek/plain_gemini
+      python -m evaluation.llm_agent_eval --window test --name test-deepseek --backend deepseek --subsample 0.4 --setups plain,tool,tool_sceptic --workers 4 --report test-deepseek
 - **Cost:** $0 actually spent (free tier). At list prices, the plain arm's 175k input and 16k output tokens
   would cost about $0.02. Latency was 2.8 s per call, including rate-limit waits.
 
