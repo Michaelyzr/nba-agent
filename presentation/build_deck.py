@@ -91,7 +91,7 @@ K = {
         ("LLM tool agent + sceptic", "LLM picks as-of tools; code checks every number; a sceptic asks "
          "“already priced in?”", ["llm_agent"], None),
         ("Gate audit + placebo", "Rule gate on held-out days; reviewer vs random rules",
-         ["gate_audit", "gate_placebo"], None),
+         ["gate_audit", "gate_placebo"], "Random rules pass as often (57% vs 57%)"),   # gate_placebo.md, split gate
         ("Kill switch", "$100 daily realised-loss stop, enforced in the replay", ["gate_audit"], None),
         ("Fractional Kelly", "¼-Kelly sizing, fee in the formula, vs flat $20", ["kelly"], None),
         ("Coach, simulated users", "Biased personas play League slates with and without Coach nudges",
