@@ -50,7 +50,8 @@ TEST = ("2026-02-01", REGULAR_END)
 WF = (WINDOWS[0][1], REGULAR_END)
 
 
-def _job(job: dict) -> dict:
+def _job(job: dict, tables=None, base=None, price_index=None) -> dict:
+    """One setup. When `tables`/`base`/`price_index` are passed, reuse them (sequential mode)."""
     import copy
     from agents.graph import MarketAgent, save_run
     from agents.notebook import Notebook
@@ -58,8 +59,10 @@ def _job(job: dict) -> dict:
     from replay import Replay, load_tables
 
     t0 = time.time()
-    tables = load_tables()
-    base = Forecaster.load()
+    if tables is None:
+        tables = load_tables()
+    if base is None:
+        base = Forecaster.load()
     forecaster = (WalkForwardForecaster(pickle.loads(job["models"]), base.play_model, base.points_model)
                   if job.get("models") else base)
     gate, learn, kill, sizing, kf = job["spec"]
@@ -67,7 +70,7 @@ def _job(job: dict) -> dict:
     agent = MarketAgent(notebook=copy.deepcopy(notebook), forecaster=forecaster, learn=learn, gate=gate,
                         sizing=sizing, kelly_fraction=kf)
     hook = agent.on_day_end if learn else None
-    rp = Replay(tables, agent.policy, on_day_end=hook, kill_switch=kill)
+    rp = Replay(tables, agent.policy, on_day_end=hook, kill_switch=kill, price_index=price_index)
     decisions, fills = rp.run(job["start"], job["end"])
     save_run(job["name"], decisions, fills, agent, rp.kill_trips)
     # Persist situations for the placebo audit when this is a no-learning walk-forward.
@@ -76,7 +79,8 @@ def _job(job: dict) -> dict:
         save_situations(RUNS / job["name"], agent.situations)
     return {"name": job["name"], "fills": len(fills), "trips": len(rp.kill_trips),
             "seconds": time.time() - t0, "rules": len(agent.notebook.rules),
-            "active": sum(r["status"] == "active" for r in agent.notebook.rules)}
+            "active": sum(r["status"] == "active" for r in agent.notebook.rules),
+            "price_index": rp.price_index}
 
 
 def run_all(workers: int, which: list | None = None, period: str = "test",
@@ -123,6 +127,15 @@ def run_all(workers: int, which: list | None = None, period: str = "test",
         print(f"  {r['name']}: {r['fills']} fills, {r['active']}/{r['rules']} rules active, "
               f"{r['trips']} kill trips in {r['seconds'] / 60:.1f} min", flush=True)
 
+    shared_tables = shared_base = shared_index = None
+    if workers <= 1:
+        from forecast.api import Forecaster
+        from replay import load_tables
+        print("loading shared tables + forecaster once", flush=True)
+        shared_tables = load_tables()
+        shared_base = Forecaster.load()
+        print(f"loaded {len(shared_tables['prices']):,} price rows", flush=True)
+
     for batch in batches:
         if not batch:
             continue
@@ -130,10 +143,13 @@ def run_all(workers: int, which: list | None = None, period: str = "test",
               f"{[j['name'] for j in batch]}", flush=True)
         if workers <= 1:
             for job in batch:
-                _emit(run_job(job))
+                r = run_job(job, shared_tables, shared_base, shared_index)
+                shared_index = r.pop("price_index", shared_index)
+                _emit(r)
         else:
             with ProcessPoolExecutor(max_workers=workers) as pool:
                 for r in pool.map(run_job, batch):
+                    r.pop("price_index", None)
                     _emit(r)
 
 

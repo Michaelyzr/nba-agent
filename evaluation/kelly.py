@@ -45,7 +45,7 @@ def _calibrated_forecaster():
     return Forecaster(CalibratedWinModel(base.win_model, cal), base.play_model, base.points_model)
 
 
-def _job(job: dict) -> dict:
+def _job(job: dict, tables=None, forecaster=None, price_index=None) -> dict:
     from agents.graph import MarketAgent, save_run
     from forecast.api import Forecaster
     from replay import Replay, load_tables
@@ -53,14 +53,20 @@ def _job(job: dict) -> dict:
     t0 = time.time()
     sizing, kf, calibrated = job["spec"]
     try:
-        forecaster = _calibrated_forecaster() if calibrated else Forecaster.load()
+        if forecaster is None:
+            forecaster = _calibrated_forecaster() if calibrated else Forecaster.load()
+        elif calibrated:
+            forecaster = _calibrated_forecaster()
     except Exception as exc:
         return {"name": job["name"], "error": f"{exc.__class__.__name__}: {exc}", "seconds": time.time() - t0}
+    if tables is None:
+        tables = load_tables()
     agent = MarketAgent(forecaster=forecaster, learn=False, sizing=sizing, kelly_fraction=kf, gate="legacy")
-    rp = Replay(load_tables(), agent.policy, kill_switch=None)
+    rp = Replay(tables, agent.policy, kill_switch=None, price_index=price_index)
     decisions, fills = rp.run(job["start"], job["end"])
     save_run(job["name"], decisions, fills, agent)
-    return {"name": job["name"], "fills": len(fills), "seconds": time.time() - t0}
+    return {"name": job["name"], "fills": len(fills), "seconds": time.time() - t0,
+            "price_index": rp.price_index}
 
 
 def run_all(workers: int):
@@ -73,11 +79,22 @@ def run_all(workers: int):
     from evaluation.kelly import _job as run_job
     print(f"running {len(jobs)} Kelly arms (workers={workers})", flush=True)
     if workers <= 1:
+        from forecast.api import Forecaster
+        from replay import load_tables
+        print("loading shared tables + forecaster once", flush=True)
+        tables = load_tables()
+        base = Forecaster.load()
+        index = None
         for job in jobs:
-            print(f"  {run_job(job)}", flush=True)
+            # Calibrated arm builds its own forecaster; flat/kelly share base.
+            fc = None if job["spec"][2] else base
+            r = run_job(job, tables, fc, index)
+            index = r.pop("price_index", index)
+            print(f"  {r}", flush=True)
     else:
         with ProcessPoolExecutor(max_workers=workers) as pool:
             for r in pool.map(run_job, jobs):
+                r.pop("price_index", None)
                 print(f"  {r}", flush=True)
 
 

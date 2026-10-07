@@ -24,8 +24,9 @@ from evaluation.stats import REPS, SEED
 from replay import RUNS
 
 RESULTS = Path(__file__).resolve().parent / "results"
-START, END = "2025-11-01", "2026-04-12"
-BASE_RUN = RUNS / "walkforward" / "no_learning"
+# Deadline default: test window. Pass --start/--end for the primary Nov–Apr window.
+START, END = "2026-02-01", "2026-04-12"
+BASE_RUN = RUNS / "gate_audit" / "test-split_nolearn"
 PLACEBO_K = 5
 REVIEW_EVERY = 7
 
@@ -253,37 +254,52 @@ def summarise(frame: pd.DataFrame) -> str:
     return "\n".join(lines) + "\n"
 
 
+def capture_situations(start: str, end: str) -> tuple:
+    """No-learning replay over [start, end] that records decision-time situations."""
+    from agents.graph import MarketAgent, save_run
+    from forecast.api import Forecaster
+    from replay import Replay, load_tables
+
+    tables = load_tables()
+    agent = MarketAgent(forecaster=Forecaster.load(), learn=False, gate="legacy")
+    rp = Replay(tables, agent.policy)
+    decisions, fills = rp.run(start, end)
+    out = RUNS / "gate_placebo" / "base"
+    save_run("gate_placebo/base", decisions, fills, agent)
+    save_situations(out, agent.situations)
+    return fills, agent.situations
+
+
 def main():
+    global START, END, BASE_RUN
     ap = argparse.ArgumentParser()
     ap.add_argument("--replay", action="store_true", help="rebuild the no-learning base run with situations")
+    ap.add_argument("--start", default=START)
+    ap.add_argument("--end", default=END)
     args = ap.parse_args()
+    START, END = args.start, args.end
     RESULTS.mkdir(parents=True, exist_ok=True)
     from replay import load_tables
     tables = load_tables()
-    # Prefer situations sibling; fall back to replaying
+    # Prefer situations sibling; fall back to replaying the requested window
     fills, situations = None, {}
-    for path in (BASE_RUN, RUNS / "walkforward" / "no_learning_placebo"):
+    for path in (BASE_RUN, RUNS / "gate_placebo" / "base",
+                 RUNS / "walkforward" / "no_learning_placebo", RUNS / "walkforward" / "no_learning"):
         if (path / "fills.parquet").exists() and (path / "situations.json").exists() and not args.replay:
             fills, situations = load_base(path)
-            print(f"loaded base from {path}: {len(fills)} fills, {len(situations)} situations")
+            print(f"loaded base from {path}: {len(fills)} fills, {len(situations)} situations", flush=True)
             break
-    if fills is None:
-        print("building no-learning base with situations (one walk-forward pass)")
-        fills, situations = ensure_base(replay=True)
-    # Situations keys may be string timestamps; normalise to match fills.as_of
+    if fills is None or not situations or args.replay:
+        print(f"building no-learning base with situations ({START}–{END})", flush=True)
+        fills, situations = capture_situations(START, END)
     fills = fills.copy()
     fills["as_of"] = pd.to_datetime(fills.as_of)
     situations = {(t, pd.Timestamp(a)): s for (t, a), s in situations.items()}
-    # Rebuild situations from a short agent pass if empty
-    if not situations:
-        print("situations missing; replaying no-learning to capture them")
-        fills, situations = ensure_base(replay=True)
-        fills["as_of"] = pd.to_datetime(fills.as_of)
     frame = run_audit(fills, situations, tables)
     frame.to_csv(RESULTS / "gate_placebo.csv", index=False)
     md = summarise(frame)
     (RESULTS / "gate_placebo.md").write_text(md)
-    print(md)
+    print(md, flush=True)
 
 
 if __name__ == "__main__":
