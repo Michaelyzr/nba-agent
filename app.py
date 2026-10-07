@@ -2,11 +2,16 @@
 
     streamlit run app.py
 
+Demo default page (does not change the Live Markets default when unset):
+    APP_DEFAULT_PAGE=history streamlit run app.py
+    streamlit run app.py  then open with ?page=history
+
 Reads data/frozen/ if it has prices, otherwise the committed data/sample/.
 Models come from models/ (python -m forecast.train); runs from runs/.
 """
 import copy
 import json
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -15,7 +20,7 @@ import pandas as pd
 import streamlit as st
 
 import replay
-from agents import coach, league
+from agents import coach, coach_agent, league
 from agents.briefs import channel_briefs, outlook
 from agents.graph import FAULTS, OUT_STATUSES, MarketAgent
 from agents.notebook import Notebook
@@ -26,7 +31,21 @@ from data_sources.polymarket_live import PolymarketLiveProvider
 
 SAMPLE = ROOT / "data" / "sample"
 RESULTS = ROOT / "evaluation" / "results"
+PAGES = ("NBA Polymarket Live Markets", "Historical replay and agent")
 st.set_page_config(page_title="NBA late-news agent", layout="wide")
+
+
+def demo_default_page() -> str:
+    """Historical page when APP_DEFAULT_PAGE=history or ?page=history; otherwise Live Markets."""
+    query = ""
+    try:
+        query = str(st.query_params.get("page", "") or "")
+    except Exception:
+        query = ""
+    env = os.environ.get("APP_DEFAULT_PAGE", "")
+    if query.lower() in ("history", "historical") or env.strip().lower() in ("history", "historical"):
+        return "Historical replay and agent"
+    return "NBA Polymarket Live Markets"
 
 
 @st.cache_resource
@@ -310,10 +329,9 @@ def render_live_page():
         fragment(run_every=timedelta(seconds=refresh_seconds))(refresh)()
 
 
-page = st.sidebar.radio(
-    "Page", ["NBA Polymarket Live Markets", "Historical replay and agent"],
-    key="app_page",
-)
+if "app_page" not in st.session_state:
+    st.session_state.app_page = demo_default_page()
+page = st.sidebar.radio("Page", list(PAGES), key="app_page")
 if page == "NBA Polymarket Live Markets":
     render_live_page()
     st.stop()
@@ -444,6 +462,10 @@ with coach_tab:
     s = coach.snapshot(forecaster(), c_view, game, names)
     key = f"{gid}|{pd.Timestamp(c_when).isoformat()}"
     paper = st.session_state.setdefault("paper", {})
+    coach_history = [{"choice": "pass" if not t.get("team") else "trade", "team": t.get("team"),
+                      "move": t.get("move"), "gap": t.get("gap"), "price": t.get("price"),
+                      "chased": bool(t.get("chased")), "long_shot": bool(t.get("long_shot"))}
+                     for k, t in paper.items() if k != key]
     left, right = st.columns([3, 2])
     with left:
         st.subheader("What's going on")
@@ -471,19 +493,34 @@ with coach_tab:
         if not s["sides"]:
             st.warning("No fresh market price at this time; pick another decision time.")
         else:
+            preview = st.radio("What do you do?", [f"Back {s['away']}", f"Back {s['home']}", "Pass"],
+                               index=2, horizontal=True, key=f"preview-{key}")
+            preview_team = None if preview == "Pass" else preview.split()[-1]
+            advice = coach_agent.advise(s, preview_team, coach_history)
+            st.subheader("Coach agent")
+            st.write(dollars(advice["message"]))
+            nudge_label = {"pass": "consider passing", "caution": "smaller stake", "none": "no nudge"}[advice["nudge"]]
+            st.caption(f"Nudge: **{nudge_label}** · lesson: {advice['lesson']['title']} · mode: {advice['mode']}")
+            st.dataframe(coach_agent.trace_table(advice), hide_index=True, width="stretch")
             with st.form(f"call-{key}"):
-                choice = st.radio("What do you do?", [f"Back {s['away']}", f"Back {s['home']}", "Pass"],
-                                  index=2, horizontal=True)
+                st.caption(f"Confirming: {preview}")
                 stake = st.slider("Stake (paper dollars)", 5, 50, 20, 5)
+                if advice["nudge"] == "caution":
+                    stake = min(stake, 10)
                 reason = st.text_input("Why? (one line, optional)")
                 if st.form_submit_button("Submit my call", type="primary"):
-                    if choice == "Pass":
+                    if preview_team is None:
                         paper[key] = {"filled": False, "why": "pass", "game_id": gid, "as_of": c_when,
-                                      "team": None, "pick": s["pick"], "reason": reason}
+                                      "team": None, "pick": s["pick"], "reason": reason,
+                                      "coach_nudge": advice["nudge"], "coach_lesson": advice["lesson"]["id"]}
                     else:
-                        side = s["sides"][choice.split()[-1]]
+                        side = s["sides"][preview_team]
                         paper[key] = {**coach.paper_trade(engine(tables), game, c_when, side, stake, s),
-                                      "reason": reason}
+                                      "reason": reason, "coach_nudge": advice["nudge"],
+                                      "coach_lesson": advice["lesson"]["id"],
+                                      "chased": side["move"] >= coach.CHASE_MOVE,
+                                      "long_shot": side["ask"] <= coach.LONG_SHOT,
+                                      "gap": side["gap"], "move": side["move"]}
                     st.rerun()
     else:
         t = paper[key]
@@ -503,6 +540,11 @@ with coach_tab:
                          hide_index=True)
         else:
             st.warning(f"Order not filled: {t['why']}.")
+        advice = coach_agent.advise(s, t.get("team"), coach_history)
+        st.subheader("Coach agent (step trace)")
+        st.write(dollars(advice["message"]))
+        st.caption(f"Nudge was **{advice['nudge']}** · lesson: {advice['lesson']['title']}")
+        st.dataframe(coach_agent.trace_table(advice), hide_index=True, width="stretch")
         runs_key = f"agent|{day}|{gid}"
         if runs_key not in st.session_state:
             with st.spinner("Running the agent on this game..."):
