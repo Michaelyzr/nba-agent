@@ -340,7 +340,8 @@ def test_results_json_has_todays_numbers():
 def test_results_and_learning_pages_render():
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_file(str(APP), default_timeout=60).run()
-    assert list(at.sidebar.radio[0].options) == ["Overview", "Results", "Learning", "Scenarios"]
+    assert list(at.sidebar.radio[0].options) == ["Overview", "Results", "Models", "Workflows", "Learning",
+                                                 "Scenarios"]
     at.sidebar.radio[0].set_value("Overview").run()
     assert not at.exception
     assert any("Key takeaways" in s.value for s in at.subheader)
@@ -366,6 +367,64 @@ def test_results_and_learning_pages_render():
     assert len(at.image) >= 1
     texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
     assert "nan" not in texts.lower().split()
+    assert any("Model review" in h.value for h in at.header)
+    assert any("Better Brier ≠ better trading" in str(e.value) for e in at.error)
     at.sidebar.radio[0].set_value("Overview").run()
     warn_info = [str(getattr(w, "value", "")) for w in list(at.warning) + list(at.info)]
     assert any("trading less" in t.lower() or "no better than random" in t.lower() for t in warn_info)
+
+
+def test_models_review_pnl_workflow_json():
+    r = load("results")
+    cards = {c["name"]: c for c in r["models"]["cards"]}
+    assert r["models"]["m4_auc"] == pytest.approx(0.801, abs=1e-3)
+    m4 = cards["M4 win model (logistic regression)"]
+    assert "0.1827" in m4["metric"] and "74.1%" in m4["metric"] and "0.1633" in m4["metric"]
+    assert "+0.234" in m4["architecture"] and "-0.288" in m4["architecture"]
+    assert "1.553" in cards["M2 GRU (deep learning)"]["metric"] and "80.9%" in cards["M2 GRU (deep learning)"]["metric"]
+    assert "0.1433" in cards["M3 play model"]["metric"] and "0.1686" in cards["M3 play model"]["metric"]
+    assert "σ = 14" in cards["In-play model"]["architecture"]
+    assert len(cards) >= 9
+    mr = r["model_review"]
+    assert mr["proposed"] == 6 and mr["accepted"] == 0
+    assert mr["story"][0]["clv_without"] == pytest.approx(-5.70) and mr["story"][0]["clv_with"] == pytest.approx(-18.24)
+    assert mr["review_rules"]["Trades"] == "53" and mr["review_rules"]["CLV $ [95% CI]"] == "-18 [-34, -2]"
+    assert mr["review_edge"]["Trades"] == "42"
+    p = r["pnl"]
+    assert p["trades"] == {"Raw M4, no agent": 366, "Anchor agent, no learning": 129, "Split-gate learning": 53,
+                           "Adaptive edge, base 4¢": 42, "Never trade": 0}
+    assert round(p["final"]["Raw M4, no agent"]) == -2087 and round(p["final"]["Anchor agent, no learning"]) == -247
+    assert round(p["final"]["Split-gate learning"]) == -96 and round(p["final"]["Adaptive edge, base 4¢"]) == -102
+    assert all(len(v) == len(p["days"]) for v in p["series"].values())
+    fw = [f["framework"] for f in r["frameworks"]]
+    assert fw[0].startswith("Raw M4") and fw[-1] == "Never trade" and any("Model review" in f for f in fw)
+    assert {f["window"] for f in r["frameworks"]} >= {"full test, full agent replay",
+                                                      "full test, simplified offline trader",
+                                                      "40% subsample (304 decision points)"}
+    w = r["workflow"]
+    assert len(w["tools"]) == 10 and {"citation_after_decision", "banned_wording", "rule_not_active"} <= set(w["checks"])
+    assert "kill_switch" in w["risk_reasons"] and w["caps"] == [50, 100, 300] and w["max_quote_age_min"] == 5
+    assert any("Better Brier" in t for t in r["takeaways"])
+    text = json.dumps(r).lower().replace("spending", "")
+    assert "pending" not in text and not re.search(r"\bnan\b", text)
+    for name in ("model_review.png", "model_review_loop.png", "pnl_compare.png"):
+        assert (TRACES.parent / "figures" / name).exists(), name
+
+
+def test_models_and_workflows_pages_render():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    at.sidebar.radio[0].set_value("Models").run()
+    assert not at.exception
+    assert any("How each framework trades" in h.value for h in at.header)
+    texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
+    assert "AUC 0.801" in texts and "M6 ImpactNet" in texts and not re.search(r"\bnan\b", texts.lower())
+    at.sidebar.radio[0].set_value("Workflows").run()
+    assert not at.exception
+    subs = [s.value for s in at.subheader]
+    assert sum(s[0].isdigit() for s in subs) >= 7
+    texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
+    assert "rejected 6 / 6" in texts and "citation_after_decision" in texts and "kill_switch" in texts
+    at.sidebar.radio[0].set_value("Results").run()
+    assert not at.exception
+    assert any("Cumulative P&L" in str(getattr(e, "value", "")) for e in at.main)

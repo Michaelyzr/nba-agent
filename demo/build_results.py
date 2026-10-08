@@ -20,7 +20,8 @@ OUT = ROOT / "demo" / "traces"
 FIG = ROOT / "demo" / "figures"
 RESULTS_REF = "origin/results/deepseek-llm-agent"
 ON_REF = ("llm_agent.md", "llm_vs_original.md", "edge_gate.md", "edge_gate.png", "llm_vs_original.png")
-FIGURES = ("edge_gate.png", "adaptive_edge.png", "forecast_blend.png", "llm_vs_original.png")
+FIGURES = ("edge_gate.png", "adaptive_edge.png", "forecast_blend.png", "llm_vs_original.png", "model_review.png",
+           "model_review_loop.png", "pnl_compare.png")
 SECRET = re.compile(r"(AIza[0-9A-Za-z_\-]{20,}|sk-[A-Za-z0-9]{20,}|api[_-]?key)", re.I)
 
 
@@ -73,6 +74,10 @@ def num(s):
         return None if math.isnan(x) else x
     except (TypeError, ValueError):
         return None
+
+
+def pct(x, d=1):
+    return "–" if x is None else f"{x * 100:.{d}f}%"
 
 
 def row(rows, col, prefix):
@@ -341,9 +346,216 @@ def llm_vs_original():
             "vetoes_wrong": wrong.group(1).strip() if wrong else "", "figure": "llm_vs_original.png"}
 
 
+# ---------------- model review (forecast switches inside the full agent) ----------------
+
+def model_review():
+    text, src = read("model_review.md")
+    t = md_tables(text)
+    trading, paired = tidy(t[0]), tidy([r for r in t[1]])
+    for r in paired:
+        r["p (one-sided, a > b)"] = r.get("p (one-sided, a > b)", "–")
+    sub = section(text, "Which blend was active when")
+    part = sub.split("**Model review subloop + rule learning**", 1)[1].split("**Model review + adaptive", 1)[0]
+    rules = md_tables(part)[0]
+    story = []
+    for r in rules:
+        before, after = [num(x) for x in r["CLV $ without → with"].split("→")]
+        b0, b1 = [num(x) for x in r["Brier used → blend (gate days)"].split("→")]
+        story.append({"rule": r["Rule"], "blend": r["Blend"], "status": r["Status"], "decided": r["Decided"],
+                      "selection": r["Selection Brier (best 3)"], "gate_days": r["Gate days"],
+                      "clv_without": before, "clv_with": after, "brier_used": b0, "brier_blend": b1})
+    row_ = lambda p: row(trading, "Setup", p)  # noqa: E731
+    verdict = re.search(r"\*\*Verdict\.\*\*\s*(.+)", text)
+    return {"source": src, "trading": trading, "paired": paired, "story": story,
+            "proposed": len(story), "accepted": sum(s["status"] not in ("rejected",) for s in story),
+            "review_rules": row_("Model review subloop"), "review_edge": row_("Model review + adaptive"),
+            "current": row_("Fixed M4"), "verdict": verdict.group(1).strip() if verdict else "",
+            "figure": "model_review.png", "loop_figure": "model_review_loop.png"}
+
+
+# ---------------- cumulative P&L ----------------
+
+def pnl_curves():
+    df = pd.read_csv(RES / "pnl_compare.csv")
+    order = list(dict.fromkeys(df.framework))
+    trades = {f: int(df[df.framework == f].trades.iloc[0]) for f in order}
+    wide = df.pivot_table(index="day", columns="framework", values="cumulative_pnl").reindex(columns=order)
+    wide = wide.sort_index().ffill().fillna(0.0).round(2)
+    final = {f: float(wide[f].iloc[-1]) for f in order}
+    return {"source": "pnl_compare.csv", "frameworks": order, "trades": trades, "final": final,
+            "days": list(wide.index), "series": {f: wide[f].tolist() for f in order}, "figure": "pnl_compare.png"}
+
+
+# ---------------- model cards ----------------
+
+def src_const(path, pattern, cast=str):
+    m = re.search(pattern, (ROOT / path).read_text(), re.M)
+    return cast(m.group(1)) if m else None
+
+
+def auc(p, y):
+    r = pd.Series(p).rank()
+    pos = int((y == 1).sum())
+    neg = len(y) - pos
+    return float((r[y.values == 1].sum() - pos * (pos + 1) / 2) / (pos * neg))
+
+
+def models(win, pm, fb, lv_text):
+    by = {r["predictor"]: r for r in win}
+    coef = json.loads((RES / "m4_coefficients.json").read_text())
+    g = pd.read_csv(RES / "m4_games.csv")
+    m4_auc = auc(g.m4_after.values, g.home_win)
+    half = src_const("forecast/win.py", r"^HALF_LIFE = ([\d.]+)", float)
+    shrink = src_const("forecast/win.py", r"^SHRINK = ([\d.]+)", float)
+    feats = src_const("forecast/win.py", r"^WIN_FEATURES = \[(.+)\]")
+    seq_len = src_const("forecast/gru.py", r"^SEQ_LEN = (\d+)", int)
+    seq_cols = src_const("forecast/history.py", r"^SEQ_COLS = \[(.+)\]")
+    sigma = src_const("forecast/inplay.py", r"sigma=([\d.]+)", float)
+    m2 = {(r["model"].split(":")[0], r["target"]): r for r in pm["m2"]}
+    m3 = {r["predictor"]: r for r in pm["m3"]}
+    m6 = {r["model"]: r for r in pm["m6"]}
+    plain = [r for t in md_tables(lv_text) for r in t if r.get("Forecaster") in ("B_chat", "B_reasoner", "mid", "A")]
+    pf = {r["Forecaster"]: r for r in plain}
+    fmt4 = lambda x: f"{x:.4f}"  # noqa: E731
+    cards = [
+        {"name": "M1a rolling average / M1b gradient boosting", "code": "forecast/baselines.py",
+         "predicts": "A player's points and minutes as quantiles (10/25/50/75/90%).",
+         "inputs": "M1a: the player's last 10 games. M1b: recent form plus teammates-out, rest and opponent features.",
+         "architecture": "M1a: rolling quantiles. M1b: gradient-boosted trees, one per quantile.",
+         "training": "Player games before 1 Feb 2026; held-out test from 1 Feb.",
+         "metric": f"Points pinball {m2[('M1a', 'points')]['pinball']:.3f} (M1a) / "
+                   f"{m2[('M1b', 'points')]['pinball']:.3f} (M1b); 10–90% coverage "
+                   f"{pct(m2[('M1a', 'points')]['coverage_10_90'])} / {pct(m2[('M1b', 'points')]['coverage_10_90'])}.",
+         "trading": "Baselines for M2; not used by the trader."},
+        {"name": "M2 GRU (deep learning)", "code": "forecast/gru.py",
+         "predicts": "A player's points and minutes as quantiles (10/25/50/75/90%).",
+         "inputs": f"Last {seq_len} games × {len(seq_cols.split(','))} columns ({seq_cols.replace(chr(34), '')}) "
+                   "plus a mask, and 17 static features (rest, teammates out, opponent pace, ...).",
+         "architecture": "GRU (64) over the sequence → concat static → MLP 64, ReLU, dropout 0.1 → 2 targets × 5 "
+                         "quantiles (monotone via softplus increments); pinball loss.",
+         "training": "Player games before 1 Feb 2026.",
+         "metric": f"Points pinball {m2[('M2', 'points')]['pinball']:.3f} vs {m2[('M1b', 'points')]['pinball']:.3f} "
+                   f"(M1b) / {m2[('M1a', 'points')]['pinball']:.3f} (M1a); coverage points "
+                   f"{pct(m2[('M2', 'points')]['coverage_10_90'])}, minutes {pct(m2[('M2', 'minutes')]['coverage_10_90'])}.",
+         "trading": "Not in the trader: M4's missing-minutes/points inputs already carry absent players' usual output."},
+        {"name": "M3 play model", "code": "forecast/play.py",
+         "predicts": "Probability a player plays in the next game.",
+         "inputs": "Availability features for every player on the team's recent roster, as of tip.",
+         "architecture": "Standardised logistic regression (C = 1).",
+         "training": "Games before 1 Feb 2026.",
+         "metric": f"Brier {fmt4(m3['M3 model']['brier'])} vs {fmt4(min(m3['Played last game']['brier'], m3['Played-rate over last 10 games']['brier']))} "
+                   f"(best simple rule), {m3['M3 model']['rows']:,} rows.",
+         "trading": "Not in the trader (different target)."},
+        {"name": "M4 win model (logistic regression)", "code": "forecast/win.py",
+         "predicts": "P(home team wins) given who is out.",
+         "inputs": f"{feats.replace(chr(34), '')}. Rating: exponentially weighted margin (half-life {half:g} games, "
+                   f"shrunk with {shrink:g} pseudo-games); absences counted for rotation players (≥ 15 min, played "
+                   "within 14 days).",
+         "architecture": "Logistic regression, C = 1. Coefficients: " + ", ".join(
+             f"{k.replace('_diff', '').replace('home_', '')} {v:+.4g}" for k, v in coef.items()) + ".",
+         "training": "Games before 1 Feb 2026.",
+         "metric": f"Brier {fmt4(by['M4 (logistic regression, absences known)']['brier'])}, accuracy "
+                   f"{pct(by['M4 (logistic regression, absences known)']['accuracy'])}, AUC {m4_auc:.3f} on "
+                   f"{len(g)} test games (Kalshi at tip: {fmt4(by['Kalshi at tip']['brier'])}).",
+         "trading": "Its news shift (after news − before news) is added to the 24 h market anchor: the published "
+                    "agent's estimate. Known flaw: the shift's 'before' uses out=[], double-counting absences already "
+                    "known at anchor time."},
+        {"name": "M4-NN MLP / GRU", "code": "forecast/win_nn.py",
+         "predicts": "P(home wins), like M4.",
+         "inputs": "MLP: M4's six features. GRU: each team's last 10 games plus the six features.",
+         "architecture": "MLP 6 → 16 → 1; GRU hidden 8; chosen on 1 Dec – 31 Jan validation; 3-seed mean.",
+         "training": "Games before 1 Feb 2026 (early stopping on Dec–Jan, then refit).",
+         "metric": f"Brier {fmt4(by['M4-NN MLP (3-seed mean)']['brier'])} (MLP) / "
+                   f"{fmt4(by['M4-NN GRU (3-seed mean)']['brier'])} (GRU); anchor + MLP shift "
+                   f"{fmt4(by['Anchor + MLP shift']['brier'])}, the best forecast we have.",
+         "trading": "A signal in the forecast blend and a candidate in model review; never adopted by the full agent."},
+        {"name": "M6 ImpactNet", "code": "forecast/impact.py",
+         "predicts": "How much the home price moves between now and tip.",
+         "inputs": "Recent price moves, spread, volume, anchor, move since anchor, hours to tip, news flags.",
+         "architecture": "Small neural net over the recent price sequence plus static features.",
+         "training": "Decision times before 1 Feb 2026.",
+         "metric": f"Null result: MAE {m6['M6 ImpactNet']['mae_c']:.3f}¢ vs {m6['zero move']['mae_c']:.3f}¢ for "
+                   f"predicting no move ({m6['M6 ImpactNet']['mae_minus_zero_c']:+.3f}¢ {m6['M6 ImpactNet']['ci']}).",
+         "trading": f"M6 agent placed {pm['m6_agent_trades_test']} trades; both M6 proposals in model review were rejected."},
+        {"name": "Forecast blend", "code": "agents/forecast_blend.py",
+         "predicts": "P(home wins) as a weighted log-odds average of 8 signals.",
+         "inputs": ", ".join(fb["signals"]) + ".",
+         "architecture": "Simplex weights, refit daily on settled games (exponentiated gradient); a gate accepts a "
+                         "refit only if held-out Brier improves by ≥ 0.0005.",
+         "training": "Walk-forward over the test period, settled games only.",
+         "metric": f"Brier {fmt4(by['Learned blend (all inputs, walk-forward)']['brier'])}; "
+                   f"{fb['counts']['accepted']} updates accepted. Final weights: {fb['final_weights']}.",
+         "trading": "Simplified offline trader only; not wired into the full agent."},
+        {"name": "In-play model", "code": "forecast/inplay.py",
+         "predicts": "P(home wins) during the game.",
+         "inputs": "Pre-game probability, live score margin, time remaining, news margin.",
+         "architecture": f"Brownian-motion (diffusion) model of the margin, σ = {sigma:g} points per game.",
+         "training": "σ fixed; pre-game prior from M4.",
+         "metric": "Demo only (synthetic in-play script).",
+         "trading": "Not used in any published trading result."},
+        {"name": "Plain LLM as a forecaster", "code": "evaluation/llm_vs_original.py",
+         "predicts": "P(home wins) from one prompt with quotes, anchors, news and M4.",
+         "inputs": "The same as-of information block as the agent.",
+         "architecture": "DeepSeek chat / reasoner, one call, no tools.",
+         "training": "None (prompted).",
+         "metric": f"Brier {pf.get('B_chat', {}).get('Brier', '–')} (chat) vs {pf.get('mid', {}).get('Brier', '–')} for "
+                   f"the current mid; mean distance to the mid {pf.get('B_chat', {}).get('Mean abs. distance to mid', '–')}: "
+                   "it essentially copies the market.",
+         "trading": "Arm B on the 40% subsample (3–5 trades)."},
+    ]
+    return {"cards": cards, "m4_auc": round(m4_auc, 3)}
+
+
+def frameworks(ag, mr, fb, pnl):
+    full = {r["setup"]: r for r in ag["full"]}
+    sub = {r["setup"]: r for r in ag["subsample"]}
+    d = sub.get("D. tool agent + sceptic (DeepSeek reasoner)", {})
+    blend = row(fb["trading"], "Forecaster", "Blend (all inputs)")
+    rows = [
+        ("Raw M4, no agent", "M4 alone", "edge > 4¢ only", "none", full["Raw M4, no agent (no anchor)"], "full"),
+        ("Anchor agent", "24 h anchor + M4 shift", "4¢ edge, checks, risk", "none",
+         full["Anchor agent, fixed 4¢ edge, no learning"], "full"),
+        ("Split-gate learning (published agent)", "24 h anchor + M4 shift", "+ learned skip rules", "rules via split gate",
+         full["Split-gate learning (published agent)"], "full"),
+        ("Learned edge threshold", "24 h anchor + M4 shift", "+ learned min edge", "rules + edge thresholds",
+         full["Learned edge threshold (base 4¢)"], "full"),
+        ("Model review + rules", "anchor + M4 (all 6 switches rejected)", "+ learned skip rules",
+         "rules + forecast switches (CLV gate)",
+         {"trades": mr["review_rules"].get("Trades"), "clv_dollars": mr["review_rules"].get("CLV $ [95% CI]"),
+          "pnl": mr["review_rules"].get("P&L after fees [95% CI]")}, "full"),
+        ("Forecast blend", "learned blend of 8 signals", "4¢ edge, one decision per game", "weights via Brier gate",
+         {"trades": blend.get("Trades"), "clv_dollars": blend.get("CLV $ [95% CI]"),
+          "pnl": blend.get("P&L after fees [95% CI]")}, "simplified"),
+        ("LLM reasoner + sceptic", "LLM estimate from 10 as-of tools", "validation, 4¢ edge, sceptic veto", "none",
+         d, "subsample"),
+        ("Never trade", "–", "–", "–", {"trades": "0", "clv_dollars": "+0", "pnl": "+0"}, "any"),
+    ]
+    window = {"full": "full test, full agent replay", "simplified": "full test, simplified offline trader",
+              "subsample": "40% subsample (304 decision points)", "any": "–"}
+    return [{"framework": n, "probability": p, "filters": f, "learning": lrn, "trades": clean_cell(x.get("trades")),
+             "clv_dollars": clean_cell(x.get("clv_dollars")), "pnl": clean_cell(x.get("pnl")),
+             "window": window[w]} for n, p, f, lrn, x, w in rows]
+
+
+def workflow_facts():
+    tools = re.findall(r'^    "([a-z_0-9]+)": \(', (ROOT / "agents" / "tools.py").read_text(), re.M)
+    g = (ROOT / "agents" / "graph.py").read_text()
+    banned = re.search(r'^BANNED = re\.compile\(r"(.+?)", re\.I\)', g, re.M)
+    max_order = src_const("agents/graph.py", r"^MAX_ORDER = ([\d.]+)", float)
+    risks = re.findall(r'return False, "([a-z_]+)"', g[g.find("def pretrade_risk"):g.find("def pretrade_risk") + 1200])
+    checks = sorted(set(re.findall(r'failures\.append\(\("([a-z_]+)"', g)))
+    ground = src_const("agents/tool_agent.py", r"^GROUND_BAND = ([\d.]+)", float)
+    caps = re.search(r"def basic_risk\(.*max_order=([\d.]+), max_game=([\d.]+), max_day=([\d.]+)\)",
+                     (ROOT / "replay.py").read_text())
+    quote = src_const("replay.py", r"^MAX_QUOTE_AGE = pd\.Timedelta\(minutes=(\d+)\)", int)
+    return {"tools": tools, "banned_regex": banned.group(1) if banned else "", "max_order": max_order,
+            "risk_reasons": risks, "checks": checks, "ground_band": ground,
+            "caps": [float(c) for c in caps.groups()] if caps else [], "max_quote_age_min": quote}
+
+
 # ---------------- takeaways ----------------
 
-def takeaways(win, ag, fb, pm):
+def takeaways(win, ag, fb, pm, mr):
     by = {r["predictor"]: r for r in win}
     best_model = min((r for r in win if r["group"] in ("our model", "anchor + model")), key=lambda r: r["brier"])
     tip = by["Kalshi at tip"]
@@ -365,8 +577,11 @@ def takeaways(win, ag, fb, pm):
         "**Every safety or learning layer helps the same way: by trading less.** Split-gate learning, the learned "
         "edge threshold, the 4¢ edge gate and the LLM sceptic all improve CLV by cutting trades, not by picking "
         "better ones.",
-        f"**The learned forecast blend** improves CLV by {ci(fb['blend_vs_agent_clv'])} vs the agent on the "
-        f"simplified trader, with no detectable P&L change ({ci(fb['blend_vs_agent_pnl'])}).",
+        f"**Better Brier ≠ better trading.** The learned blend gains {ci(fb['blend_vs_agent_clv'])} CLV only on a "
+        f"simplified trader (P&L {ci(fb['blend_vs_agent_pnl'])}, no difference). Inside the full agent, model review "
+        f"proposed {mr['proposed']} lower-Brier forecasts and the CLV gate rejected {mr['proposed'] - mr['accepted']}: "
+        f"the agent kept anchor + M4 ({mr['review_rules'].get('Trades')} trades, CLV $ "
+        f"{mr['review_rules'].get('CLV $ [95% CI]')}, same as the published agent).",
         f"**The best deep-learning results are the player models**: M2 GRU points pinball {gru['pinball']:.3f} vs "
         f"{m1['pinball']:.3f} for the best M1 baseline; M3 Brier {m3['brier']:.4f} vs {m3_base:.4f}. "
         "Next step: earlier information (official injury reports) rather than a better model.",
@@ -383,13 +598,22 @@ def main():
     pm = player_models()
     ag = agents()
     fb = forecast_blend()
+    mr = model_review()
+    pnl = pnl_curves()
+    r = mr["review_rules"]
+    ag["full"].insert(-1, tidy([{"setup": "Model review subloop + rule learning", "trades": r.get("Trades"),
+                                 "mean_clv": r.get("Mean CLV/contract [95% CI]"), "clv_dollars": r.get("CLV $ [95% CI]"),
+                                 "pnl": r.get("P&L after fees [95% CI]"), "source": "model_review.md"}])[0])
     out = {"agent": "results", "win_models": win, "players": pm, "agents": ag, "edge_gate": edge_gate(),
            "adaptive_edge": adaptive_edge(), "forecast_blend": fb, "llm_vs_original": llm_vs_original(),
-           "takeaways": takeaways(win, ag, fb, pm),
+           "model_review": mr, "pnl": pnl, "models": models(win, pm, fb, read("llm_vs_original.md")[0]),
+           "frameworks": frameworks(ag, mr, fb, pnl), "workflow": workflow_facts(),
+           "takeaways": takeaways(win, ag, fb, pm, mr),
            "sources": sorted({r["source"] for r in win} | set(pm["sources"]) |
                              {"significance.md", "adaptive_edge.md", "llm_agent.md", "edge_gate.md",
                               "forecast_blend.md", "forecast_blend_log.json", "llm_vs_original.md",
-                              "gate_audit.md"}),
+                              "gate_audit.md", "model_review.md", "pnl_compare.csv", "m4_coefficients.json",
+                              "m4_games.csv"}),
            "built_at": pd.Timestamp.now(tz="UTC").isoformat()}
     text = json.dumps(out, indent=1, default=str)
     if SECRET.search(text):
