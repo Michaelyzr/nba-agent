@@ -14,6 +14,7 @@ import pandas as pd
 NOTEBOOK = Path(__file__).resolve().parent.parent / "rules" / "notebook.json"
 SCHEMA_VERSION = "1.0"
 LIMITS = {"max_active_rules": 20, "min_cases": 3, "default_expiry_days": 45, "retry_after_days": 21}
+MAX_EDGE = 0.25                  # min_edge rules may set any threshold in (0, MAX_EDGE]
 
 WHEN_EQUAL = {"team", "opponent", "ruled_out_player", "status", "news_type", "market_kind", "back_to_back"}
 # side_price: price of the side the agent would buy; gap: edge after fees; market_move: how far the
@@ -24,8 +25,12 @@ WHEN_RANGE = {"hours_to_tip", "news_age_minutes", "losing_sessions", "side_price
 WHEN_FIELDS = WHEN_EQUAL | {f"{f}_{end}" for f in WHEN_RANGE for end in ("min", "max")}
 ACTIONS = {
     "minutes_share": "forecast", "minutes_cap": "forecast", "p_play_adjust": "forecast",
+    "forecast_blend": "forecast",
     "skip_market": "trader", "min_edge": "trader", "stake_scale": "trader",
 }
+BLEND_BASES = ("anchor", "mid")
+BLEND_WEIGHTS = ("w_m4", "w_mlp", "w_m6")
+STACK_SIZE = 5                   # forecast.blend.STACK_FEATURES
 STATUSES = ("proposed", "active", "rejected", "retired")
 
 
@@ -43,7 +48,27 @@ def validate(rule: dict) -> list:
         out.append("stake_scale may only reduce stakes")
     if action == "min_edge" and params.get("edge", 0) <= 0:
         out.append("min_edge needs a positive edge")
+    if action == "min_edge" and params.get("edge", 0) > MAX_EDGE:
+        out.append(f"min_edge above {MAX_EDGE}")
+    if action == "forecast_blend":
+        out += validate_blend(params)
     return out
+
+
+def validate_blend(params: dict) -> list:
+    """A forecast rule names a linear blend of the components or a fitted logistic stack."""
+    if params.get("name") == "stack":
+        coef = params.get("coef")
+        if (not isinstance(coef, list) or len(coef) != STACK_SIZE
+                or not all(isinstance(c, (int, float)) and abs(c) < 100 for c in coef + [params.get("intercept")])):
+            return ["stack blend needs 5 finite coefficients and an intercept"]
+        return []
+    if params.get("base") not in BLEND_BASES:
+        return [f"blend base must be one of {BLEND_BASES}"]
+    weights = [params.get(w) for w in BLEND_WEIGHTS]
+    if not all(isinstance(w, (int, float)) and 0 <= w <= 1.5 for w in weights):
+        return ["blend weights must be numbers in [0, 1.5]"]
+    return []
 
 
 def matches(rule: dict, situation: dict) -> bool:
@@ -86,6 +111,10 @@ class Notebook:
             start = r.get("valid_from")
             if start is not None and pd.Timestamp(start) > now:
                 continue
+            # A superseded rule keeps its history: active before valid_until, inactive from then on.
+            until = r.get("valid_until")
+            if until is not None and now >= pd.Timestamp(until):
+                continue
             expiry = r.get("expires_after_days")
             if start is not None and expiry and now > pd.Timestamp(start) + pd.Timedelta(days=expiry):
                 continue
@@ -98,8 +127,8 @@ class Notebook:
     def get(self, rule_id: str):
         return next((r for r in self.rules if r["rule_id"] == rule_id), None)
 
-    def next_id(self) -> str:
-        return f"r{len(self.rules) + 1:03d}"
+    def next_id(self, prefix: str = "r") -> str:
+        return f"{prefix}{len(self.rules) + 1:03d}"
 
     def seen(self, rule: dict, now) -> bool:
         """True if the same condition and action is active now or was rejected recently.
@@ -132,5 +161,5 @@ class Notebook:
     def with_candidate(self, rule: dict) -> "Notebook":
         """Copy where the candidate counts as active on every day, for back-testing it."""
         trial = copy.deepcopy(rule)
-        trial.update(status="active", valid_from=None)
+        trial.update(status="active", valid_from=None, valid_until=None)
         return Notebook(self.without(rule).rules + [trial])

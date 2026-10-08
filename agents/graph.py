@@ -13,6 +13,11 @@ One graph, two phases. "decide" runs at every replay decision time:
 
     settle -> reviewer (LLM) -> gate (back-test on earlier days only) -> save_rule | reject_rule
 
+Two opt-in learning upgrades (off by default, so published runs reproduce):
+--edge-templates (adaptive_edge=True) lets the reviewer move the market-wide edge threshold up or
+down from --base-edge; --model-review (model_review=True) adds a second subloop after the rule
+subloop, review_model -> gate_model -> save_model | reject_model, that chooses the forecast blend.
+
 LLM steps fall back to offline rules when no key is set or --llm is off, so the
 loop runs with no network. The LLMs choose and explain; code computes every
 number, and an LLM can only drop a candidate trade, never add one.
@@ -80,6 +85,53 @@ REVIEW_TEMPLATES = [   # (condition, action, blame category, how the reviewer de
     ({}, {"action": "min_edge", "params": {"edge": DEFAULT_MIN_EDGE + 0.03}}, "model_wrong",
      "the edge after fees was under 7 points"),
 ]
+# Adaptive edge (MarketAgent(adaptive_edge=True), --edge-templates): the latest accepted market-wide
+# min_edge rule sets the threshold, up or down from the base edge; slice min_edge rules only raise it.
+EDGE_LEVELS = (0.02, 0.03, 0.05, 0.07, 0.10)
+EDGE_TEMPLATES = [({}, {"action": "min_edge", "params": {"edge": e}}, "model_wrong",
+                   f"the market-wide edge threshold were {e * 100:.0f} points") for e in EDGE_LEVELS] + [
+    ({"side_price_max": 0.35}, {"action": "min_edge", "params": {"edge": 0.08}}, "model_wrong",
+     "the agent bought an underdog (35% or less) with under 8 points of edge"),
+    ({"side_price_max": 0.25}, {"action": "min_edge", "params": {"edge": 0.10}}, "model_wrong",
+     "the agent bought a long shot (25% or less) with under 10 points of edge"),
+    ({"news_age_minutes_min": STALE_NEWS_MINUTES}, {"action": "min_edge", "params": {"edge": 0.07}},
+     "market_priced_in", "there was no fresh news and the edge was under 7 points"),
+]
+ADAPTIVE_TEMPLATES = [t for t in REVIEW_TEMPLATES if t[1]["action"] != "min_edge"] + EDGE_TEMPLATES
+# Model review (MarketAgent(model_review=True), --model-review): every MODEL_REVIEW_EVERY market days the
+# reviewer picks a forecast blend on the last SELECT_DAYS market days and the gate back-tests it on the
+# GATE_DAYS before them. Its windows start at MODEL_REVIEW_FROM, the first day no forecast model trained on.
+MODEL_REVIEW_FROM = "2026-02-01"
+MODEL_REVIEW_EVERY = 7
+FORECAST_OVERRIDES = {"minutes_share", "minutes_cap", "p_play_adjust"}
+
+
+def is_global_edge(rule: dict) -> bool:
+    """A min_edge rule with no condition beyond the market kind: it sets the market-wide threshold."""
+    return rule["do"]["action"] == "min_edge" and set(rule.get("when", {})) <= {"market_kind"}
+
+
+def _recency(rule: dict) -> tuple:
+    # A gate trial (valid_from None) counts as the newest rule, so it overrides the live threshold.
+    start = rule.get("valid_from")
+    return (start is None, pd.Timestamp(start) if start is not None else pd.Timestamp(0, tz="UTC"),
+            rule.get("rule_id", ""))
+
+
+def effective_edge(base: float, rules: list, adaptive: bool = False) -> float:
+    """Threshold for one decision from the base edge and the matching active trader rules.
+
+    Default: the highest of the base and every min_edge rule (rules can only raise it).
+    Adaptive: the newest market-wide min_edge rule replaces the base (raise or lower), then
+    slice rules can only raise it.
+    """
+    edges = [r for r in rules if r["do"]["action"] == "min_edge"]
+    if not adaptive:
+        return max([base] + [r["do"]["params"]["edge"] for r in edges])
+    glob = [r for r in edges if is_global_edge(r)]
+    if glob:
+        base = max(glob, key=_recency)["do"]["params"]["edge"]
+    return max([base] + [r["do"]["params"]["edge"] for r in edges if not is_global_edge(r)])
 
 
 class State(TypedDict, total=False):
@@ -104,6 +156,9 @@ class State(TypedDict, total=False):
     replay: Any
     proposal: Optional[dict]
     gate: dict
+    components: dict
+    model_proposal: Optional[dict]
+    model_gate: dict
     trace: Annotated[list, operator.add]
 
 
@@ -260,10 +315,20 @@ class MarketAgent:
                  learn: bool = True, stake: float = DEFAULT_STAKE, channel: str = "platform", plant=None,
                  anchor: bool = True, impact=None, min_edge: float = DEFAULT_MIN_EDGE, gate: str = "legacy",
                  sizing: str = "flat", kelly_fraction: float = DEFAULT_KELLY_FRACTION,
-                 bankroll: float = DEFAULT_BANKROLL, forecast_cache: dict | None = None):
+                 bankroll: float = DEFAULT_BANKROLL, forecast_cache: dict | None = None,
+                 adaptive_edge: bool = False, model_review: bool = False, components: Callable | None = None):
         if gate not in GATE_MODES or sizing not in SIZINGS:
             raise ValueError(f"gate must be one of {GATE_MODES} and sizing one of {SIZINGS}")
+        if model_review and components is None:
+            raise ValueError("model_review needs a components source (forecast.blend.Components)")
         self.notebook = notebook or Notebook()
+        self.adaptive_edge = adaptive_edge
+        self.model_review = model_review
+        # forecast.blend.Components: MLP shift and M6 move per decision; with it the agent logs every
+        # decision point's components (home terms) in component_log, keyed (game_id, as_of).
+        self.components = components
+        self.component_log = {}
+        self.candidates_seen = {}       # adaptive only: (market_ticker, as_of) -> candidate, traded or not
         self.anchor = anchor
         self.gate_mode = gate
         self.sizing, self.kelly_fraction, self.bankroll = sizing, kelly_fraction, bankroll
@@ -317,7 +382,8 @@ class MarketAgent:
                 how = f"offline rules ({self.llm_name} failed: {exc.__class__.__name__})"
         situations = [{"ruled_out_player": p, "status": "out",
                        "hours_to_tip": minutes_between(now, state["game"].tip_time) / 60} for p in found["out"]]
-        rules = {r["rule_id"]: r for s in situations for r in self.notebook.matching(s, now, "forecast")}
+        rules = {r["rule_id"]: r for s in situations for r in self.notebook.matching(s, now, "forecast")
+                 if r["do"]["action"] in FORECAST_OVERRIDES}
         overrides = {"out": list(found["out"])}
         for r in rules.values():
             overrides.setdefault(r["do"]["action"], []).append(r["do"]["params"])
@@ -350,7 +416,61 @@ class MarketAgent:
         after = self._forecast(view, game, markets, overrides)
         forecasts = {t: {"before": before[t], "after": after[t]} for t in after}
         shown = ", ".join(f"{t.rsplit('-', 1)[-1]} {f['before']:.2f}->{f['after']:.2f}" for t, f in forecasts.items())
-        return {"forecasts": forecasts, "trace": log("forecast", shown or "no market the models cover")}
+        out = {"forecasts": forecasts, "trace": log("forecast", shown or "no market the models cover")}
+        if self.components is not None:
+            key = ("components", game.game_id, pd.Timestamp(view.now).value, json.dumps(overrides, sort_keys=True,
+                                                                                      default=str))
+            if key not in self.forecast_cache:
+                self.forecast_cache[key] = self.components(view, game, overrides.get("out", []), view.now)
+            out["components"] = dict(self.forecast_cache[key])
+        return out
+
+    def active_blend(self, now) -> dict:
+        """Params of the newest active forecast_blend rule, or the default anchor + M4 shift."""
+        from forecast.blend import DEFAULT_BLEND
+        rules = [r for r in self.notebook.active(now, "forecast") if r["do"]["action"] == "forecast_blend"]
+        return max(rules, key=_recency)["do"]["params"] if rules else DEFAULT_BLEND
+
+    @staticmethod
+    def _is_default_blend(params) -> bool:
+        return (params.get("name") != "stack" and params.get("base") == "anchor" and params.get("w_m4") == 1.0
+                and params.get("w_mlp") == 0.0 and params.get("w_m6") == 0.0)
+
+    def _log_components(self, view, game, now, state):
+        """Home-terms component row for this decision point (logged), or None without a fresh home quote."""
+        markets = state["markets"]
+        home = markets[(markets.team == game.home_team) & (markets.kind == "game")].market_ticker
+        if home.empty or home.iloc[0] not in state["forecasts"]:
+            return None
+        ticker = home.iloc[0]
+        q, anchor = self._fresh_quote(view, ticker, now), self._anchor_mid(view, ticker, game)
+        if q is None or anchor is None:
+            return None
+        f, comp = state["forecasts"][ticker], state["components"]
+        row = {"anchor": anchor, "mid": float((q.bid + q.ask) / 2), "m4": f["after"] - f["before"],
+               "mlp": comp.get("mlp"), "m6": comp.get("m6")}
+        blend = self.active_blend(now) if self.model_review else None
+        if blend is None or self._is_default_blend(blend):
+            used, name = clip(anchor + row["m4"]), "m4"
+        else:
+            used, name = self._blend_p(blend, True, anchor, row["mid"], row["m4"], comp, row), blend["name"]
+        self.component_log[(game.game_id, now)] = {"game_id": game.game_id, "as_of": now, "tip_time": game.tip_time,
+                                                   "date": game.date, **row, "p_used": used, "blend": name}
+        return row
+
+    def _blend_p(self, params, home, anchor, mid, m4_shift, comp, home_row):
+        """P(yes) for one ticker under a blend; None if a component the blend needs is missing."""
+        from forecast.blend import blend_home
+        if params["name"] == "stack":
+            return None if home_row is None else (lambda p: p if home else 1 - p)(
+                float(blend_home(params, pd.DataFrame([home_row]))[0]))
+        sign = 1.0 if home else -1.0
+        mlp, m6 = comp.get("mlp"), comp.get("m6")
+        if (params["w_m6"] and m6 is None) or (params["w_mlp"] and mlp is None) or anchor is None:
+            return None
+        base = anchor if params["base"] == "anchor" else mid
+        return clip(base + params["w_m4"] * m4_shift + params["w_mlp"] * sign * (mlp or 0.0)
+                    + params["w_m6"] * sign * (m6 or 0.0))
 
     def _forecast(self, view, game, markets, overrides):
         key = (game.game_id, pd.Timestamp(view.now).value, tuple(markets.market_ticker),
@@ -373,6 +493,11 @@ class MarketAgent:
         age = minutes_between(news.published_at.max(), now) if len(news) else NO_NEWS_AGE
         rows = []
         impact = self.impact.predict(view, game, now) if self.impact is not None else None
+        comp = state.get("components")
+        blend = self.active_blend(now) if self.model_review else None
+        if blend is not None and self._is_default_blend(blend):
+            blend = None
+        home_row = self._log_components(view, game, now, state) if comp is not None else None
         for ticker, f in state["forecasts"].items():
             m, q = markets.loc[ticker], self._fresh_quote(view, ticker, now)
             if q is None or (self.impact is not None and impact is None):
@@ -383,6 +508,11 @@ class MarketAgent:
             if impact is not None:
                 p_home = clip(impact["mid"] + impact["move"])
                 p, base = (p_home, impact["mid"]) if home else (1 - p_home, 1 - impact["mid"])
+            elif blend is not None:
+                p = self._blend_p(blend, home, anchor, float((q.bid + q.ask) / 2), shift, comp, home_row)
+                if p is None:
+                    continue
+                base = anchor
             # Anchored: the market is the base rate and only the model's news shift is traded.
             else:
                 p = clip(anchor + shift) if anchor is not None else f["after"]
@@ -398,8 +528,7 @@ class MarketAgent:
                          "model_shift": float(abs(shift)), "placebo_bucket": placebo_bucket(ticker, now)}
             self.situations[(ticker, now)] = situation
             rules = self.notebook.matching(situation, now, "trader")
-            min_edge = max([self.min_edge] + [r["do"]["params"]["edge"] for r in rules
-                                              if r["do"]["action"] == "min_edge"])
+            min_edge = effective_edge(self.min_edge, rules, self.adaptive_edge)
             scale = min([1.0] + [r["do"]["params"]["scale"] for r in rules if r["do"]["action"] == "stake_scale"])
             skip = [r["rule_id"] for r in rules if r["do"]["action"] == "skip_market"]
             price = situation["side_price"]
@@ -416,6 +545,12 @@ class MarketAgent:
         for r in rows:
             if r["act"] and (game.game_id in self.held or r is not best):
                 r.update(act=False, why_not="one position per game")
+        if self.adaptive_edge:
+            for r in rows:
+                self.candidates_seen[(r["ticker"], now)] = {
+                    "ticker": r["ticker"], "game_id": game.game_id, "as_of": now, "tip_time": game.tip_time, "side": r["side"],
+                    "price": r["ask"] if r["side"] == "yes" else 1 - r["bid"], "stake": r["stake"], "gap": r["gap"],
+                    "min_edge": r["min_edge"], "skipped": r["why_not"].startswith("rule ")}
         how = "offline rules"
         if self.use_llm and any(r["act"] for r in rows):
             try:
@@ -578,7 +713,10 @@ class MarketAgent:
         recent = self.selection(rp, fills, day)
         if recent.empty:
             return {"proposal": None, "trace": log("review", "no settled trades in the selection window")}
-        proposal, how = self._review_offline(recent), "offline rules"
+        if self.adaptive_edge:
+            proposal, how = self._review_adaptive(recent, rp, day), "offline rules, adaptive edge"
+        else:
+            proposal, how = self._review_offline(recent), "offline rules"
         if self.use_llm:
             try:
                 # legacy showed the LLM every losing trade so far, which overlaps the gate's test days
@@ -608,16 +746,101 @@ class MarketAgent:
                             index=fills.index)
 
     @staticmethod
-    def template_mask(sit: pd.DataFrame, when: dict, do: dict) -> pd.Series:
-        """Trades a template's condition covers (min_edge: trades whose gap was below the new edge)."""
-        if do["action"] == "min_edge":
+    def template_mask(sit: pd.DataFrame, when: dict, do: dict, current: float | None = None) -> pd.Series:
+        """Decisions a template's condition covers.
+
+        min_edge with current=None (the published reviewer): trades whose gap was below the new edge,
+        ignoring the condition. With the threshold in force (`current`, adaptive edge) the condition
+        applies too: raising covers trades with current < gap <= new edge (they stop trading);
+        lowering covers candidates with new edge < gap <= current (the current threshold blocked them,
+        the new one lets them trade), so it must be applied to blocked candidates, not fills.
+        """
+        if do["action"] == "min_edge" and current is None:
             return sit.get("gap", pd.Series(np.nan, index=sit.index)) < do["params"]["edge"]
         mask = pd.Series(True, index=sit.index)
         for key, want in when.items():
+            if key in ("market_kind",):
+                continue
             name, end = key.rsplit("_", 1)
             have = sit.get(name, pd.Series(np.nan, index=sit.index))
             mask &= (have >= want) if end == "min" else (have <= want)
+        if do["action"] == "min_edge":
+            gap, edge = sit.get("gap", pd.Series(np.nan, index=sit.index)), do["params"]["edge"]
+            mask &= (gap <= edge) & (gap > current) if edge >= current else (gap > edge) & (gap <= current)
         return mask
+
+    def current_global_edge(self, now) -> float:
+        """Market-wide threshold in force at `now`: the newest active market-wide min_edge rule, or the base."""
+        glob = [r for r in self.notebook.active(now, "trader") if is_global_edge(r)]
+        return max(glob, key=_recency)["do"]["params"]["edge"] if glob else self.min_edge
+
+    def blocked_candidates(self, rp, game_ids, traded_games) -> pd.DataFrame:
+        """Per untraded game, decisions the threshold (not a skip rule) blocked, with counterfactual CLV.
+
+        Keeps the best-gap market per decision time (one position per game). CLV is the side's mid at
+        tip minus the price that would have been paid, the same as replay settles a fill.
+        """
+        rows = [c for c in self.candidates_seen.values()
+                if c["game_id"] in game_ids and c["game_id"] not in traded_games and not c["skipped"]]
+        if not rows:
+            return pd.DataFrame(columns=["game_id", "as_of", "gap", "clv", "contracts"])
+        frame = pd.DataFrame(rows)
+        frame = frame.sort_values("gap", ascending=False).drop_duplicates(["game_id", "as_of"])
+        close = {}
+        for t, tip in set(zip(frame.ticker, frame.tip_time)):
+            q = replay.AsOf(rp.t, tip, rp.price_index).quote(t)
+            close[t] = float((q.bid + q.ask) / 2) if q is not None else np.nan
+        mid = frame.ticker.map(close)
+        frame["clv"] = np.where(frame.side == "yes", mid, 1 - mid) - frame.price
+        frame["contracts"] = np.floor(frame.stake / frame.price + 1e-9)
+        return frame.sort_values("as_of").reset_index(drop=True)
+
+    def _review_adaptive(self, recent, rp, day):
+        """The published reviewer's templates plus edge templates, scored by CLV dollars gained on recent days.
+
+        Skip and raise-edge templates gain the CLV dollars of the trades they would remove. A lower
+        market-wide edge gains the counterfactual CLV dollars of the first decision per untraded game
+        it would let through. Ignores later re-entries and the one-position interaction; the gate's
+        back-test is exact.
+        """
+        now = pd.Timestamp(recent.as_of.max())
+        current = self.current_global_edge(now)
+        sit = self.situation_frame(recent)
+        dollars = recent.clv * recent.contracts
+        games = rp.t["games"]
+        chosen, _ = gate_windows(rp, day, self.gate_mode)
+        window_games = set(games.loc[games.date.isin(chosen), "game_id"]) if chosen else set(recent.game_id)
+        blocked = None
+        best = None
+        for when, do, blame, says in ADAPTIVE_TEMPLATES:
+            glob = do["action"] == "min_edge" and not when
+            if glob and math.isclose(do["params"]["edge"], current):
+                continue
+            if glob and do["params"]["edge"] < current:
+                if blocked is None:
+                    blocked = self.blocked_candidates(rp, window_games, set(recent.game_id))
+                hit = blocked[self.template_mask(blocked, when, do, current)].drop_duplicates("game_id")
+                gain = float((hit.clv * hit.contracts).sum())
+                if len(hit) < 2 * LIMITS["min_cases"] or hit.clv.mean() <= 0:
+                    continue
+                text = (f"{len(hit)} recent decisions blocked by the {current * 100:.0f}-point threshold would have "
+                        f"averaged {hit.clv.mean():+.3f} closing-line value ({gain:+.2f} dollars) if {says}.")
+                source = recent.iloc[:0]
+            else:
+                mask = self.template_mask(sit, when, do, current if do["action"] == "min_edge" else None)
+                hit = recent[mask]
+                gain = -float(dollars[mask].sum())
+                if len(hit) < 2 * LIMITS["min_cases"] or hit.clv.mean() >= 0:
+                    continue
+                text = (f"{len(hit)} recent trades where {says} averaged {hit.clv.mean():+.3f} closing-line "
+                        f"value ({-gain:+.2f} dollars).")
+                source = hit
+            rule = self._rule({"market_kind": "game", **when}, do, blame, text, source)
+            if self.notebook.seen(rule, now):
+                continue
+            if best is None or gain > best[0]:
+                best = (gain, rule)
+        return None if best is None else best[1]
 
     def _review_offline(self, recent):
         """Blame the slice of recent trades that lost the most closing-line value and propose a rule for it.
@@ -688,16 +911,17 @@ class MarketAgent:
         with_rule = self.backtest(rp, self.notebook.with_candidate(rule), days[0], days[-1])
         return {**evidence, **judge(without, with_rule, mode)}
 
-    def backtest(self, rp, notebook, start, end) -> pd.DataFrame:
+    def backtest(self, rp, notebook, start, end, return_agent=False):
         """Replay earlier days with an offline, non-learning copy of this agent."""
         child = MarketAgent(notebook, self.forecaster, self.risk, self.confirm, use_llm=False, learn=False,
                             stake=self.stake, channel=self.channel, anchor=self.anchor, impact=self.impact,
                             min_edge=self.min_edge, gate=self.gate_mode, sizing=self.sizing,
                             kelly_fraction=self.kelly_fraction, bankroll=self.bankroll,
-                            forecast_cache=self.forecast_cache)
+                            forecast_cache=self.forecast_cache, adaptive_edge=self.adaptive_edge,
+                            model_review=self.model_review, components=self.components)
         _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee, kill_switch=getattr(rp, "kill_switch", None),
                           price_index=getattr(rp, "price_index", None)).run(start, end)
-        return fills
+        return (fills, child) if return_agent else fills
 
     def save_rule(self, state):
         g = state["gate"]
@@ -705,6 +929,11 @@ class MarketAgent:
                if (r["when"], r["do"]) == (state["proposal"]["when"], state["proposal"]["do"])]
         rule = {**state["proposal"], "status": "active", "proposed_at": g["decided_at"], "gate": g,
                 "valid_from": g["decided_at"], "supersedes": old[-1] if old else None}
+        if self.adaptive_edge and is_global_edge(rule):
+            replaced = [r for r in self.notebook.active(g["decided_at"], "trader") if is_global_edge(r)]
+            for r in replaced:
+                r["valid_until"] = g["decided_at"]
+            rule["supersedes"] = replaced[-1]["rule_id"] if replaced else rule["supersedes"]
         self.notebook.record(rule)
         return {"trace": log("save_rule", f"{rule['rule_id']} active from {g['decided_at']}")}
 
@@ -716,6 +945,118 @@ class MarketAgent:
                 "valid_from": None}
         self.notebook.record(rule)
         return {"trace": log("reject_rule", f"{rule['rule_id']}: {g['reason']}")}
+
+    # ---------------- model review: a second subloop that chooses the forecast blend ----------------
+
+    @staticmethod
+    def model_windows(rp, day) -> tuple:
+        """(selection days, gate days) for a model review after `day`, or None when none is due.
+
+        Only market days from MODEL_REVIEW_FROM count, so no window holds a game a model trained on.
+        Due after every MODEL_REVIEW_EVERY market days once SELECT_DAYS + GATE_DAYS are available.
+        """
+        days = [d for d in market_days(rp, day) if d >= MODEL_REVIEW_FROM]
+        need = SELECT_DAYS + GATE_DAYS
+        if not days or days[-1] != day or len(days) < need or (len(days) - need) % MODEL_REVIEW_EVERY:
+            return None
+        return days[-SELECT_DAYS:], days[-need:-SELECT_DAYS]
+
+    def component_frame(self, rp, days, log: dict | None = None) -> pd.DataFrame:
+        """Logged decision points on `days` with the home team's result (all final by the review)."""
+        rows = [r for r in (self.component_log if log is None else log).values() if r["date"] in set(days)]
+        if not rows:
+            return pd.DataFrame()
+        games = rp.t["games"].set_index("game_id")
+        frame = pd.DataFrame(rows)
+        frame["home_win"] = (games.loc[frame.game_id, "home_pts"].to_numpy()
+                             > games.loc[frame.game_id, "away_pts"].to_numpy()).astype(float)
+        return frame
+
+    def review_model(self, state):
+        """Pick the candidate blend with the lowest Brier on the selection days (the stack is fit there)."""
+        from forecast.blend import CANDIDATE_BLENDS, blend_home, brier, fit_stack
+        rp, day = state["replay"], state["day"]
+        windows = self.model_windows(rp, day)
+        if windows is None:
+            return {"model_proposal": None, "trace": log("review_model", "not due")}
+        chosen, _ = windows
+        frame = self.component_frame(rp, chosen)
+        if len(frame) < 20:
+            return {"model_proposal": None, "trace": log("review_model", f"only {len(frame)} decision points")}
+        games = rp.t["games"]
+        now = games.loc[games.date == day, "final_at"].max()
+        scores, params = {}, {}
+        for cand in CANDIDATE_BLENDS:
+            p = fit_stack(frame) if cand["name"] == "stack" else cand
+            if p is None:
+                continue
+            need = frame.m6.notna() if p.get("w_m6") or p["name"] == "stack" else pd.Series(True, index=frame.index)
+            need &= frame.mlp.notna() if p.get("w_mlp") or p["name"] == "stack" else True
+            if need.mean() < 0.8:
+                continue
+            scores[p["name"]] = brier(blend_home(p, frame[need]), frame.home_win[need])
+            params[p["name"]] = p
+        current = self.active_blend(now)
+        used = frame.p_used.notna()
+        cur_score = brier(frame.p_used[used].astype(float), frame.home_win[used])
+        if not scores:
+            return {"model_proposal": None, "trace": log("review_model", "no candidate had enough components")}
+        best = min(scores, key=scores.get)
+        table = ", ".join(f"{k} {v:.4f}" for k, v in sorted(scores.items(), key=lambda kv: kv[1]))
+        if best == current["name"] or scores[best] >= cur_score:
+            return {"model_proposal": None, "trace": log("review_model", f"keep {current['name']}: Brier {table}")}
+        rule = {"rule_id": self.notebook.next_id("f"), "version": 1, "kind": "forecast", "status": "proposed",
+                "when": {"market_kind": "game"}, "do": {"action": "forecast_blend", "params": params[best]},
+                "rationale": (f"On {len(frame)} decision points ({chosen[0]}..{chosen[-1]}) blend {best} had Brier "
+                              f"{scores[best]:.4f} vs {cur_score:.4f} for the forecasts used ({current['name']}). "
+                              f"All: {table}."),
+                "proposed_by": "model_reviewer@offline", "blame_category": "model_wrong", "source_trades": [],
+                "priority": 1, "expires_after_days": LIMITS["default_expiry_days"],
+                "selection": {"days": [chosen[0], chosen[-1]], "rows": int(len(frame)), "brier": scores}}
+        if validate(rule) or self.notebook.seen(rule, now):
+            return {"model_proposal": None, "trace": log("review_model", f"dropped {best}: invalid or seen")}
+        return {"model_proposal": rule, "trace": log("review_model", f"propose {best}: Brier {table}")}
+
+    def gate_model(self, state):
+        """Back-test with vs without the blend on the gate days: CLV $ must rise >= GATE_DOLLARS and Brier not worsen."""
+        from forecast.blend import blend_home, brier
+        rp, day, rule = state["replay"], state["day"], state["model_proposal"]
+        _, days = self.model_windows(rp, day)
+        games = rp.t["games"]
+        evidence = {"decided_at": games.loc[games.date == day, "final_at"].max(), "mode": "model",
+                    "backtest_days": [days[0], days[-1]], "metric": "clv_dollars+brier", "threshold": GATE_DOLLARS}
+        without, child = self.backtest(rp, self.notebook.without(rule), days[0], days[-1], return_agent=True)
+        with_rule = self.backtest(rp, self.notebook.with_candidate(rule), days[0], days[-1])
+        verdict = judge(without, with_rule, "split")
+        frame = self.component_frame(rp, days, child.component_log)
+        p = rule["do"]["params"]
+        ok_rows = (frame.m6.notna() & frame.mlp.notna() & frame.p_used.notna()) if len(frame) else pd.Series(dtype=bool)
+        b_old = brier(frame.p_used[ok_rows].astype(float), frame.home_win[ok_rows]) if ok_rows.any() else np.nan
+        b_new = brier(blend_home(p, frame[ok_rows]), frame.home_win[ok_rows]) if ok_rows.any() else np.nan
+        accept = verdict["result"] == "accepted" and b_new <= b_old
+        reason = verdict["reason"] + f"; Brier {b_old:.4f} -> {b_new:.4f} on {int(ok_rows.sum())} decision points"
+        g = {**evidence, **verdict, "brier_before": b_old, "brier_after": b_new, "brier_rows": int(ok_rows.sum()),
+             "result": "accepted" if accept else "rejected", "reason": reason}
+        return {"model_gate": g, "trace": log("gate_model", f"{g['result']}: {reason}")}
+
+    def save_model(self, state):
+        g, proposal = state["model_gate"], state["model_proposal"]
+        rule = {**proposal, "status": "active", "proposed_at": g["decided_at"], "gate": g,
+                "valid_from": g["decided_at"]}
+        replaced = [r for r in self.notebook.active(g["decided_at"], "forecast") if r["do"]["action"] == "forecast_blend"]
+        for r in replaced:
+            r["valid_until"] = g["decided_at"]
+        rule["supersedes"] = replaced[-1]["rule_id"] if replaced else None
+        self.notebook.record(rule)
+        return {"trace": log("save_model", f"{rule['rule_id']} blend {proposal['do']['params']['name']} active "
+                                           f"from {g['decided_at']}")}
+
+    def reject_model(self, state):
+        g = state["model_gate"]
+        rule = {**state["model_proposal"], "status": "rejected", "proposed_at": g["decided_at"], "gate": g,
+                "valid_from": None}
+        self.notebook.record(rule)
+        return {"trace": log("reject_model", f"{rule['rule_id']}: {g['reason']}")}
 
     # ---------------- wiring ----------------
 
@@ -763,11 +1104,24 @@ class MarketAgent:
         g.add_edge("deliver", END)
 
         g.add_edge("settle", "review")
-        g.add_conditional_edges("review", lambda s: "gate" if s.get("proposal") else END, ["gate", END])
+        # With model review, the rule subloop hands over to the model subloop instead of ending. They run one
+        # after the other (not as parallel branches) because the forecasters' history caches are not thread-safe.
+        done = "review_model" if self.model_review else END
+        g.add_conditional_edges("review", lambda s: "gate" if s.get("proposal") else done, ["gate", done])
         g.add_conditional_edges("gate", lambda s: "save_rule" if s["gate"]["result"] == "accepted"
                                 else "reject_rule", ["save_rule", "reject_rule"])
-        g.add_edge("save_rule", END)
-        g.add_edge("reject_rule", END)
+        g.add_edge("save_rule", done)
+        g.add_edge("reject_rule", done)
+        if self.model_review:
+            for name, fn in [("review_model", self.review_model), ("gate_model", self.gate_model),
+                             ("save_model", self.save_model), ("reject_model", self.reject_model)]:
+                g.add_node(name, fn)
+            g.add_conditional_edges("review_model", lambda s: "gate_model" if s.get("model_proposal") else END,
+                                    ["gate_model", END])
+            g.add_conditional_edges("gate_model", lambda s: "save_model" if s["model_gate"]["result"] == "accepted"
+                                    else "reject_model", ["save_model", "reject_model"])
+            g.add_edge("save_model", END)
+            g.add_edge("reject_model", END)
         return g.compile()
 
     @staticmethod
@@ -829,6 +1183,13 @@ def main():
     ap.add_argument("--sizing", choices=SIZINGS, default="flat")
     ap.add_argument("--kelly-fraction", type=float, default=DEFAULT_KELLY_FRACTION)
     ap.add_argument("--bankroll", type=float, default=DEFAULT_BANKROLL)
+    ap.add_argument("--base-edge", type=float, default=DEFAULT_MIN_EDGE,
+                    help="starting edge threshold after fees (default 0.04)")
+    ap.add_argument("--edge-templates", action="store_true",
+                    help="adaptive edge: the reviewer may propose market-wide thresholds (raise or lower) and "
+                         "slice-specific edges; the gate decides")
+    ap.add_argument("--model-review", action="store_true",
+                    help="second subloop: weekly choose a forecast blend (M4, MLP, M6, stack) and gate it")
     args = ap.parse_args()
 
     forecaster = record_forecaster
@@ -839,9 +1200,16 @@ def main():
     if args.signal == "impact":
         from forecast.impact import MODEL_PATH, load_impact
         impact = load_impact(args.impact_model or MODEL_PATH)
+    components = None
+    if args.model_review:
+        from forecast.blend import Components, load_mlp
+        from forecast.impact import MODEL_PATH as M6_PATH, load_impact as load_m6
+        components = Components(forecaster, load_mlp(), load_m6(args.impact_model or M6_PATH))
     agent = MarketAgent(Notebook.load(args.notebook) if args.notebook else Notebook(), forecaster=forecaster,
                         use_llm=args.llm, learn=not args.no_learn, plant=args.plant, impact=impact, gate=args.gate,
-                        sizing=args.sizing, kelly_fraction=args.kelly_fraction, bankroll=args.bankroll)
+                        sizing=args.sizing, kelly_fraction=args.kelly_fraction, bankroll=args.bankroll,
+                        min_edge=args.base_edge, adaptive_edge=args.edge_templates,
+                        model_review=args.model_review, components=components)
     if args.draw:
         print(agent.graph.get_graph().draw_mermaid())
         return
