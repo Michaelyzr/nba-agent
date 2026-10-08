@@ -1,0 +1,491 @@
+{
+ "agent": "results",
+ "source": "evaluation/results/llm_agent.md on origin/results/deepseek-llm-agent",
+ "punchline": "Works correctly and safely, but finds no edge; the sceptic helps only by vetoing ~95% of trades \u2014 like every upgrade, it wins by trading less.",
+ "models": {
+  "deepseek-chat": {
+   "label": "DeepSeek chat",
+   "scoreboard": [
+    {
+     "Setup": "A. Deterministic anchor agent (no learning)",
+     "Trades": "53",
+     "Mean CLV [95% CI]": "-0.0042 [-0.0090, +0.0015]",
+     "CLV $ [95% CI]": "-19 [-36, -1]",
+     "P&L after fees [95% CI]": "-236 [-538, +73]",
+     "p (CLV > 0)": "0.959"
+    },
+    {
+     "Setup": "B. Plain LLM, one call (no tools) (`deepseek-chat`)",
+     "Trades": "3",
+     "Mean CLV [95% CI]": "-0.0083 [-0.0150, -0.0050]",
+     "CLV $ [95% CI]": "-1 [-2, +0]",
+     "P&L after fees [95% CI]": "+44 [+0, +101]",
+     "p (CLV > 0)": "1.000"
+    },
+    {
+     "Setup": "C. Tool agent, no sceptic (`deepseek-chat`)",
+     "Trades": "4",
+     "Mean CLV [95% CI]": "-0.0025 [-0.0050, +0.0050]",
+     "CLV $ [95% CI]": "-1 [-2, +0]",
+     "P&L after fees [95% CI]": "-42 [-123, +34]",
+     "p (CLV > 0)": "1.000"
+    },
+    {
+     "Setup": "D. Tool agent + priced-in sceptic (`deepseek-chat`)",
+     "Trades": "0",
+     "Mean CLV [95% CI]": "\u2013",
+     "CLV $ [95% CI]": "+0 [+0, +0]",
+     "P&L after fees [95% CI]": "+0 [+0, +0]",
+     "p (CLV > 0)": "\u2013"
+    },
+    {
+     "Setup": "B\u2032. Plain LLM, one call (no tools), earlier run (`gemini-3.5-flash-lite`)",
+     "Trades": "5",
+     "Mean CLV [95% CI]": "-0.0030 [-0.0150, +0.0150]",
+     "CLV $ [95% CI]": "-1 [-4, +2]",
+     "P&L after fees [95% CI]": "-31 [-96, +22]",
+     "p (CLV > 0)": "0.741"
+    },
+    {
+     "Setup": "Never trade",
+     "Trades": "0",
+     "Mean CLV [95% CI]": "\u2013",
+     "CLV $ [95% CI]": "+0 [+0, +0]",
+     "P&L after fees [95% CI]": "+0 [+0, +0]",
+     "p (CLV > 0)": "\u2013"
+    }
+   ],
+   "paired": [
+    {
+     "Comparison": "anchor \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-19 [-36, -1]",
+     "p": "0.983"
+    },
+    {
+     "Comparison": "anchor \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "-236 [-538, +73]",
+     "p": "0.932"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "-0.0041 [-0.0119, +0.0031]",
+     "p": "0.885"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+18 [+1, +35]",
+     "p": "0.019"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+280 [-48, +595]",
+     "p": "0.048"
+    },
+    {
+     "Comparison": "plain \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-1 [-2, +0]",
+     "p": "0.931"
+    },
+    {
+     "Comparison": "plain \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+44 [+0, +101]",
+     "p": "0.054"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0017 [-0.0054, +0.0094]",
+     "p": "0.277"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+18 [-0, +36]",
+     "p": "0.021"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+194 [-127, +504]",
+     "p": "0.103"
+    },
+    {
+     "Comparison": "tool \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-1 [-2, +0]",
+     "p": "0.846"
+    },
+    {
+     "Comparison": "tool \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "-42 [-123, +34]",
+     "p": "0.888"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0042 [-0.0015, +0.0090]",
+     "p": "0.041"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+19 [+1, +36]",
+     "p": "0.018"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+236 [-73, +538]",
+     "p": "0.069"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+0 [+0, +0]",
+     "p": "\u2013"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+0 [+0, +0]",
+     "p": "\u2013"
+    },
+    {
+     "Comparison": "plain_gemini \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0012 [-0.0090, +0.0155]",
+     "p": "0.383"
+    },
+    {
+     "Comparison": "plain_gemini \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+18 [+1, +35]",
+     "p": "0.019"
+    },
+    {
+     "Comparison": "plain_gemini \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+206 [-113, +528]",
+     "p": "0.109"
+    },
+    {
+     "Comparison": "plain_gemini \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-1 [-4, +2]",
+     "p": "0.764"
+    },
+    {
+     "Comparison": "plain_gemini \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "-31 [-96, +22]",
+     "p": "0.834"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0025 [-0.0050, +0.0050]",
+     "p": "0.358"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+1 [-0, +2]",
+     "p": "0.156"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+42 [-34, +123]",
+     "p": "0.113"
+    }
+   ],
+   "diagnostics": [
+    {
+     "Setup": "plain",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "0.0",
+     "Buy proposals": "304",
+     "Invalid (rate)": "0 (0.0%)",
+     "Gap fails": "301",
+     "Sceptic rejects / calls": "\u2013",
+     "Vetoed vs kept CLV": "\u2013",
+     "Trades outside A's games": "0%",
+     "LLM calls (cache hits)": "304 (4)",
+     "Tokens in / out": "168,709 / 21,378",
+     "Cost": "$0.07",
+     "Latency / call": "1.90s"
+    },
+    {
+     "Setup": "tool",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "7.2",
+     "Buy proposals": "18",
+     "Invalid (rate)": "5 (1.6%)",
+     "Gap fails": "9",
+     "Sceptic rejects / calls": "\u2013",
+     "Vetoed vs kept CLV": "\u2013",
+     "Trades outside A's games": "25%",
+     "LLM calls (cache hits)": "815 (815)",
+     "Tokens in / out": "955,851 / 132,103",
+     "Cost": "$0.40",
+     "Latency / call": "1.97s"
+    },
+    {
+     "Setup": "tool_sceptic",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "7.2",
+     "Buy proposals": "18",
+     "Invalid (rate)": "5 (1.6%)",
+     "Gap fails": "9",
+     "Sceptic rejects / calls": "4 / 4 (100%)",
+     "Vetoed vs kept CLV": "-0.0025 vs +nan",
+     "Trades outside A's games": "\u2013",
+     "LLM calls (cache hits)": "819 (11)",
+     "Tokens in / out": "963,475 / 132,508",
+     "Cost": "$0.41",
+     "Latency / call": "1.97s"
+    },
+    {
+     "Setup": "plain_gemini",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "0.0",
+     "Buy proposals": "303",
+     "Invalid (rate)": "1 (0.3%)",
+     "Gap fails": "298",
+     "Sceptic rejects / calls": "\u2013",
+     "Vetoed vs kept CLV": "\u2013",
+     "Trades outside A's games": "60%",
+     "LLM calls (cache hits)": "304 (224)",
+     "Tokens in / out": "174,816 / 15,773",
+     "Cost": "$0.02",
+     "Latency / call": "2.80s"
+    }
+   ]
+  },
+  "deepseek-reasoner": {
+   "label": "DeepSeek reasoner (V4.1-Flash, thinking)",
+   "scoreboard": [
+    {
+     "Setup": "A. Deterministic anchor agent (no learning)",
+     "Trades": "53",
+     "Mean CLV [95% CI]": "-0.0042 [-0.0090, +0.0015]",
+     "CLV $ [95% CI]": "-19 [-36, -1]",
+     "P&L after fees [95% CI]": "-236 [-538, +73]",
+     "p (CLV > 0)": "0.959"
+    },
+    {
+     "Setup": "B. Plain LLM, one call (no tools)",
+     "Trades": "5",
+     "Mean CLV [95% CI]": "-0.0030 [-0.0117, +0.0083]",
+     "CLV $ [95% CI]": "-0 [-2, +2]",
+     "P&L after fees [95% CI]": "+4 [-77, +75]",
+     "p (CLV > 0)": "0.739"
+    },
+    {
+     "Setup": "C. Tool agent, no sceptic",
+     "Trades": "42",
+     "Mean CLV [95% CI]": "-0.0040 [-0.0079, -0.0002]",
+     "CLV $ [95% CI]": "-13 [-30, +5]",
+     "P&L after fees [95% CI]": "-93 [-492, +400]",
+     "p (CLV > 0)": "0.982"
+    },
+    {
+     "Setup": "D. Tool agent + priced-in sceptic",
+     "Trades": "2",
+     "Mean CLV [95% CI]": "+0.0100 [-0.0150, +0.0350]",
+     "CLV $ [95% CI]": "+4 [-3, +15]",
+     "P&L after fees [95% CI]": "+100 [-62, +363]",
+     "p (CLV > 0)": "0.298"
+    },
+    {
+     "Setup": "Never trade",
+     "Trades": "0",
+     "Mean CLV [95% CI]": "\u2013",
+     "CLV $ [95% CI]": "+0 [+0, +0]",
+     "P&L after fees [95% CI]": "+0 [+0, +0]",
+     "p (CLV > 0)": "\u2013"
+    }
+   ],
+   "paired": [
+    {
+     "Comparison": "anchor \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-19 [-36, -1]",
+     "p": "0.983"
+    },
+    {
+     "Comparison": "anchor \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "-236 [-538, +73]",
+     "p": "0.932"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0012 [-0.0074, +0.0114]",
+     "p": "0.374"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+19 [+2, +35]",
+     "p": "0.016"
+    },
+    {
+     "Comparison": "plain \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+240 [-88, +564]",
+     "p": "0.075"
+    },
+    {
+     "Comparison": "plain \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-0 [-2, +2]",
+     "p": "0.576"
+    },
+    {
+     "Comparison": "plain \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+4 [-77, +75]",
+     "p": "0.452"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0002 [-0.0055, +0.0053]",
+     "p": "0.453"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+5 [-13, +25]",
+     "p": "0.260"
+    },
+    {
+     "Comparison": "tool \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+143 [-298, +633]",
+     "p": "0.256"
+    },
+    {
+     "Comparison": "tool \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "-13 [-30, +5]",
+     "p": "0.941"
+    },
+    {
+     "Comparison": "tool \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "-93 [-492, +400]",
+     "p": "0.643"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0142 [-0.0142, +0.0421]",
+     "p": "0.241"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+23 [+3, +43]",
+     "p": "0.016"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 anchor",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+337 [-27, +724]",
+     "p": "0.045"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 never",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+4 [-3, +15]",
+     "p": "0.236"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 never",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+100 [-62, +363]",
+     "p": "0.236"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "mean CLV",
+     "Difference [95% CI]": "+0.0140 [-0.0121, +0.0408]",
+     "p": "0.229"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "CLV $",
+     "Difference [95% CI]": "+17 [+4, +32]",
+     "p": "0.010"
+    },
+    {
+     "Comparison": "tool_sceptic \u2212 tool",
+     "Metric": "P&L",
+     "Difference [95% CI]": "+194 [-187, +517]",
+     "p": "0.145"
+    }
+   ],
+   "diagnostics": [
+    {
+     "Setup": "plain",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "0.0",
+     "Buy proposals": "299",
+     "Invalid (rate)": "5 (1.6%)",
+     "Gap fails": "294",
+     "Sceptic rejects / calls": "\u2013",
+     "Vetoed vs kept CLV": "\u2013",
+     "Trades outside A's games": "40%",
+     "LLM calls (cache hits)": "304 (0)",
+     "Tokens in / out": "176,309 / 809,786",
+     "Cost": "$0.94",
+     "Latency / call": "14.40s"
+    },
+    {
+     "Setup": "tool",
+     "Decision points (LLM asked)": "299 (299)",
+     "Tool calls / decision": "7.8",
+     "Buy proposals": "51",
+     "Invalid (rate)": "42 (14.0%)",
+     "Gap fails": "0",
+     "Sceptic rejects / calls": "\u2013",
+     "Vetoed vs kept CLV": "\u2013",
+     "Trades outside A's games": "48%",
+     "LLM calls (cache hits)": "1,068 (1,068)",
+     "Tokens in / out": "1,230,973 / 1,447,344",
+     "Cost": "$1.92",
+     "Latency / call": "7.17s"
+    },
+    {
+     "Setup": "tool_sceptic",
+     "Decision points (LLM asked)": "304 (304)",
+     "Tool calls / decision": "7.8",
+     "Buy proposals": "51",
+     "Invalid (rate)": "43 (14.1%)",
+     "Gap fails": "0",
+     "Sceptic rejects / calls": "40 / 42 (95%)",
+     "Vetoed vs kept CLV": "-0.0047 vs +0.0100",
+     "Trades outside A's games": "50%",
+     "LLM calls (cache hits)": "1,129 (0)",
+     "Tokens in / out": "1,311,595 / 1,578,305",
+     "Cost": "$2.09",
+     "Latency / call": "7.41s"
+    }
+   ]
+  }
+ },
+ "cost_usd": 3.49,
+ "reasoning_budget_calls": 21,
+ "reasoning_budget_tokens": "8,192"
+}

@@ -1,0 +1,245 @@
+{
+ "agent": "tool_agent",
+ "source": "deepseek",
+ "label": "DeepSeek chat plain LLM (no tools): one call, buys",
+ "game_id": "401810580",
+ "matchup": "PHX @ POR",
+ "tip_time": "2026-02-04T04:00:00+00:00",
+ "as_of": "2026-02-04T03:30:00+00:00",
+ "model": "deepseek-chat",
+ "model_label": "DeepSeek chat",
+ "llm": "DeepSeek chat, real responses replayed from the run's response cache",
+ "stub": false,
+ "run": "runs/llm_agent/test-deepseek/plain",
+ "setup": "plain",
+ "setup_label": "plain LLM, one call, no tools",
+ "sceptic_enabled": false,
+ "status": "order",
+ "reason": "yes on PHX contract at 0.60, gap +0.053",
+ "detail": null,
+ "market": [
+  {
+   "team": "POR",
+   "bid": 0.4,
+   "ask": 0.41,
+   "mid": 0.405,
+   "spread": 0.01,
+   "age_minutes": 0.0,
+   "fresh": true,
+   "volume_last_hour": 99909.0,
+   "anchor_mid": 0.405,
+   "anchor_hours_before_tip": 24.05,
+   "move_since_anchor": 0.0
+  },
+  {
+   "team": "PHX",
+   "bid": 0.59,
+   "ask": 0.6,
+   "mid": 0.595,
+   "spread": 0.01,
+   "age_minutes": 0.0,
+   "fresh": true,
+   "volume_last_hour": 291955.0,
+   "anchor_mid": 0.595,
+   "anchor_hours_before_tip": 24.0,
+   "move_since_anchor": 0.0
+  }
+ ],
+ "turns": [],
+ "plain_info": {
+  "quotes": {
+   "POR": {
+    "team": "POR",
+    "bid": 0.4,
+    "ask": 0.41,
+    "mid": 0.405,
+    "spread": 0.01,
+    "age_minutes": 0.0,
+    "fresh": true,
+    "volume_last_hour": 99909.0
+   },
+   "PHX": {
+    "team": "PHX",
+    "bid": 0.59,
+    "ask": 0.6,
+    "mid": 0.595,
+    "spread": 0.01,
+    "age_minutes": 0.0,
+    "fresh": true,
+    "volume_last_hour": 291955.0
+   }
+  },
+  "anchors": {
+   "POR": {
+    "team": "POR",
+    "anchor_mid": 0.405,
+    "anchor_hours_before_tip": 24.05,
+    "mid_now": 0.405,
+    "move_since_anchor": 0.0
+   },
+   "PHX": {
+    "team": "PHX",
+    "anchor_mid": 0.595,
+    "anchor_hours_before_tip": 24.0,
+    "mid_now": 0.595,
+    "move_since_anchor": 0.0
+   }
+  },
+  "news": {
+   "count": 3,
+   "items": [
+    {
+     "news_id": "espn-401810580-4594326",
+     "minutes_ago": 0.0,
+     "team": "POR",
+     "player_id": 4594326,
+     "player": "Kris Murray",
+     "status": "out",
+     "text": "Kris Murray (POR) out: Back Injury"
+    },
+    {
+     "news_id": "espn-401810580-4683021",
+     "minutes_ago": 0.0,
+     "team": "POR",
+     "player_id": 4683021,
+     "player": "Deni Avdija",
+     "status": "out",
+     "text": "Deni Avdija (POR) out: Strained Lower Back"
+    },
+    {
+     "news_id": "espn-401810580-3907498",
+     "minutes_ago": 0.0,
+     "team": "POR",
+     "player_id": 3907498,
+     "player": "Matisse Thybulle",
+     "status": "out",
+     "text": "Matisse Thybulle (POR) out: Right Knee"
+    }
+   ],
+   "note": "inactive lists; out and doubtful players are not expected to play"
+  },
+  "m4_win_model": {
+   "before": {
+    "POR": 0.4079,
+    "PHX": 0.5921
+   },
+   "after": {
+    "POR": 0.3217,
+    "PHX": 0.6783
+   },
+   "shift": {
+    "POR": -0.0862,
+    "PHX": 0.0862
+   },
+   "out_used": [
+    3907498,
+    4594326,
+    4683021
+   ],
+   "ignored": []
+  },
+  "fee_rule": "Kalshi fee per contract is 0.07 x price x (1 - price)"
+ },
+ "proposal": {
+  "p_home": 0.33,
+  "rationale": "The market mid for POR is 0.405, but the model that incorporates the three POR injuries (Kris Murray, Deni Avdija, Matisse Thybulle all out) shifts POR down to 0.3217. Given the fresh injury news and the model's adjustment, a probability near 0.33 is appropriate."
+ },
+ "validation": null,
+ "out_of_reasoning_budget": false,
+ "gap_after_fees": 0.0532,
+ "min_edge": 0.04,
+ "order": {
+  "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+  "side": "yes",
+  "price": 0.6,
+  "p_model": 0.67,
+  "gap": 0.0532
+ },
+ "sceptic": null,
+ "risk": {
+  "risk_result": "approved",
+  "fill_result": "filled"
+ },
+ "reasoning": null,
+ "usage": {
+  "calls": 1,
+  "cached": 1,
+  "errors": 0,
+  "tokens_in": 682,
+  "tokens_out": 86,
+  "reasoning_tokens": 0,
+  "reasoning_chars": 0,
+  "cost": 0.0003,
+  "latency": 3.0985,
+  "by_role": {
+   "plain": 1
+  }
+ },
+ "settlement": {
+  "revealed_at": "2026-02-04T04:00:00+00:00",
+  "fills": [
+   {
+    "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+    "side": "yes",
+    "price": 0.6,
+    "contracts": 33,
+    "fee_dollars": 0.56,
+    "close_price": 0.585,
+    "clv": -0.015,
+    "outcome_yes": 1,
+    "pnl": 12.64
+   }
+  ],
+  "counterfactual": [],
+  "final": {
+   "home": "POR",
+   "away": "PHX",
+   "home_pts": 125,
+   "away_pts": 130,
+   "final_at": "2026-02-04T07:00:00+00:00"
+  }
+ },
+ "game_outcome": {
+  "game_id": "401810580",
+  "matchup": "PHX @ POR",
+  "home": "POR",
+  "away": "PHX",
+  "home_pts": 125,
+  "away_pts": 130,
+  "winner": "PHX",
+  "margin": 5,
+  "overtime_periods": 0,
+  "final_at": "2026-02-04T07:00:00+00:00",
+  "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+  "markets": [
+   {
+    "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+    "team": "PHX",
+    "settled_yes": 1,
+    "settled_at": "2026-02-04T06:53:07.221120+00:00"
+   },
+   {
+    "ticker": "KXNBAGAME-26FEB03PHXPOR-POR",
+    "team": "POR",
+    "settled_yes": 0,
+    "settled_at": "2026-02-04T06:53:07.221120+00:00"
+   }
+  ],
+  "positions": [
+   {
+    "counterfactual": false,
+    "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+    "team": "PHX",
+    "side": "yes",
+    "price": 0.6,
+    "contracts": 33,
+    "settled_value": 1.0,
+    "result": "won",
+    "pnl": 12.64,
+    "clv": -0.015
+   }
+  ],
+  "note": null,
+  "headline": "PHX 130 @ POR 125: PHX won by 5. Agent's bet: PHX 'yes' at 60c settled $1, won, P&L +$12.64."
+ }
+}

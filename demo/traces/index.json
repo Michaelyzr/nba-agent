@@ -316,54 +316,411 @@
    }
   },
   {
-   "id": "sceptic",
-   "title": "IND @ BKN: priced-in sceptic rejects (stub LLM)",
-   "summary": "The analyst finds an edge, code validates it, and the sceptic rejects because the price already moved.",
+   "id": "ds_kept_1",
+   "title": "MEM @ POR: DeepSeek reasoner (V4.1-Flash, thinking) + sceptic, trade kept",
+   "summary": "The analyst calls the as-of tools, proposes a buy, code validates the cited numbers and the 4c edge, and the priced-in sceptic allows it: one of only 2 trades the reasoner + sceptic placed in 304 decisions.",
    "agents": {
-    "tool_agent": "tool_stub_sceptic_reject"
+    "tool_agent": "tool_ds_kept_1"
    },
    "game_outcome": {
-    "game_id": "401810634",
-    "matchup": "IND @ BKN",
-    "home": "BKN",
-    "away": "IND",
-    "home_pts": 110,
+    "game_id": "401810600",
+    "matchup": "MEM @ POR",
+    "home": "POR",
+    "away": "MEM",
+    "home_pts": 135,
     "away_pts": 115,
-    "winner": "IND",
-    "margin": 5,
+    "winner": "POR",
+    "margin": 20,
     "overtime_periods": 0,
-    "final_at": "2026-02-12T03:30:00+00:00",
+    "final_at": "2026-02-07T06:00:00+00:00",
     "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
     "markets": [
      {
-      "ticker": "KXNBAGAME-26FEB11INDBKN-BKN",
-      "team": "BKN",
+      "ticker": "KXNBAGAME-26FEB06MEMPOR-MEM",
+      "team": "MEM",
       "settled_yes": 0,
-      "settled_at": "2026-02-12T03:09:30.167327+00:00"
+      "settled_at": "2026-02-07T05:33:09.978825+00:00"
      },
      {
-      "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
+      "ticker": "KXNBAGAME-26FEB06MEMPOR-POR",
+      "team": "POR",
+      "settled_yes": 1,
+      "settled_at": "2026-02-07T05:33:09.978825+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26FEB06MEMPOR-MEM",
+      "team": "MEM",
+      "side": "yes",
+      "price": 0.29,
+      "contracts": 68,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -20.71,
+      "clv": -0.015
+     }
+    ],
+    "note": null,
+    "headline": "MEM 115 @ POR 135: POR won by 20. Agent's bet: MEM 'yes' at 29c settled $0, lost, P&L -$20.71."
+   }
+  },
+  {
+   "id": "ds_kept_2",
+   "title": "IND @ ORL: DeepSeek reasoner (V4.1-Flash, thinking) + sceptic, trade kept",
+   "summary": "The analyst calls the as-of tools, proposes a buy, code validates the cited numbers and the 4c edge, and the priced-in sceptic allows it: one of only 2 trades the reasoner + sceptic placed in 304 decisions.",
+   "agents": {
+    "tool_agent": "tool_ds_kept_2"
+   },
+   "game_outcome": {
+    "game_id": "401810894",
+    "matchup": "IND @ ORL",
+    "home": "ORL",
+    "away": "IND",
+    "home_pts": 126,
+    "away_pts": 128,
+    "winner": "IND",
+    "margin": 2,
+    "overtime_periods": 0,
+    "final_at": "2026-03-24T02:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26MAR23INDORL-IND",
       "team": "IND",
       "settled_yes": 1,
-      "settled_at": "2026-02-12T03:09:30.167327+00:00"
+      "settled_at": "2026-03-24T01:46:01.002850+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26MAR23INDORL-ORL",
+      "team": "ORL",
+      "settled_yes": 0,
+      "settled_at": "2026-03-24T01:46:01.002850+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26MAR23INDORL-IND",
+      "team": "IND",
+      "side": "yes",
+      "price": 0.14,
+      "contracts": 142,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 120.92,
+      "clv": 0.035
+     }
+    ],
+    "note": null,
+    "headline": "IND 128 @ ORL 126: IND won by 2. Agent's bet: IND 'yes' at 14c settled $1, won, P&L +$120.92."
+   }
+  },
+  {
+   "id": "ds_veto_1",
+   "title": "PHI @ LAC: DeepSeek reasoner (V4.1-Flash, thinking), sceptic vetoes",
+   "summary": "The analyst finds an edge that passes validation and the 4c gap check; the sceptic vetoes it as already priced in. The graded panel shows what the vetoed trade would have done (counterfactual).",
+   "agents": {
+    "tool_agent": "tool_ds_veto_1"
+   },
+   "game_outcome": {
+    "game_id": "401810570",
+    "matchup": "PHI @ LAC",
+    "home": "LAC",
+    "away": "PHI",
+    "home_pts": 113,
+    "away_pts": 128,
+    "winner": "PHI",
+    "margin": 15,
+    "overtime_periods": 0,
+    "final_at": "2026-02-03T06:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB02PHILAC-LAC",
+      "team": "LAC",
+      "settled_yes": 0,
+      "settled_at": "2026-02-03T05:41:57.172562+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB02PHILAC-PHI",
+      "team": "PHI",
+      "settled_yes": 1,
+      "settled_at": "2026-02-03T05:41:57.172562+00:00"
      }
     ],
     "positions": [
      {
       "counterfactual": true,
-      "ticker": "KXNBAGAME-26FEB11INDBKN-IND",
-      "team": "IND",
-      "side": "no",
-      "price": 0.68,
-      "contracts": 29,
+      "ticker": "KXNBAGAME-26FEB02PHILAC-LAC",
+      "team": "LAC",
+      "side": "yes",
+      "price": 0.49,
+      "contracts": 40,
       "settled_value": 0.0,
       "result": "lost",
-      "pnl": -20.17,
+      "pnl": -20.3,
+      "clv": 0.005
+     }
+    ],
+    "note": null,
+    "headline": "PHI 128 @ LAC 113: PHI won by 15. Counterfactual (not traded): LAC 'yes' at 49c settled $0, lost, P&L -$20.30."
+   }
+  },
+  {
+   "id": "ds_veto_2",
+   "title": "MEM @ IND: DeepSeek reasoner (V4.1-Flash, thinking), sceptic vetoes",
+   "summary": "The analyst finds an edge that passes validation and the 4c gap check; the sceptic vetoes it as already priced in. The graded panel shows what the vetoed trade would have done (counterfactual).",
+   "agents": {
+    "tool_agent": "tool_ds_veto_2"
+   },
+   "game_outcome": {
+    "game_id": "401810727",
+    "matchup": "MEM @ IND",
+    "home": "IND",
+    "away": "MEM",
+    "home_pts": 106,
+    "away_pts": 125,
+    "winner": "MEM",
+    "margin": 19,
+    "overtime_periods": 0,
+    "final_at": "2026-03-02T01:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26MAR01MEMIND-IND",
+      "team": "IND",
+      "settled_yes": 0,
+      "settled_at": "2026-03-02T01:02:47.118082+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26MAR01MEMIND-MEM",
+      "team": "MEM",
+      "settled_yes": 1,
+      "settled_at": "2026-03-02T01:02:47.118082+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26MAR01MEMIND-MEM",
+      "team": "MEM",
+      "side": "yes",
+      "price": 0.51,
+      "contracts": 39,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 18.42,
       "clv": -0.005
      }
     ],
     "note": null,
-    "headline": "IND 115 @ BKN 110: IND won by 5. Counterfactual (not traded): IND 'no' at 68c settled $0, lost, P&L -$20.17."
+    "headline": "MEM 125 @ IND 106: MEM won by 19. Counterfactual (not traded): MEM 'yes' at 51c settled $1, won, P&L +$18.42."
+   }
+  },
+  {
+   "id": "ds_veto_3",
+   "title": "UTA @ IND: DeepSeek reasoner (V4.1-Flash, thinking), sceptic vetoes",
+   "summary": "The analyst finds an edge that passes validation and the 4c gap check; the sceptic vetoes it as already priced in. The graded panel shows what the vetoed trade would have done (counterfactual).",
+   "agents": {
+    "tool_agent": "tool_ds_veto_3"
+   },
+   "game_outcome": {
+    "game_id": "401810572",
+    "matchup": "UTA @ IND",
+    "home": "IND",
+    "away": "UTA",
+    "home_pts": 122,
+    "away_pts": 131,
+    "winner": "UTA",
+    "margin": 9,
+    "overtime_periods": 0,
+    "final_at": "2026-02-04T03:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB03UTAIND-IND",
+      "team": "IND",
+      "settled_yes": 0,
+      "settled_at": "2026-02-04T02:29:37.259961+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB03UTAIND-UTA",
+      "team": "UTA",
+      "settled_yes": 1,
+      "settled_at": "2026-02-04T02:29:37.259961+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB03UTAIND-IND",
+      "team": "IND",
+      "side": "yes",
+      "price": 0.44,
+      "contracts": 45,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -20.58,
+      "clv": -0.015
+     }
+    ],
+    "note": null,
+    "headline": "UTA 131 @ IND 122: UTA won by 9. Counterfactual (not traded): IND 'yes' at 44c settled $0, lost, P&L -$20.58."
+   }
+  },
+  {
+   "id": "ds_chat",
+   "title": "POR @ MEM: DeepSeek chat tool agent buys (no sceptic)",
+   "summary": "The chat model (no thinking) with the same tools, validation and edge rule, without the sceptic.",
+   "agents": {
+    "tool_agent": "tool_ds_chat"
+   },
+   "game_outcome": {
+    "game_id": "401810751",
+    "matchup": "POR @ MEM",
+    "home": "MEM",
+    "away": "POR",
+    "home_pts": 114,
+    "away_pts": 122,
+    "winner": "POR",
+    "margin": 8,
+    "overtime_periods": 0,
+    "final_at": "2026-03-05T04:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26MAR04PORMEM-MEM",
+      "team": "MEM",
+      "settled_yes": 0,
+      "settled_at": "2026-03-05T03:43:36.943785+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26MAR04PORMEM-POR",
+      "team": "POR",
+      "settled_yes": 1,
+      "settled_at": "2026-03-05T03:43:36.943785+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26MAR04PORMEM-MEM",
+      "team": "MEM",
+      "side": "yes",
+      "price": 0.24,
+      "contracts": 83,
+      "settled_value": 0.0,
+      "result": "lost",
+      "pnl": -20.98,
+      "clv": -0.005
+     }
+    ],
+    "note": null,
+    "headline": "POR 122 @ MEM 114: POR won by 8. Agent's bet: MEM 'yes' at 24c settled $0, lost, P&L -$20.98."
+   }
+  },
+  {
+   "id": "ds_budget",
+   "title": "ORL @ SAS: DeepSeek reasoner (V4.1-Flash, thinking) runs out of reasoning budget",
+   "summary": "The reasoner spends the whole 8,192-token budget thinking and returns an empty answer. Code treats it as invalid, so no trade: a pass. This happened on 21 calls in the test run.",
+   "agents": {
+    "tool_agent": "tool_ds_budget"
+   },
+   "game_outcome": {
+    "game_id": "401810558",
+    "matchup": "ORL @ SAS",
+    "home": "SAS",
+    "away": "ORL",
+    "home_pts": 112,
+    "away_pts": 103,
+    "winner": "SAS",
+    "margin": 9,
+    "overtime_periods": 0,
+    "final_at": "2026-02-02T05:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB01ORLSAS-ORL",
+      "team": "ORL",
+      "settled_yes": 0,
+      "settled_at": "2026-02-02T04:41:27.104058+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB01ORLSAS-SAS",
+      "team": "SAS",
+      "settled_yes": 1,
+      "settled_at": "2026-02-02T04:41:27.104058+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": true,
+      "ticker": "KXNBAGAME-26FEB01ORLSAS-SAS",
+      "team": "SAS",
+      "side": "yes",
+      "price": 0.6,
+      "contracts": 33,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 12.64,
+      "clv": 0.055
+     }
+    ],
+    "note": null,
+    "headline": "ORL 103 @ SAS 112: SAS won by 9. Counterfactual (not traded): SAS 'yes' at 60c settled $1, won, P&L +$12.64."
+   }
+  },
+  {
+   "id": "ds_plain",
+   "title": "PHX @ POR: DeepSeek chat plain LLM, no tools",
+   "summary": "For contrast: one call with the decision-time quotes, anchors, news and M4 as text, no tools, no sceptic; the same 4c edge rule decides.",
+   "agents": {
+    "tool_agent": "tool_ds_plain"
+   },
+   "game_outcome": {
+    "game_id": "401810580",
+    "matchup": "PHX @ POR",
+    "home": "POR",
+    "away": "PHX",
+    "home_pts": 125,
+    "away_pts": 130,
+    "winner": "PHX",
+    "margin": 5,
+    "overtime_periods": 0,
+    "final_at": "2026-02-04T07:00:00+00:00",
+    "source": "data/frozen games (scores), player_games (overtime from minutes), settlements (Kalshi)",
+    "markets": [
+     {
+      "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+      "team": "PHX",
+      "settled_yes": 1,
+      "settled_at": "2026-02-04T06:53:07.221120+00:00"
+     },
+     {
+      "ticker": "KXNBAGAME-26FEB03PHXPOR-POR",
+      "team": "POR",
+      "settled_yes": 0,
+      "settled_at": "2026-02-04T06:53:07.221120+00:00"
+     }
+    ],
+    "positions": [
+     {
+      "counterfactual": false,
+      "ticker": "KXNBAGAME-26FEB03PHXPOR-PHX",
+      "team": "PHX",
+      "side": "yes",
+      "price": 0.6,
+      "contracts": 33,
+      "settled_value": 1.0,
+      "result": "won",
+      "pnl": 12.64,
+      "clv": -0.015
+     }
+    ],
+    "note": null,
+    "headline": "PHX 130 @ POR 125: PHX won by 5. Agent's bet: PHX 'yes' at 60c settled $1, won, P&L +$12.64."
    }
   },
   {
@@ -520,6 +877,6 @@
    }
   }
  ],
- "built_at": "2026-10-07T09:07:51.109186+00:00",
+ "built_at": "2026-10-08T04:23:19.500362+00:00",
  "note": "Decision steps use only data available at the decision time; settlement is revealed at tip-off."
 }
