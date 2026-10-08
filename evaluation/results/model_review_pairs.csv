@@ -1,0 +1,7 @@
+comparison,metric,estimate,ci_low,ci_high,p
+Model review subloop + rule learning − Fixed M4 shift + rule learning (current agent),clv_dollars,0.0,0.0,0.0,
+Model review subloop + rule learning − Fixed M4 shift + rule learning (current agent),pnl,0.0,0.0,0.0,
+Model review + adaptive edge (parts 1+2) − Fixed M4 shift + rule learning (current agent),clv_dollars,3.1099999999999923,0.3200000000000002,6.490249999999993,0.037481259370314844
+Model review + adaptive edge (parts 1+2) − Fixed M4 shift + rule learning (current agent),pnl,-6.1000000000000085,-198.60699999999994,198.39299999999994,0.5332333833083458
+Model review + adaptive edge (parts 1+2) − Model review subloop + rule learning,clv_dollars,3.1099999999999923,0.3200000000000002,6.490249999999993,0.037481259370314844
+Model review + adaptive edge (parts 1+2) − Model review subloop + rule learning,pnl,-6.1000000000000085,-198.60699999999994,198.39299999999994,0.5332333833083458
