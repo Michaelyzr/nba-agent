@@ -6,6 +6,7 @@ Reads only demo/traces/*.json (built by demo/build_traces.py from as-of data), s
 models or API keys and runs on Streamlit Community Cloud.
 """
 import json
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -15,6 +16,12 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 TRACES = ROOT / "demo" / "traces"
 FIGURES = ROOT / "demo" / "figures"
+RESULTS = ROOT / "evaluation" / "results"
+SCEPTIC_FILES = ("llm_sceptic_full.csv", "llm_sceptic_full.md", "llm_sceptic_full_trades.csv",
+                 "llm_sceptic_full_kept_reasons.csv")
+WIN_RATES = (("Raw M4", "27.9% (102/366)"), ("Anchor agent", "45.0% (58/129)"),
+             ("Split-gate", "45.3% (24/53)"), ("Learned edge threshold (base 4¢)", "45.2% (19/42)"),
+             ("Model review", "45.3% (24/53)"))
 
 AGENT_NAMES = {"trader": "Trader (LangGraph MarketAgent)", "tool_agent": "LLM tool agent + priced-in sceptic",
                "coach": "Coach agent", "orchestrator": "Orchestrator (one night)", "review": "Trader review loop",
@@ -32,6 +39,74 @@ def _load(name: str, mtime: float):
 def load(name: str):
     path = TRACES / f"{name}.json"
     return _load(name, path.stat().st_mtime) if path.exists() else None
+
+
+@st.cache_data
+def _sceptic_full(mtime: float):
+    s = pd.read_csv(RESULTS / SCEPTIC_FILES[0]).set_index("arm").loc["D"].to_dict()
+    s.update({k: int(s[k]) for k in ("days", "decision_points", "trades", "longshot_trades")})
+    md = (RESULTS / SCEPTIC_FILES[1]).read_text()
+    m = re.search(r"Sceptic: (\d+) reviews, (\d+) approved, (\d+) vetoed\. Mean CLV per contract: "
+                  r"vetoed ([-+]?\d+(?:\.\d+)?) vs kept ([-+]?\d+(?:\.\d+)?)", md)
+    s.update(reviews=int(m[1]), approved=int(m[2]), vetoed=int(m[3]), clv_vetoed=float(m[4]), clv_kept=float(m[5]))
+    t = pd.read_csv(RESULTS / SCEPTIC_FILES[2])
+    why = pd.read_csv(RESULTS / SCEPTIC_FILES[3])[["date", "contract", "rationale", "sceptic_reason"]]
+    t = t.merge(why, left_on=["date", "team"], right_on=["date", "contract"], how="left")
+    s["wins"] = int((t["pnl"] > 0).sum())
+    return s, t.to_dict("records")
+
+
+def sceptic_full():
+    """Full-test LLM reasoner + sceptic (arm D, 771 decision points) from the committed evaluation/results files."""
+    paths = [RESULTS / n for n in SCEPTIC_FILES]
+    if not all(p.exists() for p in paths):
+        return None
+    return _sceptic_full(max(p.stat().st_mtime for p in paths))
+
+
+def ci(v, lo, hi):
+    return f"{v:+,.0f} [{lo:+,.0f}, {hi:+,.0f}]"
+
+
+def sceptic_summary(s, trades):
+    return (f"**LLM reasoner + sceptic, full test period (1 Feb – 12 Apr 2026, {s['decision_points']} decision "
+            f"points):** the sceptic reviewed {s['reviews']} proposals, approved {s['approved']} and vetoed "
+            f"{s['vetoed']}. {s['trades']} trades, ${s['staked']:,.0f} staked, P&L $ {ci(s['pnl'], s['pnl_lo'], s['pnl_hi'])} "
+            f"({s['ret_staked'] * 100:+.0f}% on staked, {s['ret_1000'] * 100:+.1f}% on $1,000), win rate "
+            f"{s['wins'] / s['trades'] * 100:.0f}% ({s['wins']}/{s['trades']}), CLV $ "
+            f"{ci(s['clv_dollars'], s['clv_lo'], s['clv_hi'])}.")
+
+
+def sceptic_trades_panel():
+    full = sceptic_full()
+    if not full:
+        return
+    s, trades = full
+    st.subheader(f"The {len(trades)} trades the sceptic approved")
+    st.info(sceptic_summary(s, trades))
+    table([{"date": t["date"], "game": t["game"],
+            "side": f"buy {t['team']}" if t["side"] == "yes" else f"{t['team']}-no",
+            "price": f"{t['price']:.2f}", "stake": f"${t['staked']:.2f}",
+            "result": "won" if t["pnl"] > 0 else "lost", "P&L": dollars(t["pnl"]),
+            "CLV / contract": cents(t["clv"]), "sceptic approved because": t.get("sceptic_reason") or "–"}
+           for t in trades])
+    st.caption(f"One cheap long shot drives the profit (IND at 14¢, +$120.92); without it the result is "
+               f"{'−' if s['pnl_ex_longshots'] < 0 else '+'}${abs(s['pnl_ex_longshots']):.0f}. Vetoed trades "
+               f"averaged {s['clv_vetoed'] * 100:+.2f}¢ CLV vs {s['clv_kept'] * 100:+.2f}¢ for the kept ones. "
+               "Four trades are far too few to show skill. Source: evaluation/results/llm_sceptic_full*.")
+    for t in trades:
+        if isinstance(t.get("rationale"), str):
+            with st.expander(f"{t['date']} {t['game']}: analyst rationale and sceptic reason"):
+                st.markdown(f"**Analyst:** {t['rationale']}")
+                st.markdown(f"**Sceptic (approve):** {t['sceptic_reason']}")
+
+
+def sceptic_row(s, trades):
+    return {"setup": "LLM reasoner + sceptic (DeepSeek, 4¢ edge)", "trades": str(s["trades"]),
+            "mean_clv": f"{sum(t['clv'] for t in trades) / len(trades) * 100:+.2f}¢",
+            "clv_dollars": ci(s["clv_dollars"], s["clv_lo"], s["clv_hi"]), "pnl": ci(s["pnl"], s["pnl_lo"], s["pnl_hi"]),
+            "win_rate": f"{s['wins'] / s['trades'] * 100:.1f}% ({s['wins']}/{s['trades']})",
+            "source": "llm_sceptic_full.md"}
 
 
 def pct(x, d=1):
@@ -540,7 +615,7 @@ subgraph cluster_blend { label="FORECAST-BLEND SUBLOOP (results use the simplifi
   sig [label="signals: anchor, 1 h mid,\\nanchor+M4/MLP/GRU, M4/MLP/GRU"]; w [label="weights (refit on\\nsettled days)"];
   bg [label="gate: held-out Brier\\nmust improve"]; bp [label="blend p(home)"];
   sig -> w -> bg -> bp; }
-subgraph cluster_llm { label="LLM ARMS (40% subsample only; published trader results use NO LLM)"; style="rounded,dashed"; color="#888888";
+subgraph cluster_llm { label="LLM ARMS (40% subsample; reasoner + sceptic also full test; published trader results use NO LLM)"; style="rounded,dashed"; color="#888888";
   an [label="LLM analyst <-> as-of tools"]; val [label="code validates citations"]; sc [label="priced-in sceptic"];
   an -> val -> sc; }
 order -> settle [style=dashed, label="next day"];
@@ -557,7 +632,8 @@ def arch_diagram():
     st.graphviz_chart(dot, width="stretch")
     st.caption("Solid = the published trader (no LLM). Orange = what the learn loop writes back. Dashed = tested "
                "add-ons: the forecast blend was scored with a simplified offline trader, the LLM analyst and sceptic "
-               "on the 40% subsample of 304 decision points.")
+               "on the 40% subsample of 304 decision points, and the reasoner + sceptic also on all 771 full-test "
+               "decision points.")
 
 
 def overview():
@@ -635,7 +711,14 @@ def llm_results_panel():
         extra.append(f"total DeepSeek spend ${r['cost_usd']:.2f}")
     if extra:
         st.caption("; ".join(extra) + ".")
-    st.caption(f"Source: {r['source']}. The kept-trade CLV rests on 2 trades: not evidence of skill.")
+    st.caption(f"Source: {r['source']}. On this subsample the kept-trade CLV rests on 2 trades: not evidence of "
+               "skill.")
+    sf = sceptic_full()
+    if sf:
+        s, trades = sf
+        st.success(sceptic_summary(s, trades) + f" Without the 14¢ long shot the P&L is "
+                   f"{'−' if s['pnl_ex_longshots'] < 0 else '+'}${abs(s['pnl_ex_longshots']):.0f}. "
+                   "See the Results page for the 4 trades.")
     llm_decision_panel()
 
 
@@ -742,11 +825,21 @@ def results_page():
     names = {"setup": "setup", "trades": "trades", "mean_clv": "mean CLV / contract [95% CI]",
              "clv_dollars": "CLV $ [95% CI]", "pnl": "P&L after fees $ [95% CI]", "source": "source"}
     st.subheader(ag["full_label"])
-    table(ag["full"], cols, names)
+    full_rows = [{**r, "win_rate": next((w for k, w in WIN_RATES if r["setup"].startswith(k)), "–")}
+                 for r in ag["full"]]
+    sf = sceptic_full()
+    if sf:
+        full_rows.insert(len(full_rows) - 1, sceptic_row(*sf))
+    table(full_rows, cols[:-1] + ["win_rate", "source"], {**names, "win_rate": "win rate"})
+    st.caption("Win rate = share of trades that settled in profit.")
     pnl_panel(res.get("pnl"))
+    sceptic_trades_panel()
     st.subheader(ag["subsample_label"])
-    st.caption("A different, smaller window: do not compare these numbers with the full-period table above.")
-    table(ag["subsample"], cols, names)
+    st.caption("A different, smaller window: do not compare these numbers with the full-period table above. "
+               "The reasoner + sceptic row here is the old 2-trade subsample; the full-test result is above.")
+    sub = [{**r, "setup": r["setup"] + " (subsample)"} if r["setup"] == "D. tool agent + sceptic (DeepSeek reasoner)"
+           else r for r in ag["subsample"]]
+    table(sub, cols, names)
     st.caption("CLV is per contract against the mid at tip; CLV $ = CLV × contracts. CIs: day-clustered bootstrap, "
                "2000 replicates. Never trade = $0 by definition.")
     edge_gate_panel(res["edge_gate"])
@@ -946,7 +1039,15 @@ def models_page():
     st.info(f"**Shared rule:** buy if p − ask − fee > min edge (4¢ unless learned); ${20} stake; fill at the ask plus "
             f"the Kalshi fee; quote at most {w.get('max_quote_age_min')} min old; caps "
             + " / ".join(f"${c:.0f}" for c in caps) + " per order / game / day; no trading after tip.")
-    table(res["frameworks"], None, {"framework": "framework", "probability": "probability source",
+    frameworks = res["frameworks"]
+    sf = sceptic_full()
+    if sf:
+        s, trades = sf
+        row = sceptic_row(s, trades)
+        frameworks = [{**f, "trades": row["trades"], "clv_dollars": row["clv_dollars"], "pnl": row["pnl"],
+                       "window": f"full test, {s['decision_points']} decision points"}
+                      if f["framework"].startswith("LLM reasoner + sceptic") else f for f in frameworks]
+    table(frameworks, None, {"framework": "framework", "probability": "probability source",
                                     "filters": "filters", "learning": "learning", "trades": "trades",
                                     "clv_dollars": "CLV $ [95% CI]", "pnl": "P&L after fees $ [95% CI]",
                                     "window": "window / trader"})
@@ -986,6 +1087,7 @@ def workflows_page():
     fb = res.get("forecast_blend") or {"counts": {}, "blend_vs_agent_clv": "", "blend_vs_agent_pnl": ""}
     rej = f"rejected {mr['proposed'] - mr['accepted']} / {mr['proposed']}"
     worst = min(mr["story"], key=lambda s: s["clv_with"] - s["clv_without"], default=None)
+    sf = sceptic_full()
     st.title("Agent workflows")
     st.markdown("Colour key: blue = code, purple = LLM, orange = gate or check, yellow = stored memory, "
                 "green = action, red = rejected.")
@@ -1056,7 +1158,10 @@ def workflows_page():
               "points of a tool-derived probability, and no banned wording.",
               "Code computes the gap after fees; a second LLM call (the sceptic) vetoes if the edge is already priced in.",
               "Replies are cached, so runs replay exactly."],
-             "LLM arms on the 40% subsample only (no published trader result uses an LLM).")
+             "LLM arms on the 40% subsample, and the reasoner + sceptic on the full test period: "
+             + (f"{sf[0]['trades']} trades of {sf[0]['reviews']} proposals reviewed, P&L "
+                f"{ci(sf[0]['pnl'], sf[0]['pnl_lo'], sf[0]['pnl_hi'])}" if sf else "see Results")
+             + " (no published trader result uses an LLM).")
     with st.container(border=True):
         st.subheader("7. Coach, Orchestrator, Pregame, In-play")
         st.markdown("- **Coach** (`agents/coach_agent.py`): before a user's pick, chooses which checks to run, "
