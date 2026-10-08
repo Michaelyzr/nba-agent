@@ -215,6 +215,8 @@ def diagnostics(setup: str, traces: list, fills: pd.DataFrame, anchor_games: set
             "share_trades_not_in_anchor_games": float(added) if not pd.isna(added) else np.nan,
             "tools_used": tools_used, "llm_calls": calls, "cache_hits": sum(x.get("cached", 0) for x in llm),
             "tokens_in": sum(x.get("tokens_in", 0) for x in llm), "tokens_out": sum(x.get("tokens_out", 0) for x in llm),
+            "reasoning_tokens": sum(x.get("reasoning_tokens", 0) for x in llm),
+            "reasoning_chars_per_call": sum(x.get("reasoning_chars", 0) for x in llm) / calls if calls else 0.0,
             "cost_usd": sum(x.get("cost", 0.0) for x in llm),
             "latency_per_call_s": sum(x.get("latency", 0.0) for x in llm) / calls if calls else np.nan,
             "latency_per_llm_decision_s": (sum(x.get("latency", 0.0) for x in llm) / len(asked)) if asked else np.nan}
@@ -342,7 +344,15 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
         model = next((v for k, v in models.items() if k != "plain_gemini"), next(iter(models.values()), "–"))
         sub = next((v["subsample"] for v in m.values()), 1.0)
         md += [f"## {tag}: {extra['days'][0]} – {extra['days'][-1]} ({len(extra['days'])} game-days)", ""]
-        if model.startswith("deepseek"):
+        if model == "deepseek-reasoner":
+            md += ["**Stronger model (deviation, chosen before seeing its results).** Setups B, C and D re-run on "
+                   "DeepSeek `deepseek-reasoner`, chosen as the strongest model that could finish before the deadline. "
+                   "On this API both `deepseek-chat` and `deepseek-reasoner` are served by DeepSeek-V4.1-Flash; the "
+                   "reasoner has thinking mode on (hidden chain of thought, kept out of the parsed answer). Temperature "
+                   f"is not sent (thinking mode ignores it), max_tokens is {8192}; replies are cached, so the replay is "
+                   "fixed. Prompts, tools, validation, the 4¢ edge rule, the sceptic, MAX_TOOL_CALLS / MAX_TURNS and "
+                   "the decision points are identical to the `deepseek-chat` run.", ""]
+        elif model.startswith("deepseek"):
             secondary = models.get("plain_gemini")
             md += [f"**Model deviation from the pre-registration.** The pre-registered model was Gemini 2.5 Flash "
                    f"(`gemini-2.5-flash`), which is no longer available to new API keys, and the Gemini free-tier "
@@ -364,7 +374,8 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
                    f"20 requests per day. All LLM arms therefore used `{model}` (free tier, about 15 requests per "
                    f"minute). Prompts, tools, validation and the trading rule are unchanged.", ""]
         md += [
-               f"LLM: `{model}`, temperature 0. Decision points: "
+               f"LLM: `{model}`, " + ("thinking mode" if model == "deepseek-reasoner" else "temperature 0")
+               + ". Decision points: "
                + ("all" if sub >= 1 else f"fixed {sub:.0%} subsample (seed {next(iter(m.values()))['seed']}), same for every setup")
                + ".", "",
                "| Setup | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] | p (CLV > 0) |",
@@ -401,6 +412,10 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
             md += ["", "Invalid outputs by reason: " + "; ".join(f"{x.setup}: {x.invalid_by_reason or 'none'}"
                                                              for x in d.itertuples()),
                    "", "Tool use: " + "; ".join(f"{x.setup}: {x.tools_used}" for x in d.itertuples() if x.tools_used)]
+            if d.reasoning_tokens.sum() > 0:
+                md += ["", "Hidden reasoning (thinking mode, not shown to the parser): " + "; ".join(
+                    f"{x.setup}: {x.reasoning_tokens:,} reasoning tokens, {x.reasoning_chars_per_call:,.0f} characters "
+                    f"per call" for x in d.itertuples() if x.reasoning_tokens)]
         md.append("")
     if probe:
         md += ["## Memorisation probe", "", probe["summary"], ""]

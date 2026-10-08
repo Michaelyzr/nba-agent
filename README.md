@@ -1231,12 +1231,16 @@ and the same trading rule.
 To fit the quota and the deadline, every arm was scored on the same fixed **40% subsample** of test decision
 points (seed 7606: 304 of 771). The anchor and never-trade arms are on the same days.
 
-| Test 1 Feb – 12 Apr, 40% of decision points | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] |
+| Test 1 Feb – 12 Apr, 40% of decision points (vs never trade) | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] |
 | --- | --- | --- | --- | --- |
 | A. Deterministic anchor agent (no learning) | 53 | −0.0042 [−0.0090, +0.0015] | −$19 [−36, −1] | −$236 [−538, +73] |
-| B. Plain LLM (ChatGPT-style baseline) | 5 | −0.0030 [−0.0150, +0.0150] | −$1 [−4, +2] | −$31 [−96, +22] |
-| C. Tool agent, no sceptic | not run | | | |
-| D. Tool agent + priced-in sceptic | not run | | | |
+| B′. Plain LLM (ChatGPT-style baseline), Gemini | 5 | −0.0030 [−0.0150, +0.0150] | −$1 [−4, +2] | −$31 [−96, +22] |
+| B. Plain LLM, DeepSeek `deepseek-chat` | 3 | −0.0083 [−0.0150, −0.0050] | −$1 [−2, +0] | +$44 [+0, +101] |
+| C. Tool agent, no sceptic, `deepseek-chat` | 4 | −0.0025 [−0.0050, +0.0050] | −$1 [−2, +0] | −$42 [−123, +34] |
+| D. Tool agent + priced-in sceptic, `deepseek-chat` | 0 | – | $0 | $0 |
+| B. Plain LLM, `deepseek-reasoner` | 5 | −0.0030 [−0.0117, +0.0083] | −$0 [−2, +2] | +$4 [−77, +75] |
+| C. Tool agent, no sceptic, `deepseek-reasoner` | 42 | −0.0040 [−0.0079, −0.0002] | −$13 [−30, +5] | −$93 [−492, +400] |
+| D. Tool agent + priced-in sceptic, `deepseek-reasoner` | 2 | +0.0100 [−0.0150, +0.0350] | +$4 [−3, +15] | +$100 [−62, +363] |
 | Never trade | 0 | – | $0 | $0 |
 
 - **The plain LLM almost never trades.** Its probability cleared the 4¢ gap after fees at only 5 of 304 decision
@@ -1245,17 +1249,18 @@ points (seed 7606: 304 of 771). The anchor and never-trade arms are on the same 
 - **It "beats" the anchor agent on CLV dollars only by trading less:** paired +$18 [+1, +35], p = 0.02. Mean CLV
   per trade is no better: +0.0012 [−0.0090, +0.0155]. As before, the anchor agent loses CLV dollars against never
   trading (−$19 [−36, −1]).
-- **The tool agent arms were not scored.** The free daily quota ran out partway through arm C. On a nested
-  117-point subsample, the 32 analyst decisions that returned all chose **pass** (0 invalid); the other 85 hit the
-  quota. So we have no result for "tool agent vs anchor" or for the sceptic. A DeepSeek backend
-  (`--backend deepseek`, `deepseek-chat`) is now in place to re-run B, C and D on one model, but the DeepSeek
-  account had no balance (HTTP 402) when we tried, so it has not run yet. That would also be a deviation from the
-  pre-registered Gemini 2.5 Flash. Command (copies the existing anchor and Gemini plain runs alongside):
-
-      mkdir -p runs/llm_agent/test-deepseek && cp -R runs/llm_agent/test/anchor runs/llm_agent/test-deepseek/ && cp -R runs/llm_agent/test/plain runs/llm_agent/test-deepseek/plain_gemini
-      python -m evaluation.llm_agent_eval --window test --name test-deepseek --backend deepseek --subsample 0.4 --setups plain,tool,tool_sceptic --workers 4 --report test-deepseek
-- **Cost:** $0 actually spent (free tier). At list prices, the plain arm's 175k input and 16k output tokens
-  would cost about $0.02. Latency was 2.8 s per call, including rate-limit waits.
+- **Tool agent arms (C, D) re-run on DeepSeek, 8 Oct** (deviation: the Gemini free tier could not score them).
+  Two models on the same 304 decision points and frozen prompts: `deepseek-chat`, and `deepseek-reasoner` (thinking
+  mode), chosen as the strongest available model before seeing its results; both are DeepSeek-V4.1-Flash.
+  **No LLM tool agent beats never trading.** The best arm, reasoner D, made 2 trades: CLV $ +$4 [−3, +15] vs never.
+  It beats the anchor agent on CLV $ (+$23 [+3, +43], p = 0.016) only by trading less; mean CLV per trade is no
+  better (+0.0142 [−0.0142, +0.0421]). Without the sceptic the reasoner made 42 trades, no better than the anchor
+  (CLV $ −$13 [−30, +5] vs never). **The sceptic helps by vetoing**: reasoner D − C CLV $ +$17 [+4, +32], p = 0.010,
+  but it rejected 40 of 42 candidates (chat: 4 of 4). Reasoner invalid rate 14% (21 calls spent the whole
+  8,192-token budget on hidden reasoning), chat 1.6%. Full tables, chat vs reasoner pairs and diagnostics:
+  `evaluation/results/llm_agent.md`.
+- **Cost:** Gemini arms $0 (free tier). DeepSeek: $3.49 actually spent for all six arms (chat ≈ $0.48, reasoner
+  ≈ $3.03). Latency per call: chat 2.0 s, reasoner 7.4 s (tool agent) and 14.4 s (plain).
 
 #### LLM rules in a safe DSL
 
