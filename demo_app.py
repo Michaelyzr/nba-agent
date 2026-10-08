@@ -532,7 +532,10 @@ subgraph cluster_learn { label="LEARN LOOP (after each settled day)"; style="rou
   settle [label="settle trades"]; review [label="reviewer proposes a rule\\n(skip templates +\\nEDGE-LEARNING templates: 2-10c)"];
   gate [label="split gate: back-test on\\nheld-out earlier days"]; save [label="save rule", fillcolor="#9be7a1"];
   reject [label="reject rule", fillcolor="#ffb3b3"]; nb [label="notebook\\n(rules + min edge)", fillcolor="#fff2b3"];
-  settle -> review -> gate; gate -> save [label="helps"]; gate -> reject [label="doesn't"]; save -> nb; }
+  settle -> review -> gate; gate -> save [label="helps"]; gate -> reject [label="doesn't"]; save -> nb;
+  mrev [label="model review (weekly):\\npropose lower-Brier forecast\\n(stack / MLP / M6)"];
+  mgate [label="CLV gate on held-out days\\n(6 of 6 rejected)", fillcolor="#ffb3b3"];
+  settle -> mrev -> mgate; mgate -> nb [style=dashed, label="never accepted"]; }
 subgraph cluster_blend { label="FORECAST-BLEND SUBLOOP (results use the simplified trader)"; style="rounded,dashed"; color="#756bb1";
   sig [label="signals: anchor, 1 h mid,\\nanchor+M4/MLP/GRU, M4/MLP/GRU"]; w [label="weights (refit on\\nsettled days)"];
   bg [label="gate: held-out Brier\\nmust improve"]; bp [label="blend p(home)"];
@@ -548,7 +551,10 @@ val -> edge_ [style=dashed, color="#888888", label="LLM estimate"]; sc -> risk [
 
 
 def arch_diagram():
-    st.graphviz_chart(ARCH, width="stretch")
+    mr = (load("results") or {}).get("model_review")
+    dot = ARCH if not mr else ARCH.replace(
+        "6 of 6 rejected", f"{mr['proposed'] - mr['accepted']} of {mr['proposed']} rejected")
+    st.graphviz_chart(dot, width="stretch")
     st.caption("Solid = the published trader (no LLM). Orange = what the learn loop writes back. Dashed = tested "
                "add-ons: the forecast blend was scored with a simplified offline trader, the LLM analyst and sceptic "
                "on the 40% subsample of 304 decision points.")
@@ -572,7 +578,8 @@ def overview():
 |---|---|---|
 | Trader (`agents/graph.py`) | LangGraph: news → M4 forecast → anchor + shift → gap after fees → checks → risk → order | Trader tab: graph path, every node, guardrails |
 | Reviewer + gate | Learns rules (skip rules and edge thresholds) from settled trades; the gate keeps a rule only if it helps on held-out earlier days | Trader review loop tab; Learning page |
-| Forecast blend (`agents/forecast_blend.py`) | Learns weights over market and model signals; a gate on held-out Brier accepts each update | Learning page |
+| Forecast blend (`agents/forecast_blend.py`) | Learns weights over market and model signals; a gate on held-out Brier accepts each update (simplified trader only) | Learning page |
+| Model review (`evaluation/model_review.py`) | Weekly: proposes a lower-Brier forecast inside the full agent; a held-out CLV gate rejected all 6 | Learning and Workflows pages |
 | LLM tool agent + sceptic (`agents/tool_agent.py`) | LLM calls as-of tools, proposes; code validates numbers; sceptic asks "already priced in?" | LLM tool agent tab |
 | Coach (`agents/coach_agent.py`) | Before a user's pick: chooses checks, teaches a lesson, nudges pass or caution | Coach tab |
 | Orchestrator (`agents/orchestrator.py`) | Supervisor routes pregame → trader → Coach → briefs for one night | Orchestrator tab |
@@ -736,6 +743,7 @@ def results_page():
              "clv_dollars": "CLV $ [95% CI]", "pnl": "P&L after fees $ [95% CI]", "source": "source"}
     st.subheader(ag["full_label"])
     table(ag["full"], cols, names)
+    pnl_panel(res.get("pnl"))
     st.subheader(ag["subsample_label"])
     st.caption("A different, smaller window: do not compare these numbers with the full-period table above.")
     table(ag["subsample"], cols, names)
@@ -779,6 +787,8 @@ def learning_page():
     adaptive_panel(res["adaptive_edge"])
     st.divider()
     blend_panel(res["forecast_blend"])
+    st.divider()
+    model_review_panel(res.get("model_review"))
 
 
 def adaptive_panel(ae):
@@ -846,6 +856,8 @@ def blend_panel(fb):
     c[0].metric("Blend − agent: CLV $", fb["blend_vs_agent_clv"],
                 f"blend {fb['blend_clv'].split()[0]} vs agent {fb['agent_clv'].split()[0]}", delta_color="off")
     c[1].metric("Blend − agent: P&L $", fb["blend_vs_agent_pnl"], "no detectable difference", delta_color="off")
+    st.caption("This CLV gain is on the simplified trader only. See the model review below: inside the full agent, "
+               "lower-Brier forecasts did not pass the CLV gate.")
     st.error(f"**Ablation: without market prices the blend does much worse**: CLV $ {fb['nomarket_clv']}, P&L "
              f"{fb['nomarket_pnl']}. The market is the base, our models are the correction.")
     with st.expander("All paired comparisons"):
@@ -858,7 +870,206 @@ def blend_panel(fb):
     st.caption(f"Source: {fb['source']}, forecast_blend_log.json.")
 
 
-PAGES = {"Overview": overview, "Results": results_page, "Learning": learning_page}
+def pnl_panel(p):
+    if not p:
+        return
+    st.markdown("**Cumulative P&L after fees, full test period** (each framework's own trades)")
+    df = pd.DataFrame(p["series"], index=pd.to_datetime(p["days"]))
+    df.columns = [f"{f} ({p['trades'][f]} trades)" for f in p["frameworks"]]
+    st.line_chart(df, height=320)
+    st.caption("Final P&L: " + "; ".join(f"{f} {'−' if v < 0 else '+'}${abs(v):,.0f}" for f, v in p["final"].items())
+               + f". Source: {p['source']}.")
+    with st.expander("Static chart (presentation figure)"):
+        figure(p["figure"], "Cumulative P&L by framework")
+
+
+def model_review_panel(mr):
+    if not mr:
+        return
+    st.header("Model review: can the full agent learn to switch forecasts?")
+    st.error("**Better Brier ≠ better trading inside the real agent.** "
+             f"The weekly reviewer proposed {mr['proposed']} forecast switches, each the best on its selection week's "
+             f"Brier; the held-out CLV gate rejected {mr['proposed'] - mr['accepted']} of {mr['proposed']}. The agent "
+             "stayed on anchor + M4 shift all season.")
+    st.write("Each week the reviewer scores candidate forecasts (anchor only, anchor + ½·M4, anchor + MLP, "
+             "anchor + mean(M4, MLP), mid + M6 move, a logistic stack) on the last 7 market days and proposes the "
+             "lowest-Brier one. The gate back-tests the notebook with and without it on the 14 earlier days and "
+             "accepts only if CLV $ rises by ≥ $2 over ≥ 3 changed trades and Brier is not worse.")
+    st.markdown("#### Step by step: proposed → gate evidence → decision")
+    for i, s in enumerate(mr["story"]):
+        with st.container(border=True):
+            c = st.columns([2, 3, 2])
+            c[0].markdown(f"**{i + 1}. {s['decided']}**  \nRule {s['rule']}: switch to **{s['blend']}**  \n"
+                          f"Selection Brier: {s['selection']}")
+            c[1].markdown(f"Gate days {s['gate_days']}:  \nCLV $ without **{s['clv_without']:+.2f}** → with "
+                          f"**{s['clv_with']:+.2f}**  \nBrier used {s['brier_used']:.4f} → blend {s['brier_blend']:.4f}")
+            ok = s["status"] != "rejected"
+            (c[2].success if ok else c[2].error)("ACCEPTED" if ok else "REJECTED")
+    st.markdown("**Trading results (full test period, full agent replay)**")
+    table(mr["trading"])
+    gain = next((r.get("Estimate [95% CI]") for r in mr["paired"] if r.get("Metric") == "clv_dollars"
+                 and "adaptive edge" in r.get("Paired difference", "") and "Fixed M4" in r.get("Paired difference", "")),
+                "")
+    st.caption(f"Model review + adaptive edge gains {gain} CLV $ over the current agent, all of it from the learned "
+               "edge threshold; model review alone is identical to the published agent.")
+    c = st.columns(2)
+    with c[0]:
+        figure(mr["loop_figure"], "Model-review loop")
+    with c[1]:
+        figure(mr["figure"], "Active blend over time and cumulative CLV")
+    st.caption(f"Source: {mr['source']}.")
+
+
+# ---------------- models ----------------
+
+def models_page():
+    res = load("results")
+    st.title("Models")
+    if not res or "models" not in res:
+        st.error("results.json missing. Run: python demo/build_results.py")
+        return
+    st.write("Every model below was trained only on data before 1 Feb 2026 and scored on the test period "
+             "(1 Feb – 12 Apr 2026). Numbers are read from evaluation/results at build time.")
+    cards = res["models"]["cards"]
+    for i in range(0, len(cards), 2):
+        cols = st.columns(2)
+        for c, m in zip(cols, cards[i:i + 2]):
+            with c.container(border=True):
+                st.markdown(f"#### {m['name']}")
+                st.caption(f"`{m['code']}`")
+                st.markdown(f"**Predicts:** {m['predicts']}  \n**Inputs:** {m['inputs']}  \n"
+                            f"**Architecture:** {m['architecture']}  \n**Training:** {m['training']}  \n"
+                            f"**Test metric:** {m['metric']}  \n**Role in trading:** {m['trading']}")
+    st.header("How each framework trades")
+    w = res["workflow"]
+    caps = w.get("caps") or []
+    st.info(f"**Shared rule:** buy if p − ask − fee > min edge (4¢ unless learned); ${20} stake; fill at the ask plus "
+            f"the Kalshi fee; quote at most {w.get('max_quote_age_min')} min old; caps "
+            + " / ".join(f"${c:.0f}" for c in caps) + " per order / game / day; no trading after tip.")
+    table(res["frameworks"], None, {"framework": "framework", "probability": "probability source",
+                                    "filters": "filters", "learning": "learning", "trades": "trades",
+                                    "clv_dollars": "CLV $ [95% CI]", "pnl": "P&L after fees $ [95% CI]",
+                                    "window": "window / trader"})
+    st.caption("Rows use different windows and traders (last column): compare within a window only.")
+
+
+# ---------------- workflows ----------------
+
+KIND = {"code": "#cfe8ff", "llm": "#e3d4ff", "gate": "#ffd8a8", "store": "#fff2b3", "end": "#9be7a1", "no": "#ffb3b3"}
+
+
+def flow(nodes, edges):
+    lines = ['digraph W { rankdir=LR; bgcolor="transparent";',
+             'node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10];', 'edge [fontsize=9];']
+    for n, label, kind in nodes:
+        lines.append(f'"{n}" [label="{label}", fillcolor="{KIND[kind]}"];')
+    for e in edges:
+        a, b, lab = (e + ("",))[:3]
+        lines.append(f'"{a}" -> "{b}" [label="{lab}"];')
+    st.graphviz_chart("\n".join(lines + ["}"]), width="stretch")
+
+
+def workflow(title, nodes, edges, steps, used):
+    with st.container(border=True):
+        st.subheader(title)
+        flow(nodes, edges)
+        for s in steps:
+            st.markdown("- " + s)
+        st.caption("Used in: " + used)
+
+
+def workflows_page():
+    res = load("results") or {}
+    w = res.get("workflow", {})
+    mr = res.get("model_review") or {"proposed": 0, "accepted": 0, "story": [], "review_rules": {}}
+    ae = res.get("adaptive_edge") or {"timeline": []}
+    fb = res.get("forecast_blend") or {"counts": {}, "blend_vs_agent_clv": "", "blend_vs_agent_pnl": ""}
+    rej = f"rejected {mr['proposed'] - mr['accepted']} / {mr['proposed']}"
+    worst = min(mr["story"], key=lambda s: s["clv_with"] - s["clv_without"], default=None)
+    st.title("Agent workflows")
+    st.markdown("Colour key: blue = code, purple = LLM, orange = gate or check, yellow = stored memory, "
+                "green = action, red = rejected.")
+    workflow("1. Trader decide loop (LangGraph, `agents/graph.py`)",
+             [("t", "trigger", "code"), ("i", "investigate\\n(news, out list)", "code"), ("f", "forecast\\n(M4 shift)", "code"),
+              ("a", "analyse\\n(anchor + shift,\\ngap after fees)", "code"), ("p", "propose\\norder + brief", "code"),
+              ("c", "checks", "gate"), ("r", "risk", "gate"), ("k", "confirm / deliver", "end")],
+             [("t", "i"), ("i", "f"), ("f", "a"), ("a", "p"), ("p", "c"), ("c", "p", "fail: one retry"), ("c", "r", "pass"),
+              ("r", "k")],
+             ["**Code only, no LLM.** Trigger on fresh quotes; investigate reads as-of injury news.",
+              "Forecast: M4 before vs after news → shift; analyse adds it to the 24 h anchor and computes the gap after "
+              "fees against the min edge (4¢ or a learned rule).",
+              "Checks: " + ", ".join(w.get("checks", [])) + ". Banned wording regex `" + w.get("banned_regex", "")
+              + "` (whole word: 'lock' is caught, 'locked' is not). A failure triggers one retry, then blocks.",
+              "Risk: " + ", ".join(w.get("risk_reasons", [])) + f"; kill switch at −$100 realised per day; order cap "
+              f"${w.get('max_order', 50):.0f}.",
+              "Confirm: platform paper orders auto-confirm in the replay; retail needs an explicit confirmation."],
+             "every published trading result (raw M4 skips the anchor and learning).")
+    workflow("2. Trader learn loop",
+             [("s", "settle day", "code"), ("v", "review:\\nrule templates", "code"),
+              ("g", "split gate:\\nback-test on 14\\nheld-out days", "gate"), ("y", "save rule", "end"),
+              ("n", "reject", "no"), ("b", "notebook\\n(45-day expiry)", "store")],
+             [("s", "v"), ("v", "g"), ("g", "y", "CLV $ +$2,\\n≥ 3 trades"), ("g", "n"), ("y", "b"), ("b", "v", "next day")],
+             ["After each settled day the reviewer picks the template (skip a market slice, raise the edge) with the "
+              "largest CLV-dollar gain on the last 7 market days.",
+              "The split gate re-runs the agent on the 14 earlier days with and without the rule.",
+              "Accepted rules go into the notebook, valid from the decision time, and expire after 45 days."],
+             "split-gate learning (53 trades, the published agent).")
+    workflow("3. Edge-learning extension",
+             [("v", "edge templates:\\n2/3/5/7/10¢; 8¢ underdogs,\\n10¢ long shots, 7¢ stale news", "code"),
+              ("g", "same split gate", "gate"), ("b", "notebook: newest\\nmarket-wide rule\\nsets the threshold", "store")],
+             [("v", "g"), ("g", "b", "accepted")],
+             ["Market-wide rules can raise or lower the threshold; slice rules can only raise it.",
+              "Threshold timeline (base 4¢): " + " → ".join(ae["timeline"]) + "."],
+             "learned edge threshold (42 trades) and model review + adaptive edge.")
+    workflow("4. Model-review subloop",
+             [("s", "weekly review", "code"), ("c", "score candidates\\non 7 days' Brier", "code"),
+              ("p", "propose best\\n(stack / M6 / MLP)", "code"), ("g", "CLV gate on\\n14 held-out days", "gate"),
+              ("n", rej, "no"), ("b", "notebook\\n(forecast rule)", "store")],
+             [("s", "c"), ("c", "p"), ("p", "g"), ("g", "n"), ("g", "b", "never")],
+             ["Candidates: anchor, anchor + ½·M4, anchor + MLP, mean(M4, MLP), mid + M6, logistic stack.",
+              "Gate: CLV $ +$2 over ≥ 3 changed trades and Brier not worse.",
+              f"Result: {rej} switches"
+              + (f" (e.g. {worst['blend']} {worst['clv_without']:+.2f} → {worst['clv_with']:+.2f} CLV $ on gate days)"
+                 if worst else "") + "; the agent kept anchor + M4."],
+             f"model review arms (identical to the published agent: {mr['review_rules'].get('Trades')} trades, "
+             f"CLV $ {mr['review_rules'].get('CLV $ [95% CI]')}).")
+    workflow("5. Forecast-blend subloop",
+             [("s", "8 signals", "code"), ("w", "refit weights\\n(settled days)", "code"),
+              ("g", "held-out Brier\\n≥ 0.0005 better?", "gate"), ("p", "blend p(home)", "end"),
+              ("t", "simplified trader", "code")],
+             [("s", "w"), ("w", "g"), ("g", "p", "accept"), ("p", "t")],
+             ["Weighted log-odds average of anchor, 1 h mid, anchor + M4/MLP/GRU shifts and raw models.",
+              f"Starts as the published agent (all weight on anchor + M4); {fb['counts'].get('accepted')} updates "
+              "accepted, most weight ends on anchor + MLP.",
+              "Tested only with a simplified one-decision-per-game trader."],
+             f"forecast-blend results (CLV $ {fb['blend_vs_agent_clv']} vs the agent on that trader; P&L "
+             f"{fb['blend_vs_agent_pnl']}, no difference).")
+    tools = ", ".join(w.get("tools", []))
+    workflow("6. LLM tool agent + priced-in sceptic (`agents/tool_agent.py`)",
+             [("a", "LLM analyst", "llm"), ("t", f"{len(w.get('tools', []))} as-of tools", "code"),
+              ("v", "validation:\\ncitations, grounding,\\nbanned words", "gate"), ("e", "edge in code\\n> 4¢", "gate"),
+              ("s", "LLM sceptic:\\nalready priced in?", "llm"), ("r", "risk", "gate"), ("o", "order", "end")],
+             [("a", "t", "tool calls"), ("t", "a", "results"), ("a", "v", "proposal"), ("v", "e"), ("e", "s"),
+              ("s", "r", "allow"), ("r", "o")],
+             [f"The LLM calls tools ({tools}) and proposes a trade citing tool outputs.",
+              f"Code checks that cited numbers match the outputs, the estimate is within {w.get('ground_band', 0.03) * 100:.0f} "
+              "points of a tool-derived probability, and no banned wording.",
+              "Code computes the gap after fees; a second LLM call (the sceptic) vetoes if the edge is already priced in.",
+              "Replies are cached, so runs replay exactly."],
+             "LLM arms on the 40% subsample only (no published trader result uses an LLM).")
+    with st.container(border=True):
+        st.subheader("7. Coach, Orchestrator, Pregame, In-play")
+        st.markdown("- **Coach** (`agents/coach_agent.py`): before a user's pick, chooses which checks to run, "
+                    "teaches a lesson and nudges pass or caution. Code only.\n"
+                    "- **Orchestrator** (`agents/orchestrator.py`): rule-based supervisor routing pregame → trader → "
+                    "Coach → briefs for one night; a failing worker degrades gracefully.\n"
+                    "- **Pregame** (`agents/pregame.py`): polls news hourly, extracts factors, reforecasts.\n"
+                    "- **In-play** (`agents/inplay.py`): live fair odds from the diffusion model (synthetic demo script).")
+        st.caption("Used in: Scenarios page demos; not in the trading results.")
+
+
+PAGES = {"Overview": overview, "Results": results_page, "Models": models_page, "Workflows": workflows_page,
+         "Learning": learning_page}
 
 
 def main():
@@ -866,7 +1077,7 @@ def main():
     if not index:
         st.error("No traces found in demo/traces/. Run: PYTHONPATH=. python demo/build_traces.py")
         return
-    page = st.sidebar.radio("Page", ["Overview", "Results", "Learning", "Scenarios"])
+    page = st.sidebar.radio("Page", ["Overview", "Results", "Models", "Workflows", "Learning", "Scenarios"])
     if page in PAGES:
         PAGES[page]()
         return
