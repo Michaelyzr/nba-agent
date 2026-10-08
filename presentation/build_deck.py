@@ -100,7 +100,7 @@ K = {
     "llm_points": "304", "llm_plain_n": "5", "llm_plain_clv": "−$1", "llm_det_n": "53", "llm_det_clv": "−$19",
     # Tool agent + sceptic (DeepSeek re-run): None shows "pending". Fill with one short string, e.g.
     # "8 trades, CLV $ −$2 [−5, +1] vs never; sceptic vetoed 3 of 9"
-    "llm_tool": None,
+    "llm_tool": "DeepSeek reasoner: 2 trades, CLV $ +$4 [−3, +15] = never; sceptic vetoed 40/42 (chat: 0 trades)",
     # Team contributions (slide 13): PRs on GitHub; names as the author appears on the PR.
     "team": [
         ("Pregame news and fair-odds loop", "#7", "codingMiiichael", "Multi-source news polling → fair odds"),
@@ -703,7 +703,7 @@ def build():
     # 11 Agentic upgrades ------------------------------------------------------
     n = 11
     orch = (FIG / "orchestrator.png").exists()
-    llm_tool = (f"The tool agent with the sceptic scored {K['llm_tool']}." if K["llm_tool"] else
+    llm_tool = (f"The tool agent with the sceptic, re-run on DeepSeek: {K['llm_tool']}." if K["llm_tool"] else
                 "The tool agent and the sceptic are pending: the Gemini quota ran out and they are being re-run "
                 "on DeepSeek.")
     s = new_slide(prs, "Agentic upgrades: the market's answer is “trade less”", (

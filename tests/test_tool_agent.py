@@ -191,6 +191,36 @@ def test_deepseek_backend_parses_retries_and_keys_cache_by_model(monkeypatch, tm
     assert gemini.key("analyst", "Reply in JSON.", "prompt") != out["key"]
 
 
+def test_deepseek_reasoner_keeps_reasoning_out_of_the_answer(monkeypatch, tmp_path):
+    import httpx
+
+    from agents import llm_client
+    sleeps, bodies = [], []
+    monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    content = 'Final answer:\n```json\n{"decision": "pass", "rationale": "no {edge}"}\n```'
+    replies = [httpx.Response(503, text="busy"),
+               httpx.Response(200, json={"choices": [{"message": {"content": content,
+                                                                  "reasoning_content": "Think {not json} " * 10}}],
+                                         "usage": {"prompt_tokens": 20, "completion_tokens": 90,
+                                                   "completion_tokens_details": {"reasoning_tokens": 70}}})]
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return replies.pop(0)
+    client = httpx.Client(base_url="https://api.deepseek.com", transport=httpx.MockTransport(handler))
+    b = llm_client.DeepSeekBackend(model="deepseek-reasoner", client=client)
+    llm = CachedLLM(b, cache_dir=tmp_path)
+    out = llm.ask("analyst", "Reply in JSON.", "prompt")
+    assert out["json"] == {"decision": "pass", "rationale": "no {edge}"} and "Think" not in out["text"]
+    assert (out["reasoning_tokens"], out["reasoning_chars"]) == (70, len("Think {not json} " * 10))
+    assert sleeps == [2.0] and len(bodies) == 2
+    assert "temperature" not in bodies[0] and bodies[0]["max_tokens"] == llm_client.REASONER_MAX_TOKENS
+    again = CachedLLM(b, cache_dir=tmp_path).ask("analyst", "Reply in JSON.", "prompt")
+    assert again["cached"] and again["reasoning_tokens"] == 70 and again["json"] == out["json"]
+    chat = CachedLLM(StubBackend(lambda *a: {}, model="deepseek-chat"), cache_dir=tmp_path)
+    assert chat.key("analyst", "Reply in JSON.", "prompt") != out["key"]
+
+
 def test_deepseek_backend_does_not_retry_auth_errors(monkeypatch):
     import httpx
 
