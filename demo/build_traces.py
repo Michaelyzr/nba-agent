@@ -2,6 +2,7 @@
 
     PYTHONPATH=. python demo/build_traces.py                    # all scenarios -> demo/traces/*.json
     PYTHONPATH=. python demo/build_traces.py --live 401810565 "2026-02-02 01:30"   # one trader run -> stdout JSON
+    PYTHONPATH=. python demo/build_traces.py --results          # results.json + figures only (demo/build_results.py)
 
 Needs the full local setup (data/frozen, models/, langgraph). Every decision step is built from the
 AsOf view at the decision time; closing prices, CLV and P&L are computed separately and stored under
@@ -967,6 +968,14 @@ def build_all():
     write("index", {"scenarios": scenarios, "built_at": pd.Timestamp.now(tz="UTC").isoformat(),
                     "note": "Decision steps use only data available at the decision time; settlement is revealed at "
                             "tip-off."})
+    build_results()
+
+
+def build_results():
+    """Results scoreboard and learning panels: demo/traces/results.json plus demo/figures/*.png."""
+    sys.path.insert(0, str(ROOT / "demo"))
+    import build_results as br
+    br.main()
 
 
 def deepseek_only():
@@ -1006,8 +1015,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs=2, metavar=("GAME_ID", "AS_OF_UTC"))
     ap.add_argument("--deepseek", action="store_true", help="rebuild only the DeepSeek traces into the index")
+    ap.add_argument("--results", action="store_true", help="rebuild only results.json and the figures")
     a = ap.parse_args()
-    if a.live:
+    if a.results:
+        build_results()
+    elif a.live:
         live(*a.live)
     elif a.deepseek:
         deepseek_only()

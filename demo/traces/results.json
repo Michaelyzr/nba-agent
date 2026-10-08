@@ -1,0 +1,1844 @@
+{
+ "agent": "results",
+ "win_models": [
+  {
+   "predictor": "Always 55% home",
+   "group": "baseline",
+   "brier": 0.246811377245509,
+   "log_loss": 0.6867569496430408,
+   "accuracy": 0.5568862275449101,
+   "games": 501,
+   "source": "m4_vs_market.csv"
+  },
+  {
+   "predictor": "M4 (logistic regression, absences known)",
+   "group": "our model",
+   "brier": 0.1827041495572548,
+   "log_loss": 0.5475711247289501,
+   "accuracy": 0.7405189620758483,
+   "games": 501,
+   "source": "m4_vs_market.csv"
+  },
+  {
+   "predictor": "M4 + Platt scaling",
+   "group": "our model",
+   "brier": 0.1846,
+   "log_loss": 0.5523,
+   "accuracy": 0.745,
+   "games": 501,
+   "source": "m4_calibration.md"
+  },
+  {
+   "predictor": "M4 + isotonic",
+   "group": "our model",
+   "brier": 0.1841,
+   "log_loss": 0.551,
+   "accuracy": 0.7490000000000001,
+   "games": 501,
+   "source": "m4_calibration.md"
+  },
+  {
+   "predictor": "M4 + Feb\u2013Apr Platt (exploratory)",
+   "group": "our model",
+   "brier": 0.1815,
+   "log_loss": 0.5429,
+   "accuracy": 0.723,
+   "games": 501,
+   "source": "m4_calibration.md"
+  },
+  {
+   "predictor": "M4-NN MLP (3-seed mean)",
+   "group": "our model",
+   "brier": 0.1842,
+   "log_loss": 0.5507,
+   "accuracy": 0.733,
+   "games": 501,
+   "source": "win_nn.md"
+  },
+  {
+   "predictor": "M4-NN GRU (3-seed mean)",
+   "group": "our model",
+   "brier": 0.1864,
+   "log_loss": 0.5575,
+   "accuracy": 0.7390000000000001,
+   "games": 501,
+   "source": "win_nn.md"
+  },
+  {
+   "predictor": "Anchor: market 24 h before tip",
+   "group": "market",
+   "brier": 0.1676,
+   "log_loss": 0.5072,
+   "accuracy": 0.75,
+   "games": 501,
+   "source": "m4_calibration.md"
+  },
+  {
+   "predictor": "Anchor + M4 shift (the agent's estimate)",
+   "group": "anchor + model",
+   "brier": 0.1663,
+   "log_loss": 0.504,
+   "accuracy": 0.7559999999999999,
+   "games": 501,
+   "source": "m4_calibration.md"
+  },
+  {
+   "predictor": "Anchor + MLP shift",
+   "group": "anchor + model",
+   "brier": 0.1632,
+   "log_loss": 0.4972,
+   "accuracy": 0.7559999999999999,
+   "games": 501,
+   "source": "win_nn.md"
+  },
+  {
+   "predictor": "Anchor + GRU shift",
+   "group": "anchor + model",
+   "brier": 0.1642,
+   "log_loss": 0.4975,
+   "accuracy": 0.752,
+   "games": 501,
+   "source": "win_nn.md"
+  },
+  {
+   "predictor": "Learned blend (all inputs, walk-forward)",
+   "group": "anchor + model",
+   "brier": 0.1654,
+   "log_loss": 0.5017,
+   "accuracy": null,
+   "games": 501,
+   "source": "forecast_blend.md"
+  },
+  {
+   "predictor": "Kalshi 1 h before tip",
+   "group": "market",
+   "brier": 0.164112874251497,
+   "log_loss": 0.4973365441991503,
+   "accuracy": 0.7504990019960079,
+   "games": 501,
+   "source": "m4_vs_market.csv"
+  },
+  {
+   "predictor": "Kalshi at tip",
+   "group": "market",
+   "brier": 0.1632539421157684,
+   "log_loss": 0.4956434317034333,
+   "accuracy": 0.7584830339321357,
+   "games": 501,
+   "source": "m4_vs_market.csv"
+  },
+  {
+   "predictor": "Kalshi close (venue comparison)",
+   "group": "venue close",
+   "brier": 0.1613641528526756,
+   "log_loss": 0.4908572272841039,
+   "accuracy": null,
+   "games": 498,
+   "source": "venue_compare.csv"
+  },
+  {
+   "predictor": "Polymarket close",
+   "group": "venue close",
+   "brier": 0.1618287911646586,
+   "log_loss": 0.4921820971260043,
+   "accuracy": null,
+   "games": 498,
+   "source": "venue_compare.csv"
+  },
+  {
+   "predictor": "DraftKings close (de-vigged)",
+   "group": "venue close",
+   "brier": 0.162850257401879,
+   "log_loss": 0.496284689391775,
+   "accuracy": null,
+   "games": 498,
+   "source": "venue_compare.csv"
+  }
+ ],
+ "players": {
+  "m2": [
+   {
+    "model": "M1a: 10-game rolling average",
+    "target": "points",
+    "pinball": 1.6405890992729264,
+    "coverage_10_90": 0.7976587332351345,
+    "median_abs_error": 4.708267831348218
+   },
+   {
+    "model": "M1a: 10-game rolling average",
+    "target": "minutes",
+    "pinball": 1.9664825649806863,
+    "coverage_10_90": 0.7871928056438484,
+    "median_abs_error": 5.4115545979998245
+   },
+   {
+    "model": "M1b: gradient boosting",
+    "target": "points",
+    "pinball": 1.5901213626546349,
+    "coverage_10_90": 0.8622373827428483,
+    "median_abs_error": 4.52214723085939
+   },
+   {
+    "model": "M1b: gradient boosting",
+    "target": "minutes",
+    "pinball": 1.72378317602625,
+    "coverage_10_90": 0.7612993255291108,
+    "median_abs_error": 4.913774108805034
+   },
+   {
+    "model": "M2: GRU (deep learning)",
+    "target": "points",
+    "pinball": 1.5533073865777889,
+    "coverage_10_90": 0.8086673385533762,
+    "median_abs_error": 4.479058394911068
+   },
+   {
+    "model": "M2: GRU (deep learning)",
+    "target": "minutes",
+    "pinball": 1.6797890956492718,
+    "coverage_10_90": 0.8004496472594774,
+    "median_abs_error": 4.80371822079112
+   }
+  ],
+  "m3": [
+   {
+    "predictor": "M3 model",
+    "brier": 0.1433164625197924,
+    "rows": 18710,
+    "base_rate": 0.6759486905398183
+   },
+   {
+    "predictor": "Played-rate over last 10 games",
+    "brier": 0.1715273971138428,
+    "rows": 18710,
+    "base_rate": 0.6759486905398183
+   },
+   {
+    "predictor": "Played last game",
+    "brier": 0.1685929983965793,
+    "rows": 18710,
+    "base_rate": 0.6759486905398183
+   }
+  ],
+  "m6": [
+   {
+    "model": "M6 ImpactNet",
+    "rows": 771,
+    "mae_c": 0.8667652736760371,
+    "mae_minus_zero_c": 0.0334319403427039,
+    "ci": "[+0.021, +0.045]"
+   },
+   {
+    "model": "zero move",
+    "rows": 771,
+    "mae_c": 0.8333333333333331,
+    "mae_minus_zero_c": 0.0,
+    "ci": "[+0.000, +0.000]"
+   },
+   {
+    "model": "linear",
+    "rows": 771,
+    "mae_c": 0.936971122806636,
+    "mae_minus_zero_c": 0.1036377894733028,
+    "ci": "[+0.079, +0.128]"
+   },
+   {
+    "model": "gbm",
+    "rows": 771,
+    "mae_c": 1.0560872679719218,
+    "mae_minus_zero_c": 0.2227539346385886,
+    "ci": "[+0.172, +0.274]"
+   },
+   {
+    "model": "M4 shift only",
+    "rows": 771,
+    "mae_c": 0.843221476603668,
+    "mae_minus_zero_c": 0.0098881432703347,
+    "ci": "[+0.005, +0.015]"
+   }
+  ],
+  "m6_agent_trades_test": "0",
+  "sources": [
+   "m2_heldout.csv",
+   "m3_heldout.csv",
+   "m6_heldout.csv",
+   "m6_ablation.md"
+  ]
+ },
+ "agents": {
+  "full": [
+   {
+    "setup": "Raw M4, no agent (no anchor)",
+    "trades": "366",
+    "mean_clv": "-0.0047 [-0.0063, -0.0031]",
+    "clv_dollars": "-172 [-231, -118]",
+    "pnl": "-2,087 [-3,083, -1,045]",
+    "source": "significance.md"
+   },
+   {
+    "setup": "Anchor agent, fixed 4\u00a2 edge, no learning",
+    "trades": "129",
+    "mean_clv": "-0.35\u00a2 [-0.65, +0.00]",
+    "clv_dollars": "-35 [-60, -12]",
+    "pnl": "-247 [-718, +265]",
+    "source": "adaptive_edge.md"
+   },
+   {
+    "setup": "Split-gate learning (published agent)",
+    "trades": "53",
+    "mean_clv": "-0.50\u00a2 [-1.01, +0.19]",
+    "clv_dollars": "-18 [-34, -2]",
+    "pnl": "-96 [-437, +247]",
+    "source": "adaptive_edge.md"
+   },
+   {
+    "setup": "Learned edge threshold (base 4\u00a2)",
+    "trades": "42",
+    "mean_clv": "-0.45\u00a2 [-1.07, +0.41]",
+    "clv_dollars": "-14 [-31, +1]",
+    "pnl": "-102 [-359, +171]",
+    "source": "adaptive_edge.md"
+   },
+   {
+    "setup": "Learned edge threshold (base 1\u00a2)",
+    "trades": "80",
+    "mean_clv": "-0.39\u00a2 [-0.74, -0.01]",
+    "clv_dollars": "-29 [-49, -12]",
+    "pnl": "-422 [-735, -138]",
+    "source": "adaptive_edge.md"
+   },
+   {
+    "setup": "Never trade",
+    "trades": "0",
+    "mean_clv": "\u2013",
+    "clv_dollars": "+0",
+    "pnl": "+0",
+    "source": "\u2013"
+   }
+  ],
+  "subsample": [
+   {
+    "setup": "A. Deterministic anchor agent (4\u00a2 edge)",
+    "trades": "53",
+    "mean_clv": "-0.0042 [-0.0090, +0.0015]",
+    "clv_dollars": "-19 [-36, -1]",
+    "pnl": "-236 [-538, +73]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "B. plain LLM (DeepSeek chat)",
+    "trades": "3",
+    "mean_clv": "-0.0083 [-0.0150, -0.0050]",
+    "clv_dollars": "-1 [-2, +0]",
+    "pnl": "+44 [+0, +101]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "C. LLM tool agent (DeepSeek chat)",
+    "trades": "4",
+    "mean_clv": "-0.0025 [-0.0050, +0.0050]",
+    "clv_dollars": "-1 [-2, +0]",
+    "pnl": "-42 [-123, +34]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "D. tool agent + sceptic (DeepSeek chat)",
+    "trades": "0",
+    "mean_clv": "\u2013",
+    "clv_dollars": "+0 [+0, +0]",
+    "pnl": "+0 [+0, +0]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "B. plain LLM (DeepSeek reasoner)",
+    "trades": "5",
+    "mean_clv": "-0.0030 [-0.0117, +0.0083]",
+    "clv_dollars": "-0 [-2, +2]",
+    "pnl": "+4 [-77, +75]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "C. LLM tool agent (DeepSeek reasoner)",
+    "trades": "42",
+    "mean_clv": "-0.0040 [-0.0079, -0.0002]",
+    "clv_dollars": "-13 [-30, +5]",
+    "pnl": "-93 [-492, +400]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "D. tool agent + sceptic (DeepSeek reasoner)",
+    "trades": "2",
+    "mean_clv": "+0.0100 [-0.0150, +0.0350]",
+    "clv_dollars": "+4 [-3, +15]",
+    "pnl": "+100 [-62, +363]",
+    "source": "llm_agent.md"
+   },
+   {
+    "setup": "A. Deterministic anchor agent, no edge gate (0\u00a2)",
+    "trades": "188",
+    "mean_clv": "-0.0043 [-0.0061, -0.0024]",
+    "clv_dollars": "-82 [-121, -48]",
+    "pnl": "-681 [-1,456, +145]",
+    "source": "edge_gate.md"
+   },
+   {
+    "setup": "D. Reasoner tool agent + sceptic, no edge gate (0\u00a2)",
+    "trades": "3",
+    "mean_clv": "-0.0117 [-0.0150, -0.0050]",
+    "clv_dollars": "-2 [-5, +0]",
+    "pnl": "+6 [-57, +64]",
+    "source": "edge_gate.md"
+   },
+   {
+    "setup": "Never trade",
+    "trades": "0",
+    "mean_clv": "\u2013",
+    "clv_dollars": "+0",
+    "pnl": "+0",
+    "source": "\u2013"
+   }
+  ],
+  "full_label": "Full test period, 1 Feb \u2013 12 Apr 2026 (every decision point, 501 games)",
+  "subsample_label": "40% subsample: 304 test decision points (seed 7606), the LLM comparison window",
+  "raw_pnl": "-2,087 [-3,083, -1,045]",
+  "anchor_pnl": "-247 [-718, +265]"
+ },
+ "edge_gate": {
+  "source": "edge_gate.md (origin/results/deepseek-llm-agent)",
+  "summary": "Without the gate the deterministic agent trades 188 times instead of 53; the extra trades lose to the close at the same rate per contract, so CLV $ falls from -19 [-36, -1] to -82 [-121, -48] (paired difference -63 [-104, -32]). With the sceptic, the reasoner agent goes from 2 to 3 trades: it proposes 110 orders at edge 0 and the sceptic vetoes 107 of them (69 of 70 low-edge ones), so it still holds the line without the gate.",
+  "sweep": [
+   {
+    "min_edge": "0\u00a2",
+    "trades": 188,
+    "clv_dollars": -82.0,
+    "clv_ci": "-82 [-121, -48]",
+    "mean_clv": "-0.0043 [-0.0061, -0.0024]",
+    "pnl": "-681 [-1,456, +145]",
+    "win_rate": "41%"
+   },
+   {
+    "min_edge": "1\u00a2",
+    "trades": 145,
+    "clv_dollars": -64.0,
+    "clv_ci": "-64 [-91, -38]",
+    "mean_clv": "-0.0044 [-0.0065, -0.0022]",
+    "pnl": "-857 [-1,357, -315]",
+    "win_rate": "37%"
+   },
+   {
+    "min_edge": "2\u00a2",
+    "trades": 108,
+    "clv_dollars": -45.0,
+    "clv_ci": "-45 [-70, -22]",
+    "mean_clv": "-0.0046 [-0.0071, -0.0018]",
+    "pnl": "-630 [-1,053, -201]",
+    "win_rate": "37%"
+   },
+   {
+    "min_edge": "3\u00a2",
+    "trades": 74,
+    "clv_dollars": -28.0,
+    "clv_ci": "-28 [-46, -9]",
+    "mean_clv": "-0.0045 [-0.0079, -0.0003]",
+    "pnl": "-404 [-741, -58]",
+    "win_rate": "39%"
+   },
+   {
+    "min_edge": "4\u00a2",
+    "trades": 53,
+    "clv_dollars": -19.0,
+    "clv_ci": "-19 [-36, -1]",
+    "mean_clv": "-0.0042 [-0.0090, +0.0015]",
+    "pnl": "-236 [-538, +73]",
+    "win_rate": "40%"
+   }
+  ],
+  "paired": [
+   {
+    "Arm": "A. Deterministic anchor agent",
+    "Metric": "mean CLV",
+    "Difference [95% CI]": "-0.0000 [-0.0049, +0.0039]",
+    "p": "0.484"
+   },
+   {
+    "Arm": "A. Deterministic anchor agent",
+    "Metric": "CLV $",
+    "Difference [95% CI]": "-63 [-104, -32]",
+    "p": "0.997"
+   },
+   {
+    "Arm": "A. Deterministic anchor agent",
+    "Metric": "P&L",
+    "Difference [95% CI]": "-445 [-1,136, +309]",
+    "p": "0.875"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Metric": "mean CLV",
+    "Difference [95% CI]": "-0.0217 [-0.0500, +0.0100]",
+    "p": "0.819"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Metric": "CLV $",
+    "Difference [95% CI]": "-6 [-18, +2]",
+    "p": "0.858"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Metric": "P&L",
+    "Difference [95% CI]": "-94 [-378, +81]",
+    "p": "0.770"
+   }
+  ],
+  "split": [
+   {
+    "Arm": "A. Deterministic anchor agent",
+    "Trades": "low-edge trades (gap \u2264 4\u00a2), edge 0",
+    "n": "137",
+    "Mean CLV [95% CI]": "-0.0043 [-0.0063, -0.0023]",
+    "CLV $ [95% CI]": "-64 [-104, -32]",
+    "P&L [95% CI]": "-486 [-1,190, +282]",
+    "Win rate": "42%"
+   },
+   {
+    "Arm": "A. Deterministic anchor agent",
+    "Trades": "normal trades (gap > 4\u00a2), edge 0",
+    "n": "51",
+    "Mean CLV [95% CI]": "-0.0042 [-0.0092, +0.0016]",
+    "CLV $ [95% CI]": "-18 [-35, -0]",
+    "P&L [95% CI]": "-195 [-502, +127]",
+    "Win rate": "41%"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Trades": "low-edge trades (gap \u2264 4\u00a2), edge 0",
+    "n": "1",
+    "Mean CLV [95% CI]": "-0.0150 [-0.0150, -0.0150]",
+    "CLV $ [95% CI]": "-1 [-4, +0]",
+    "P&L [95% CI]": "-21 [-63, +0]",
+    "Win rate": "0%"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Trades": "normal trades (gap > 4\u00a2), edge 0",
+    "n": "2",
+    "Mean CLV [95% CI]": "-0.0100 [-0.0150, -0.0050]",
+    "CLV $ [95% CI]": "-1 [-2, +0]",
+    "P&L [95% CI]": "+27 [+0, +69]",
+    "Win rate": "100%"
+   },
+   {
+    "Arm": "D-chat. Chat tool agent + sceptic",
+    "Trades": "low-edge trades (gap \u2264 4\u00a2), edge 0",
+    "n": "0",
+    "Mean CLV [95% CI]": "\u2013",
+    "CLV $ [95% CI]": "\u2013",
+    "P&L [95% CI]": "\u2013",
+    "Win rate": "\u2013"
+   },
+   {
+    "Arm": "D-chat. Chat tool agent + sceptic",
+    "Trades": "normal trades (gap > 4\u00a2), edge 0",
+    "n": "0",
+    "Mean CLV [95% CI]": "\u2013",
+    "CLV $ [95% CI]": "\u2013",
+    "P&L [95% CI]": "\u2013",
+    "Win rate": "\u2013"
+   }
+  ],
+  "sceptic": [
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Min edge": "0\u00a2",
+    "Sceptic calls": "110",
+    "Vetoes": "107",
+    "Vetoed mean CLV": "-0.0049",
+    "Kept mean CLV": "-0.0117",
+    "Low-edge (\u2264 4\u00a2) calls / vetoes (vetoed CLV)": "70 / 69 (-0.0043)",
+    "Gap > 4\u00a2 calls / vetoes (vetoed CLV)": "40 / 38 (-0.0059)"
+   },
+   {
+    "Arm": "D. Reasoner tool agent + sceptic",
+    "Min edge": "4\u00a2",
+    "Sceptic calls": "42",
+    "Vetoes": "40",
+    "Vetoed mean CLV": "-0.0047",
+    "Kept mean CLV": "+0.0100",
+    "Low-edge (\u2264 4\u00a2) calls / vetoes (vetoed CLV)": "0 / 0 (\u2013)",
+    "Gap > 4\u00a2 calls / vetoes (vetoed CLV)": "42 / 40 (-0.0047)"
+   },
+   {
+    "Arm": "D-chat. Chat tool agent + sceptic",
+    "Min edge": "0\u00a2",
+    "Sceptic calls": "29",
+    "Vetoes": "29",
+    "Vetoed mean CLV": "-0.0040",
+    "Kept mean CLV": "\u2013",
+    "Low-edge (\u2264 4\u00a2) calls / vetoes (vetoed CLV)": "23 / 23 (-0.0046)",
+    "Gap > 4\u00a2 calls / vetoes (vetoed CLV)": "6 / 6 (-0.0017)"
+   },
+   {
+    "Arm": "D-chat. Chat tool agent + sceptic",
+    "Min edge": "4\u00a2",
+    "Sceptic calls": "4",
+    "Vetoes": "4",
+    "Vetoed mean CLV": "-0.0025",
+    "Kept mean CLV": "\u2013",
+    "Low-edge (\u2264 4\u00a2) calls / vetoes (vetoed CLV)": "0 / 0 (\u2013)",
+    "Gap > 4\u00a2 calls / vetoes (vetoed CLV)": "4 / 4 (-0.0025)"
+   }
+  ],
+  "a_paired_clv": "-63 [-104, -32]",
+  "d0": {
+   "calls": "110",
+   "vetoes": "107",
+   "low_edge": "70 / 69 (-0.0043)",
+   "trades": "3"
+  },
+  "figure": "edge_gate.png"
+ },
+ "adaptive_edge": {
+  "source": "adaptive_edge.md",
+  "setups": [
+   {
+    "Setup": "(i) Fixed 4\u00a2 edge, no learning",
+    "Rules proposed / accepted (edge)": "0 / 0 (0)",
+    "Trades": "129",
+    "Mean CLV/contract [95% CI]": "-0.35\u00a2 [-0.65, +0.00]",
+    "CLV $ [95% CI]": "-35 [-60, -12]",
+    "P&L after fees [95% CI]": "-247 [-718, +265]"
+   },
+   {
+    "Setup": "(ii) Split-gate learning (published templates)",
+    "Rules proposed / accepted (edge)": "11 / 5 (1)",
+    "Trades": "53",
+    "Mean CLV/contract [95% CI]": "-0.50\u00a2 [-1.01, +0.19]",
+    "CLV $ [95% CI]": "-18 [-34, -2]",
+    "P&L after fees [95% CI]": "-96 [-437, +247]"
+   },
+   {
+    "Setup": "(iii) Adaptive edge, base 4\u00a2",
+    "Rules proposed / accepted (edge)": "10 / 5 (1)",
+    "Trades": "42",
+    "Mean CLV/contract [95% CI]": "-0.45\u00a2 [-1.07, +0.41]",
+    "CLV $ [95% CI]": "-14 [-31, +1]",
+    "P&L after fees [95% CI]": "-102 [-359, +171]"
+   },
+   {
+    "Setup": "(iv) Adaptive edge, base 1\u00a2",
+    "Rules proposed / accepted (edge)": "16 / 8 (2)",
+    "Trades": "80",
+    "Mean CLV/contract [95% CI]": "-0.39\u00a2 [-0.74, -0.01]",
+    "CLV $ [95% CI]": "-29 [-49, -12]",
+    "P&L after fees [95% CI]": "-422 [-735, -138]"
+   }
+  ],
+  "paired": [
+   {
+    "Sample": "full",
+    "Comparison": "(ii) Split-gate learning (published templates) \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+18 [+1, +34]",
+    "p (one-sided, a > b)": "0.020"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(ii) Split-gate learning (published templates) \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "pnl",
+    "Difference [95% CI]": "+151 [-238, +541]",
+    "p (one-sided, a > b)": "0.222"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iii) Adaptive edge, base 4\u00a2 \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+21 [+4, +38]",
+    "p (one-sided, a > b)": "0.011"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iii) Adaptive edge, base 4\u00a2 \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "pnl",
+    "Difference [95% CI]": "+145 [-272, +561]",
+    "p (one-sided, a > b)": "0.255"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iii) Adaptive edge, base 4\u00a2 \u2212 (ii) Split-gate learning (published templates)",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+3 [+0, +6]",
+    "p (one-sided, a > b)": "0.037"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iii) Adaptive edge, base 4\u00a2 \u2212 (ii) Split-gate learning (published templates)",
+    "Metric": "pnl",
+    "Difference [95% CI]": "-6 [-199, +198]",
+    "p (one-sided, a > b)": "0.533"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iv) Adaptive edge, base 1\u00a2 \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+6 [-19, +32]",
+    "p (one-sided, a > b)": "0.314"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iv) Adaptive edge, base 1\u00a2 \u2212 (i) Fixed 4\u00a2 edge, no learning",
+    "Metric": "pnl",
+    "Difference [95% CI]": "-174 [-731, +357]",
+    "p (one-sided, a > b)": "0.746"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iv) Adaptive edge, base 1\u00a2 \u2212 (ii) Split-gate learning (published templates)",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "-12 [-32, +7]",
+    "p (one-sided, a > b)": "0.874"
+   },
+   {
+    "Sample": "full",
+    "Comparison": "(iv) Adaptive edge, base 1\u00a2 \u2212 (ii) Split-gate learning (published templates)",
+    "Metric": "pnl",
+    "Difference [95% CI]": "-325 [-766, +77]",
+    "p (one-sided, a > b)": "0.927"
+   }
+  ],
+  "timeline": [
+   "4\u00a2 from 2026-02-01",
+   "10\u00a2 from 2026-02-26",
+   "4\u00a2 from 2026-04-12"
+  ],
+  "story": [
+   {
+    "rule": "r003",
+    "decided": "2026-02-06",
+    "proposal": "set the edge threshold to 7\u00a2",
+    "gate_days": "2026-01-16 \u2013 2026-01-29",
+    "clv_without": -6.58,
+    "clv_with": -4.63,
+    "changed_trades": 16,
+    "accepted": false,
+    "status": "rejected"
+   },
+   {
+    "rule": "r006",
+    "decided": "2026-02-26",
+    "proposal": "set the edge threshold to 10\u00a2",
+    "gate_days": "2026-01-30 \u2013 2026-02-12",
+    "clv_without": -9.54,
+    "clv_with": -4.83,
+    "changed_trades": 16,
+    "accepted": true,
+    "status": "active"
+   },
+   {
+    "rule": "r007",
+    "decided": "2026-04-02",
+    "proposal": "set the edge threshold to 3\u00a2",
+    "gate_days": "2026-03-12 \u2013 2026-03-25",
+    "clv_without": 0.0,
+    "clv_with": -7.58,
+    "changed_trades": 11,
+    "accepted": false,
+    "status": "rejected"
+   }
+  ],
+  "rules_split_gate": [
+   {
+    "Rule": "r003",
+    "Status": "rejected",
+    "Slice": "all games",
+    "Edge": "7\u00a2",
+    "Gate decided": "2026-02-06",
+    "Superseded": "\u2013",
+    "Gate days": "2026-01-16 \u2013 2026-01-29",
+    "CLV $ without \u2192 with": "-6.58 \u2192 -4.63",
+    "Changed trades": "16"
+   },
+   {
+    "Rule": "r006",
+    "Status": "active",
+    "Slice": "all games",
+    "Edge": "7\u00a2",
+    "Gate decided": "2026-03-02",
+    "Superseded": "\u2013",
+    "Gate days": "2026-02-03 \u2013 2026-02-22",
+    "CLV $ without \u2192 with": "-10.18 \u2192 -5.02",
+    "Changed trades": "7"
+   }
+  ],
+  "design": "",
+  "vs_none": "+21 [+4, +38]",
+  "vs_split": "+3 [+0, +6]",
+  "vs_none_pnl": "+145 [-272, +561]",
+  "vs_split_pnl": "-6 [-199, +198]",
+  "expiry": {
+   "days": "45",
+   "on": "12 Apr"
+  },
+  "verdict": "Given an edge ladder, the agent learned to *raise* its threshold: from base 4\u00a2 the gate accepted 10\u00a2 on 26 Feb (held-out CLV $ \u22129.54 \u2192 \u22124.83 over 16 changed trades) and rejected a later move down to 3\u00a2; the 10\u00a2 rule expired after its 45 days on 12 Apr. That beats no learning by +$21 CLV [+4, +38] (p = 0.011), but it only edges the published split-gate learner, by +$3 [+0, +6], with P&L indistinguishable (\u2212$6 [\u2212199, +198]). It wins the same way the published learner does: by trading less (42 vs 53 vs 129 trades), not by finding better trades. CLV per contract stays negative (\u22120.45\u00a2) and its CI still covers the other arms. Starting lower (1\u00a2) lets the learner climb only to 5\u00a2 and later drop back, ending at 80 trades and \u2212$29, worse than the published learner. Conclusion: a learned threshold is a safe, slightly better replacement for the fixed 7\u00a2 template, not a source of edge; consistent with `edge_gate.md`, the M4 gap does not predict CLV.",
+  "figure": "adaptive_edge.png"
+ },
+ "forecast_blend": {
+  "source": "forecast_blend.md",
+  "intro": "`agents/forecast_blend.py`: p(home) = sigmoid(\u03a3 w_k \u00b7 logit(signal_k)), w on the simplex, so a one-hot weight on *anchor + M4 shift* is the published agent. After each settled test day the learner refits w on settled games only (exponentiated gradient on log loss, L2 pull toward the current weights) and a split gate accepts the proposal only if **Brier (primary metric, fixed up front)** on held-out earlier days improves by \u2265 0.0005. Windows: gate days = the 7 market days before the last 7; fit = the other days of the last 42; the first review needs 21 settled days. Starting weights: one-hot on anchor + M4 shift.",
+  "signals": [
+   "anchor",
+   "mid",
+   "anchor_m4",
+   "anchor_mlp",
+   "anchor_gru",
+   "m4",
+   "mlp",
+   "gru"
+  ],
+  "trajectory": [
+   {
+    "day": "2026-02-01",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-02",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-03",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-04",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-05",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-06",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-07",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-08",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-09",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-10",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-11",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-12",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-19",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-20",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-21",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-22",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-23",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-24",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-25",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-26",
+    "anchor": 0.0,
+    "mid": 0.0,
+    "anchor_m4": 1.0,
+    "anchor_mlp": 0.0,
+    "anchor_gru": 0.0,
+    "m4": 0.0,
+    "mlp": 0.0,
+    "gru": 0.0
+   },
+   {
+    "day": "2026-02-27",
+    "anchor": 0.0022,
+    "mid": 0.0276,
+    "anchor_m4": 0.6249,
+    "anchor_mlp": 0.2629,
+    "anchor_gru": 0.0761,
+    "m4": 0.0004,
+    "mlp": 0.005,
+    "gru": 0.0008
+   },
+   {
+    "day": "2026-02-28",
+    "anchor": 0.0037,
+    "mid": 0.0488,
+    "anchor_m4": 0.4024,
+    "anchor_mlp": 0.4452,
+    "anchor_gru": 0.0896,
+    "m4": 0.0014,
+    "mlp": 0.0078,
+    "gru": 0.0011
+   },
+   {
+    "day": "2026-03-01",
+    "anchor": 0.0021,
+    "mid": 0.131,
+    "anchor_m4": 0.2651,
+    "anchor_mlp": 0.5226,
+    "anchor_gru": 0.0712,
+    "m4": 0.0062,
+    "mlp": 0.0012,
+    "gru": 0.0006
+   },
+   {
+    "day": "2026-03-02",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-03",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-04",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-05",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-06",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-07",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-08",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-09",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-10",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-11",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-12",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-13",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-14",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-15",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-16",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-17",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-18",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-19",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-20",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-21",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-22",
+    "anchor": 0.003,
+    "mid": 0.1738,
+    "anchor_m4": 0.169,
+    "anchor_mlp": 0.5884,
+    "anchor_gru": 0.0555,
+    "m4": 0.0094,
+    "mlp": 0.0005,
+    "gru": 0.0004
+   },
+   {
+    "day": "2026-03-23",
+    "anchor": 0.0202,
+    "mid": 0.1768,
+    "anchor_m4": 0.0911,
+    "anchor_mlp": 0.6097,
+    "anchor_gru": 0.0453,
+    "m4": 0.0143,
+    "mlp": 0.0299,
+    "gru": 0.0127
+   },
+   {
+    "day": "2026-03-24",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-25",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-26",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-27",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-28",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-29",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-30",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-03-31",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-01",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-02",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-03",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-04",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-05",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-06",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-07",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-08",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-09",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-10",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   },
+   {
+    "day": "2026-04-12",
+    "anchor": 0.0259,
+    "mid": 0.1301,
+    "anchor_m4": 0.0671,
+    "anchor_mlp": 0.6687,
+    "anchor_gru": 0.0484,
+    "m4": 0.0142,
+    "mlp": 0.0326,
+    "gru": 0.013
+   }
+  ],
+  "accepted": [
+   {
+    "day": "2026-02-27",
+    "brier_before": 0.2086,
+    "brier_after": 0.2049,
+    "gate_games": 54,
+    "gate_days": "2026-02-08 \u2013 2026-02-20",
+    "weights": "mid 0.03, anchor_m4 0.62, anchor_mlp 0.26, anchor_gru 0.08, mlp 0.01"
+   },
+   {
+    "day": "2026-02-28",
+    "brier_before": 0.1939,
+    "brier_after": 0.1915,
+    "gate_games": 56,
+    "gate_days": "2026-02-09 \u2013 2026-02-21",
+    "weights": "mid 0.05, anchor_m4 0.40, anchor_mlp 0.45, anchor_gru 0.09, mlp 0.01"
+   },
+   {
+    "day": "2026-03-01",
+    "brier_before": 0.1975,
+    "brier_after": 0.1966,
+    "gate_games": 57,
+    "gate_days": "2026-02-10 \u2013 2026-02-22",
+    "weights": "mid 0.13, anchor_m4 0.27, anchor_mlp 0.52, anchor_gru 0.07, m4 0.01"
+   },
+   {
+    "day": "2026-03-02",
+    "brier_before": 0.1954,
+    "brier_after": 0.1947,
+    "gate_games": 56,
+    "gate_days": "2026-02-11 \u2013 2026-02-23",
+    "weights": "mid 0.17, anchor_m4 0.17, anchor_mlp 0.59, anchor_gru 0.06, m4 0.01"
+   },
+   {
+    "day": "2026-03-23",
+    "brier_before": 0.1438,
+    "brier_after": 0.1433,
+    "gate_games": 56,
+    "gate_days": "2026-03-10 \u2013 2026-03-16",
+    "weights": "anchor 0.02, mid 0.18, anchor_m4 0.09, anchor_mlp 0.61, anchor_gru 0.05, m4 0.01, mlp 0.03, gru 0.01"
+   },
+   {
+    "day": "2026-03-24",
+    "brier_before": 0.1271,
+    "brier_after": 0.1266,
+    "gate_games": 53,
+    "gate_days": "2026-03-11 \u2013 2026-03-17",
+    "weights": "anchor 0.03, mid 0.13, anchor_m4 0.07, anchor_mlp 0.67, anchor_gru 0.05, m4 0.01, mlp 0.03, gru 0.01"
+   }
+  ],
+  "counts": {
+   "accepted": 6,
+   "rejected": 38,
+   "deferred": 20
+  },
+  "forecast": [
+   {
+    "Predictor": "Market 24 h before tip (anchor)",
+    "Brier": "0.1676",
+    "Log loss": "0.5072",
+    "Brier \u2212 agent [95% CI]": "+0.0012 [-0.0019, +0.0043]",
+    "Log loss \u2212 agent [95% CI]": "+0.0032 [-0.0052, +0.0109]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0043 [+0.0007, +0.0084]"
+   },
+   {
+    "Predictor": "Market 1 h before tip",
+    "Brier": "0.1641",
+    "Log loss": "0.4973",
+    "Brier \u2212 agent [95% CI]": "-0.0022 [-0.0066, +0.0020]",
+    "Log loss \u2212 agent [95% CI]": "-0.0067 [-0.0171, +0.0033]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0009 [-0.0005, +0.0023]"
+   },
+   {
+    "Predictor": "Market at tip",
+    "Brier": "0.1633",
+    "Log loss": "0.4956",
+    "Brier \u2212 agent [95% CI]": "-0.0031 [-0.0072, +0.0009]",
+    "Log loss \u2212 agent [95% CI]": "-0.0083 [-0.0186, +0.0012]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0000 [+0.0000, +0.0000]"
+   },
+   {
+    "Predictor": "Anchor + M4 shift (agent)",
+    "Brier": "0.1663",
+    "Log loss": "0.5040",
+    "Brier \u2212 agent [95% CI]": "+0.0000 [+0.0000, +0.0000]",
+    "Log loss \u2212 agent [95% CI]": "+0.0000 [+0.0000, +0.0000]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0031 [-0.0009, +0.0072]"
+   },
+   {
+    "Predictor": "Anchor + MLP shift",
+    "Brier": "0.1632",
+    "Log loss": "0.4972",
+    "Brier \u2212 agent [95% CI]": "-0.0032 [-0.0079, +0.0013]",
+    "Log loss \u2212 agent [95% CI]": "-0.0068 [-0.0237, +0.0131]",
+    "Brier \u2212 market at tip [95% CI]": "-0.0001 [-0.0050, +0.0052]"
+   },
+   {
+    "Predictor": "Anchor + GRU shift",
+    "Brier": "0.1642",
+    "Log loss": "0.4975",
+    "Brier \u2212 agent [95% CI]": "-0.0022 [-0.0058, +0.0012]",
+    "Log loss \u2212 agent [95% CI]": "-0.0065 [-0.0159, +0.0029]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0009 [-0.0030, +0.0049]"
+   },
+   {
+    "Predictor": "M4 raw",
+    "Brier": "0.1827",
+    "Log loss": "0.5476",
+    "Brier \u2212 agent [95% CI]": "+0.0164 [+0.0093, +0.0232]",
+    "Log loss \u2212 agent [95% CI]": "+0.0436 [+0.0250, +0.0607]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0195 [+0.0115, +0.0279]"
+   },
+   {
+    "Predictor": "Blend: blend (all inputs)",
+    "Brier": "0.1654",
+    "Log loss": "0.5017",
+    "Brier \u2212 agent [95% CI]": "-0.0010 [-0.0039, +0.0017]",
+    "Log loss \u2212 agent [95% CI]": "-0.0023 [-0.0123, +0.0096]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0021 [-0.0020, +0.0065]"
+   },
+   {
+    "Predictor": "Blend: no market inputs (raw M4, MLP, GRU)",
+    "Brier": "0.1839",
+    "Log loss": "0.5506",
+    "Brier \u2212 agent [95% CI]": "+0.0175 [+0.0099, +0.0246]",
+    "Log loss \u2212 agent [95% CI]": "+0.0467 [+0.0274, +0.0639]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0206 [+0.0130, +0.0286]"
+   },
+   {
+    "Predictor": "Blend: market only (anchor, mid)",
+    "Brier": "0.1663",
+    "Log loss": "0.5037",
+    "Brier \u2212 agent [95% CI]": "-0.0000 [-0.0030, +0.0030]",
+    "Log loss \u2212 agent [95% CI]": "-0.0002 [-0.0083, +0.0074]",
+    "Brier \u2212 market at tip [95% CI]": "+0.0031 [+0.0000, +0.0065]"
+   }
+  ],
+  "trading": [
+   {
+    "Forecaster": "Anchor + M4 shift (agent)",
+    "Trades": "104",
+    "Mean CLV [95% CI]": "-0.0059 [-0.0087, -0.0027]",
+    "CLV $ [95% CI]": "-37 [-55, -20]",
+    "P&L after fees [95% CI]": "-239 [-670, +197]"
+   },
+   {
+    "Forecaster": "Anchor + MLP shift",
+    "Trades": "180",
+    "Mean CLV [95% CI]": "-0.0041 [-0.0056, -0.0027]",
+    "CLV $ [95% CI]": "-31 [-45, -19]",
+    "P&L after fees [95% CI]": "+90 [-477, +689]"
+   },
+   {
+    "Forecaster": "Blend (all inputs)",
+    "Trades": "98",
+    "Mean CLV [95% CI]": "-0.0034 [-0.0063, -0.0003]",
+    "CLV $ [95% CI]": "-19 [-35, -5]",
+    "P&L after fees [95% CI]": "-243 [-638, +131]"
+   },
+   {
+    "Forecaster": "Blend, no market inputs",
+    "Trades": "339",
+    "Mean CLV [95% CI]": "-0.0049 [-0.0059, -0.0040]",
+    "CLV $ [95% CI]": "-176 [-212, -141]",
+    "P&L after fees [95% CI]": "-2003 [-3047, -885]"
+   }
+  ],
+  "paired": [
+   {
+    "Paired comparison": "Blend (all inputs) \u2212 Anchor + M4 shift",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+18 [+4, +33]"
+   },
+   {
+    "Paired comparison": "Blend (all inputs) \u2212 Anchor + M4 shift",
+    "Metric": "pnl",
+    "Difference [95% CI]": "-4 [-365, +378]"
+   },
+   {
+    "Paired comparison": "Anchor + MLP shift \u2212 Anchor + M4 shift",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "+6 [-11, +24]"
+   },
+   {
+    "Paired comparison": "Anchor + MLP shift \u2212 Anchor + M4 shift",
+    "Metric": "pnl",
+    "Difference [95% CI]": "+329 [-219, +897]"
+   },
+   {
+    "Paired comparison": "Blend, no market inputs \u2212 Anchor + M4 shift",
+    "Metric": "clv_dollars",
+    "Difference [95% CI]": "-139 [-170, -106]"
+   },
+   {
+    "Paired comparison": "Blend, no market inputs \u2212 Anchor + M4 shift",
+    "Metric": "pnl",
+    "Difference [95% CI]": "-1764 [-2727, -737]"
+   }
+  ],
+  "blend_clv": "-19 [-35, -5]",
+  "agent_clv": "-37 [-55, -20]",
+  "nomarket_clv": "-176 [-212, -141]",
+  "nomarket_pnl": "-2003 [-3047, -885]",
+  "blend_vs_agent_clv": "+18 [+4, +33]",
+  "blend_vs_agent_pnl": "-4 [-365, +378]",
+  "reading": "the blend trades about as often as the agent but loses less CLV per contract; the CLV-dollar gain survives real quotes (an earlier run on approximate quotes, 1 h mid \u00b1 1\u00a2, gave +$19 [+2, +37]), while P&L is indistinguishable. Part of the gain can come from the 1 h mid input pulling the estimate toward the traded price (fewer, smaller disagreements with the market). The forecast gain is not significant: Brier \u22120.0010 vs the agent, and still behind anchor + MLP alone and the market at tip.",
+  "final_weights": "anchor 0.03, mid 0.13, anchor_m4 0.07, anchor_mlp 0.67, anchor_gru 0.05, m4 0.01, mlp 0.03, gru 0.01",
+  "figure": "forecast_blend.png"
+ },
+ "llm_vs_original": {
+  "source": "llm_vs_original.md (origin/results/deepseek-llm-agent)",
+  "improves": [
+   "**Fewer trades, and that is most of the gain.** A makes 53 trades for CLV -18.7 $ (mean -0.42\u00a2 per contract). The reasoner with the sceptic (D) makes 2 (+3.9 $). Its +22.7 $ over A splits into +17.7 $ from skipping 52 of A's trades, +5.0 $ from one added trade (a 14\u00a2 longshot, 142 contracts) and +0.0 $ on the one trade both made. Any filter that keeps 2 of A's trades gets the skipping part: random 2 of 53 gives -0.7 $ [-3.7, +2.5].",
+   "**D's 2 trades beat 2 random trades from A, but on n = 2.** Mean CLV +1.00\u00a2 vs random -0.42\u00a2 (p = 0.16 that random is at least as good); CLV $ +3.9 vs random [-3.7, +2.5] (the $ is driven by the contract count of one cheap longshot).",
+   "**The sceptic's vetoes lean the right way, not significantly.** Of C's 42 reasoner trades, the 40 vetoed averaged -0.47\u00a2 and the 2 kept +1.00\u00a2: kept \u2212 vetoed +1.47\u00a2 [-1.27\u00a2, +4.25\u00a2]; a random 2 of 42 does at least as well 12% of the time.",
+   "**Explainability and auditability.** Every LLM trade carries a rationale that cites tool outputs, the citations are machine-checked against those outputs, and the sceptic's reasons name a concrete concern (stale 24-hour anchor, price already moved, no news behind the edge) \u2014 A's brief only shows the numbers."
+  ],
+  "worse": [
+   "**No better selection among A's trades.** The reasoner tool agent (C) keeps 20 of A's trades and drops 33: kept -0.45\u00a2 vs dropped -0.41\u00a2 (kept \u2212 dropped -0.04\u00a2 [-1.05\u00a2, +0.82\u00a2]); a random keep of the same size is at least as good 54% of the time. The 22 trades it adds average -0.36\u00a2, the same as A. On outcomes (noisy) the kept A trades won 20% vs 52% for the dropped ones. D's one kept A trade was -1.50\u00a2.",
+   "**No better forecasts than the market.** The plain LLM's home-win probabilities beat A's Brier score (chat -0.0058 [-0.0129, +0.0000]) only because they copy the current mid (mean distance 0.13 points); vs the mid itself: -0.0007 [-0.0017, +0.0000]. \"Moving toward the close\" is just moving to the market, which already sits near the close: more conservative, not more informed.",
+   "**Tool-agent estimates are more overconfident than A's.** On its 51 buy proposals the reasoner's estimate sits +9.4\u00a2 above the mid for the side it buys (A at the same points: +4.5\u00a2); the closing price moved -0.0\u00a2.",
+   "**Reliability, latency, cost.** 14% of reasoner tool-agent decisions were invalid (empty/malformed JSON, often after spending the reasoning budget; 9 buy proposals failed the citation check), all treated as passes. The reasoner tool agent needs 28 s of LLM time per decision and $1.05 per trade with the sceptic; A runs in milliseconds for free. The guardrails (checks and risk limits) never had to block either agent."
+  ],
+  "veto_reasons": [
+   {
+    "Primary reason": "model-vs-market disagreement, no news",
+    "n": "26",
+    "Mean CLV": "-0.65\u00a2",
+    "CLV $ avoided": "-16.2",
+    "Share with positive CLV (veto wrong)": "19%",
+    "A also traded": "35%"
+   },
+   {
+    "Primary reason": "news already priced in",
+    "n": "12",
+    "Mean CLV": "-0.17\u00a2",
+    "CLV $ avoided": "-0.4",
+    "Share with positive CLV (veto wrong)": "33%",
+    "A also traded": "67%"
+   },
+   {
+    "Primary reason": "market moved against",
+    "n": "1",
+    "Mean CLV": "-0.50\u00a2",
+    "CLV $ avoided": "-0.9",
+    "Share with positive CLV (veto wrong)": "0%",
+    "A also traded": "100%"
+   },
+   {
+    "Primary reason": "sceptic failed (fail closed)",
+    "n": "1",
+    "Mean CLV": "+0.50\u00a2",
+    "CLV $ avoided": "+0.1",
+    "Share with positive CLV (veto wrong)": "100%",
+    "A also traded": "100%"
+   }
+  ],
+  "overconfidence": [
+   {
+    "Model": "chat",
+    "Buy proposals": "18",
+    "LLM \u2212 mid": "+6.4\u00a2",
+    "A \u2212 mid": "+1.7\u00a2",
+    "Close \u2212 mid (what happened)": "+0.2\u00a2",
+    "abs. LLM \u2212 close": "0.0639",
+    "abs. A \u2212 close": "0.0464",
+    "abs. mid \u2212 close": "0.0058",
+    "LLM within 1 pt of A": "0%"
+   },
+   {
+    "Model": "reasoner",
+    "Buy proposals": "51",
+    "LLM \u2212 mid": "+9.4\u00a2",
+    "A \u2212 mid": "+4.5\u00a2",
+    "Close \u2212 mid (what happened)": "-0.0\u00a2",
+    "abs. LLM \u2212 close": "0.0947",
+    "abs. A \u2212 close": "0.0641",
+    "abs. mid \u2212 close": "0.0087",
+    "LLM within 1 pt of A": "37%"
+   }
+  ],
+  "selection": [
+   {
+    "Model": "reasoner",
+    "Arm": "C tools",
+    "LLM trades (CLV $)": "42 (-13.3)",
+    "Kept / filtered": "20 / 33",
+    "Kept mean CLV": "-0.45\u00a2",
+    "Filtered mean CLV": "-0.41\u00a2",
+    "Kept \u2212 filtered [95% CI]": "-0.04\u00a2 [-1.05\u00a2, +0.82\u00a2]",
+    "Random keep: mean CLV [95%]": "-0.43\u00a2 [-1.05\u00a2, +0.23\u00a2]",
+    "p (random \u2265 LLM)": "54%",
+    "Random portfolio CLV $ [95%]": "-14.8 [-21.2, -8.6]",
+    "p (random $ \u2265 LLM $)": "33%"
+   },
+   {
+    "Model": "reasoner",
+    "Arm": "D tools+sceptic",
+    "LLM trades (CLV $)": "2 (+3.9)",
+    "Kept / filtered": "1 / 52",
+    "Kept mean CLV": "-1.50\u00a2",
+    "Filtered mean CLV": "-0.40\u00a2",
+    "Kept \u2212 filtered [95% CI]": "-1.10\u00a2 [\u2013, \u2013]",
+    "Random keep: mean CLV [95%]": "-0.43\u00a2 [-3.50\u00a2, +5.50\u00a2]",
+    "p (random \u2265 LLM)": "87%",
+    "Random portfolio CLV $ [95%]": "-0.7 [-3.7, +2.5]",
+    "p (random $ \u2265 LLM $)": "0%"
+   }
+  ],
+  "random_keep_pct_c": "54%",
+  "random_keep_pct_d": "87%",
+  "vetoes_wrong": "10 of 40, mean +1.10\u00a2, vs 30 right (-1.00\u00a2).",
+  "figure": "llm_vs_original.png"
+ },
+ "takeaways": [
+  "**No model beats the market at forecasting.** M4 alone scores Brier 0.1827; the best model-plus-market estimate (Anchor + MLP shift, 0.1632) only ties Kalshi at tip (0.1633).",
+  "**Anchoring on the market cuts the losses**: P&L after fees goes from \u2212$2,087 (raw M4, no agent) to \u2212$247 (anchor agent), full test period.",
+  "**Every safety or learning layer helps the same way: by trading less.** Split-gate learning, the learned edge threshold, the 4\u00a2 edge gate and the LLM sceptic all improve CLV by cutting trades, not by picking better ones.",
+  "**The learned forecast blend** improves CLV by +$18 [+4, +33] vs the agent on the simplified trader, with no detectable P&L change (\u2212$4 [-365, +378]).",
+  "**The best deep-learning results are the player models**: M2 GRU points pinball 1.553 vs 1.590 for the best M1 baseline; M3 Brier 0.1433 vs 0.1686. Next step: earlier information (official injury reports) rather than a better model."
+ ],
+ "sources": [
+  "adaptive_edge.md",
+  "edge_gate.md",
+  "forecast_blend.md",
+  "forecast_blend_log.json",
+  "gate_audit.md",
+  "llm_agent.md",
+  "llm_vs_original.md",
+  "m2_heldout.csv",
+  "m3_heldout.csv",
+  "m4_calibration.md",
+  "m4_vs_market.csv",
+  "m6_ablation.md",
+  "m6_heldout.csv",
+  "significance.md",
+  "venue_compare.csv",
+  "win_nn.md"
+ ],
+ "built_at": "2026-10-08T10:51:01.681520+00:00"
+}

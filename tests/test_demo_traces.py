@@ -25,12 +25,11 @@ def test_index_points_at_existing_traces():
 
 
 def test_no_secrets_and_small():
-    total = 0
+    total = sum(f.stat().st_size for f in TRACES.glob("*.json"))
+    total += sum(f.stat().st_size for f in (TRACES.parent / "figures").glob("*.png"))
     for f in TRACES.glob("*.json"):
-        text = f.read_text()
-        total += len(text)
-        assert not SECRET.search(text), f.name
-    assert total < 5_000_000
+        assert not SECRET.search(f.read_text()), f.name
+    assert total < 3_000_000, total
 
 
 def test_trader_traces_have_required_steps_and_no_look_ahead():
@@ -286,3 +285,87 @@ def test_deepseek_scenarios_render_and_gate_outcome():
         assert any(b.label == "Reveal game outcome" for b in at.button), sc["id"]
         assert f"{go['away']} {go['away_pts']} – {go['home_pts']} {go['home']}" not in panel_text(at)
         at.sidebar.toggle[0].set_value(False).run()
+
+
+def test_results_json_has_todays_numbers():
+    r = load("results")
+    by = {w["predictor"]: w for w in r["win_models"]}
+    assert by["Always 55% home"]["brier"] == pytest.approx(0.2468, abs=5e-4)
+    assert by["Always 55% home"]["accuracy"] == pytest.approx(0.557, abs=5e-4)
+    assert by["M4 (logistic regression, absences known)"]["brier"] == pytest.approx(0.1827, abs=5e-4)
+    assert by["M4 (logistic regression, absences known)"]["accuracy"] == pytest.approx(0.741, abs=5e-4)
+    assert by["M4-NN MLP (3-seed mean)"]["brier"] == pytest.approx(0.1842, abs=5e-4)
+    assert by["M4-NN GRU (3-seed mean)"]["brier"] == pytest.approx(0.1864, abs=5e-4)
+    assert by["Anchor: market 24 h before tip"]["brier"] == pytest.approx(0.1676, abs=5e-4)
+    assert by["Anchor + M4 shift (the agent's estimate)"]["brier"] == pytest.approx(0.1663, abs=5e-4)
+    assert by["Anchor + MLP shift"]["brier"] == pytest.approx(0.1632, abs=5e-4)
+    assert by["Kalshi 1 h before tip"]["brier"] == pytest.approx(0.1641, abs=5e-4)
+    assert by["Kalshi at tip"]["brier"] == pytest.approx(0.1633, abs=5e-4)
+    assert by["Kalshi close (venue comparison)"]["brier"] == pytest.approx(0.1614, abs=5e-4)
+    assert by["Polymarket close"]["brier"] == pytest.approx(0.1618, abs=5e-4)
+    assert by["DraftKings close (de-vigged)"]["brier"] == pytest.approx(0.1629, abs=5e-4)
+    assert by["Learned blend (all inputs, walk-forward)"]["brier"] == pytest.approx(0.1654, abs=5e-4)
+    assert all(w["games"] in (501, 498) for w in r["win_models"])
+    m3 = next(x for x in r["players"]["m3"] if x["predictor"] == "M3 model")
+    assert m3["brier"] == pytest.approx(0.1433, abs=5e-4)
+    assert r["players"]["m6_agent_trades_test"] == "0"
+    eg = r["edge_gate"]
+    assert [s["trades"] for s in eg["sweep"]] == [188, 145, 108, 74, 53]
+    assert [s["clv_dollars"] for s in eg["sweep"]] == [-82, -64, -45, -28, -19]
+    assert eg["a_paired_clv"] == "-63 [-104, -32]"
+    assert eg["d0"]["vetoes"] == "107" and eg["d0"]["calls"] == "110" and eg["d0"]["trades"] == "3"
+    ae = r["adaptive_edge"]
+    assert ae["vs_none"] == "+21 [+4, +38]" and ae["vs_split"] == "+3 [+0, +6]"
+    assert [s["accepted"] for s in ae["story"]] == [False, True, False]
+    assert any("10¢" in t for t in ae["timeline"]) and any("4¢ from 2026-04-12" in t for t in ae["timeline"])
+    fb = r["forecast_blend"]
+    assert fb["counts"] == {"accepted": 6, "rejected": 38, "deferred": 20}
+    assert fb["blend_vs_agent_clv"].startswith("+18") and "−$176" not in fb["nomarket_clv"]
+    assert fb["nomarket_clv"].startswith("-176") and fb["nomarket_pnl"].startswith("-2003")
+    assert len(fb["trajectory"]) == 64 and len(fb["accepted"]) == 6
+    lv = r["llm_vs_original"]
+    assert lv["random_keep_pct_c"] == "54%" and lv["random_keep_pct_d"] == "87%"
+    assert any(x["LLM − mid"] == "+9.4¢" and x["A − mid"] == "+4.5¢" for x in lv["overconfidence"])
+    assert len(lv["veto_reasons"]) >= 3 and len(r["takeaways"]) >= 4
+    assert "full" in r["agents"] and "subsample" in r["agents"]
+    assert any("Raw M4" in a["setup"] for a in r["agents"]["full"])
+    assert any("no edge gate" in a["setup"] for a in r["agents"]["subsample"])
+    assert not SECRET.search(json.dumps(r))
+    text = json.dumps(r)
+    assert "NaN" not in text and '"nan"' not in text.lower()
+    for name in ("edge_gate.png", "adaptive_edge.png", "forecast_blend.png", "llm_vs_original.png"):
+        assert (TRACES.parent / "figures" / name).exists(), name
+
+
+def test_results_and_learning_pages_render():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    assert list(at.sidebar.radio[0].options) == ["Overview", "Results", "Learning", "Scenarios"]
+    at.sidebar.radio[0].set_value("Overview").run()
+    assert not at.exception
+    assert any("Key takeaways" in s.value for s in at.subheader)
+    assert any("Architecture" in s.value for s in at.subheader)
+    texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
+    assert "nan" not in texts.lower().split()
+    at.sidebar.radio[0].set_value("Results").run()
+    assert not at.exception
+    assert any("Win probability" in h.value for h in at.header)
+    assert any("Edge gate" in h.value for h in at.header)
+    assert any("Agents: trading results" in h.value for h in at.header)
+    assert any("Player models" in h.value for h in at.header)
+    assert any(m.label.startswith("Paired difference") and "-63" in str(m.value) for m in at.metric)
+    assert len(at.dataframe) >= 4 and len(at.image) >= 1
+    texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
+    assert "nan" not in texts.lower().split()
+    at.sidebar.radio[0].set_value("Learning").run()
+    assert not at.exception
+    assert any("Learned edge threshold" in h.value for h in at.header)
+    assert any("Model blend" in h.value for h in at.header)
+    assert any(m.label.startswith("Learned threshold") and "+21" in str(m.value) for m in at.metric)
+    assert any(m.label.startswith("Blend − agent") for m in at.metric)
+    assert len(at.image) >= 1
+    texts = "\n".join(str(getattr(e, "value", "")) for e in at.main)
+    assert "nan" not in texts.lower().split()
+    at.sidebar.radio[0].set_value("Overview").run()
+    warn_info = [str(getattr(w, "value", "")) for w in list(at.warning) + list(at.info)]
+    assert any("trading less" in t.lower() or "no better than random" in t.lower() for t in warn_info)
