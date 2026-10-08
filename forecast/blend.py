@@ -156,7 +156,8 @@ class Components:
 
 
 def main():
-    mlp = train_mlp()
+    from forecast.blend import train_mlp as train      # pickle the class under forecast.blend, not __main__
+    mlp = train()
     MLP_PATH.parent.mkdir(parents=True, exist_ok=True)
     MLP_PATH.write_bytes(pickle.dumps(mlp))
     print(f"saved {MLP_PATH} ({len(mlp.models)} seeds, best epochs {[m.best_epoch for m in mlp.models]})")
