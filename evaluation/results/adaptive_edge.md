@@ -71,5 +71,5 @@
 
 Two details. (1) The 1¢ arm is the only one whose P&L CI excludes zero (−$422 [−735, −138]). Its drop back to 1¢ on 20 Mar is the 45-day expiry of the 5¢ rule, not a gate decision; the gate never accepted a threshold below the base while a higher one was in force. Letting an expired market-wide rule hand over to the last accepted threshold, rather than the base, is future work; we did not try it, because choosing it now would be tuning on the test period. (2) "Never trade" (CLV $0) still beats every arm.
 
-Caveats: one test period (49 market days), one seed of the replay (deterministic); the counterfactual used by the reviewer for lowering ignores later re-entries, but the gate's back-test is exact. Gate back-tests early in February use January days on which M4 is in-sample.
+Caveats: one test period (64 market days), one seed of the replay (deterministic); the counterfactual used by the reviewer for lowering ignores later re-entries, but the gate's back-test is exact. Gate back-tests early in February use January days on which M4 is in-sample.
 
