@@ -5,6 +5,59 @@
   let replayTimer=null,refreshTimer=null,busy=false,version=0,catalog=[],catalogAt=0,poolInitialized=false,slipMessage=null;
   const included=new Set(),money=x=>x==null?'—':'$'+x.toFixed(2),pct=x=>x==null?'—':(100*x).toFixed(1)+'%',odds=x=>x==null?'—':x.toFixed(2);
   const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
+  $('forecastcard').after($('alertcard'));
+  const demoRead = new Set();
+  let shownAlerts=[],ackBusy=false,alertScope='';
+  const alertLabels={injury_status_change:'Player status',probability_shift:'Win probability',market_move:'Market movement',news_conflict:'Conflicting reports',source_degraded:'News source degraded',source_recovered:'News source recovered',quote_stale:'Quote stale / unavailable',quote_recovered:'Quote recovered'};
+  function alertRows(){return (current?.alerts||[]).map(a=>({...a,acknowledged:a.acknowledged||(source==='demo'&&demoRead.has(a.event_id))}));}
+  function renderAlerts(){
+    const scope=source+':'+(current?.game_id||'');
+    if(scope!==alertScope){$('alertfeedback').textContent='';alertScope=scope;}
+    const rows=alertRows(),type=$('alerttype').value;
+    $('alerttype').replaceChildren(node('option','All types'));$('alerttype').firstChild.value='all';
+    for(const t of [...new Set(rows.map(a=>a.type))].sort()){const o=node('option',alertLabels[t]||t);o.value=t;$('alerttype').appendChild(o);}
+    $('alerttype').value=rows.some(a=>a.type===type)?type:'all';
+    $('alertcount').textContent=rows.filter(a=>!a.acknowledged).length+' unread · '+rows.length+' total';
+    $('alertstatus').textContent=!current?'Waiting for this match’s alert history.':source==='demo'?'Synthetic replay · local alerts only. No external notifications.':
+      (phase==='pregame'?'Monitoring pregame changes. ':'Pregame history retained · in-play alerts are not enabled. ')+
+      (current.alert_notifications_enabled?'Webhook enabled for eligible alerts.':'Webhook off · alerts are saved locally.');
+    if(current?.alert_error)$('alertstatus').textContent+=' Alert processing failed on the latest poll; history is retained.';
+    shownAlerts=rows.filter(a=>($('alertseverity').value==='all'||a.severity===$('alertseverity').value)&&($('alerttype').value==='all'||a.type===$('alerttype').value)&&(!$('alertunread').checked||!a.acknowledged)).reverse().slice(0,200);
+    $('alertlist').replaceChildren();
+    for(const a of shownAlerts){
+      const item=node('article');item.className='alert-item '+(['low','medium','high'].includes(a.severity)?a.severity:'medium')+(a.acknowledged?' read':'');
+      const head=node('div');head.className='alert-heading';head.appendChild(node('h3',a.title));head.appendChild(node('span',(a.severity||'medium').toUpperCase()+' · '+(a.acknowledged?'Read':'Unread')));item.appendChild(head);
+      item.appendChild(node('p',a.message));
+      item.appendChild(node('small',(alertLabels[a.type]||a.type)+' · '+new Date(a.observed_at).toLocaleString()));
+      const p=a.payload||{};
+      item.appendChild(node('small','Source: '+(p.source||p.conflict?.selected_source||(a.type.startsWith('market')||a.type.startsWith('quote')?'Polymarket':'Pregame model / retained evidence'))));
+      if(source==='live')item.appendChild(node('small','Webhook: '+({pending:'Pending',sent:'Sent',failed:'Failed',not_sent:'Not sent'}[a.delivery?.status]||'Not sent')));
+      const details=node('details');details.appendChild(node('summary','Trigger conditions & evidence'));
+      details.appendChild(node('pre',JSON.stringify({event_id:a.event_id,observed_at:a.observed_at,...p},null,2)));item.appendChild(details);
+      $('alertlist').appendChild(item);
+    }
+    if(!shownAlerts.length)$('alertlist').appendChild(node('p',rows.length?'No alerts match these filters.':!current?'Waiting for alert data.':'No pregame alerts recorded yet.'));
+    $('alertread').disabled=ackBusy||!shownAlerts.some(a=>!a.acknowledged);
+    $('alertdownload').disabled=!rows.length;
+  }
+  for(const id of ['alertseverity','alerttype','alertunread'])$(id).onchange=renderAlerts;
+  $('alertread').onclick=async()=>{
+    const ids=shownAlerts.filter(a=>!a.acknowledged).map(a=>a.event_id),gid=current?.game_id,epoch=version;
+    if(!ids.length||!gid)return;
+    if(source==='demo'){ids.forEach(id=>demoRead.add(id));renderAlerts();return;}
+    ackBusy=true;renderAlerts();
+    try{
+      const response=await fetch(base+'/api/alerts/acknowledge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({game_id:gid,event_ids:ids})});
+      if(!response.ok)throw Error('Could not mark alerts read. Please retry.');
+      if(source==='live'&&epoch===version&&current?.game_id===gid){(current.alerts||[]).forEach(a=>{if(ids.includes(a.event_id))a.acknowledged=true;});$('alertfeedback').textContent='Read state saved.';}
+    }catch(e){if(epoch===version)$('alertfeedback').textContent=e.message;}
+    finally{ackBusy=false;renderAlerts();}
+  };
+  $('alertdownload').onclick=()=>{
+    const rows=alertRows();if(!rows.length)return;
+    const body=rows.map(a=>{if(source==='demo'){const {delivery,...local}=a;return local;}return a;}).map(a=>JSON.stringify(a)).join('\n')+'\n';
+    const url=URL.createObjectURL(new Blob([body],{type:'application/x-ndjson'})),link=node('a');link.href=url;link.download='pregame-alerts-'+current.game_id+'.jsonl';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
   function stake(){const s=Number($('stake').value);if(!Number.isFinite(s)||s<1||s>100000)throw Error('Enter a stake between $1 and $100,000.');return s;}
   const timeline=[...D.pregame_steps,...D.steps],frames=()=>timeline,index=()=>stepIndex;
   function stopReplay(){if(replayTimer)clearInterval(replayTimer);replayTimer=null;}
@@ -126,7 +179,7 @@
     $('hedgesection').hidden=view.quote_state==='final';
     const held=$('heldpick').value;$('heldpick').replaceChildren();const empty=node('option','Choose your original bet');empty.value='';$('heldpick').appendChild(empty);
     for(const row of view.bets){const o=node('option',row.label);o.value=row.id;$('heldpick').appendChild(o);}$('heldpick').value=view.bets.some(r=>r.id===held)?held:'';
-    renderPool();renderMarkets();renderSlip();draw();
+    renderPool();renderMarkets();renderSlip();draw();renderAlerts();
   }
   function showDemo(){
     try{const previous=$('games').value;slate=frames()[index()].slate;phase=frames()[index()].view.phase;fillGames(slate,previous);if(!poolInitialized){slate.forEach(g=>included.add(g.game_id));poolInitialized=true;}
@@ -138,7 +191,7 @@
       else{const result=M.bestParlay(allRows(),stake(),Number($('legs').value),$('goal').value);if(!result){setMessage('No suitable parlay yet','Choose more games or fewer legs. Each pick needs a current reference and positive model value.');return;}selected=result.picks.map(r=>r.id);slipMessage={title:result.picks.length+'-leg model parlay',reason:'Best '+($('goal').value==='chance'?'estimated win chance':'estimated profit')+' within your selected games, bet types and leg count.'};}renderMarkets();renderSlip();
     }catch(e){setMessage('Check your choices',e.message);}
   }
-  function clearLive(message){current=null;slate=[];$('hedgeresult').textContent='';$('recommend').disabled=true;$('betoptions').replaceChildren();$('score').replaceChildren(node('small','Waiting for current data'));$('probchart').replaceChildren();$('homechance').textContent=$('awaychance').textContent='—';$('awayname').textContent=$('homename').textContent='—';$('homeforecastname').textContent=$('awayforecastname').textContent='Model data pending';$('events').replaceChildren(node('p','Waiting for the latest match news.'));$('newsstatus').textContent='News refresh interrupted; retrying automatically.';$('picks').replaceChildren(node('p','Waiting for current betting options.'));for(const id of ['slipchance','slipodds','slipreturn','slipev'])$(id).textContent='—';$('connection').textContent=message;setMessage('Waiting for live updates','Refreshing our model and the reference prices.');}
+  function clearLive(message){current=null;slate=[];renderAlerts();$('hedgeresult').textContent='';$('recommend').disabled=true;$('betoptions').replaceChildren();$('score').replaceChildren(node('small','Waiting for current data'));$('probchart').replaceChildren();$('homechance').textContent=$('awaychance').textContent='—';$('awayname').textContent=$('homename').textContent='—';$('homeforecastname').textContent=$('awayforecastname').textContent='Model data pending';$('events').replaceChildren(node('p','Waiting for the latest match news.'));$('newsstatus').textContent='News refresh interrupted; retrying automatically.';$('picks').replaceChildren(node('p','Waiting for current betting options.'));for(const id of ['slipchance','slipodds','slipreturn','slipev'])$(id).textContent='—';$('connection').textContent=message;setMessage('Waiting for live updates','Refreshing our model and the reference prices.');}
   const base=location.protocol==='file:'?'http://127.0.0.1:8766':'';
   async function api(path){const response=await fetch(base+path,{cache:'no-store'}),data=await response.json();if(!response.ok)throw Error(data.error||'Live data unavailable.');return data;}
   async function refresh(){

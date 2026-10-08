@@ -12,6 +12,7 @@ import requests
 from nba_api.stats.static import teams
 
 from agents.inplay import InPlayAgent
+from agents.alerts import AlertConfig, AlertManager, AlertStore
 from agents.pregame import PregameAgent
 from agents.betting import make_board
 from agents.graph import clip, log5_home, win_rate, usual_minutes, OUT_MINUTE_VALUE
@@ -76,7 +77,8 @@ def discover_games(session=None):
 
 class LiveDashboard:
     """One serialized refresh per match, cached for five seconds across viewers."""
-    def __init__(self, source=None, model_file=None, market_reader=None, provider_factory=None):
+    def __init__(self, source=None, model_file=None, market_reader=None, provider_factory=None,
+                 notify=False, alert_config=None, run_root=None):
         self.source = source or (FROZEN if all((FROZEN/(n+'.parquet')).exists() for n in ('games', 'players', 'player_games')) else ROOT/'data'/'sample')
         self.tables = None
         self.players = None
@@ -88,7 +90,8 @@ class LiveDashboard:
         self.catalog, self.catalog_at = [], float("-inf")
         self.lock = threading.RLock()
         self.board_locks = {}
-        self.run_root = ROOT/'runs'/'dashboard'/('live-'+uuid4().hex[:8])
+        self.run_root = Path(run_root) if run_root else ROOT/'runs'/'dashboard'/('live-'+uuid4().hex[:8])
+        self.alert_config = (alert_config or AlertConfig.from_env()).for_mode('live', notify)
 
     def games(self):
         with self.lock:
@@ -113,6 +116,53 @@ class LiveDashboard:
                                                    win_model=model, clock=lambda: pd.Timestamp.now(tz='UTC'))
             self.histories.setdefault(game.game_id, [])
         return self.agents[game.game_id]
+
+    @staticmethod
+    def _alert_market_snapshot(market, observed_at):
+        """Convert the betting board's quotes to the alert detector schema."""
+        contracts = (market or {}).get('contracts', [])
+        rows = []
+        ages = []
+        for contract in contracts:
+            for side, quote in (contract.get('quotes') or {}).items():
+                quote = dict(quote or {})
+                bid, ask = quote.get('bid'), quote.get('ask')
+                midpoint = quote.get('midpoint')
+                if midpoint is None and bid is not None and ask is not None:
+                    midpoint = (float(bid) + float(ask)) / 2
+                updated = quote.get('updated_at') or quote.get('observed_at')
+                age = None
+                if updated:
+                    try:
+                        age = max(0.0, (utc(observed_at) - utc(updated)).total_seconds())
+                        ages.append(age)
+                    except (TypeError, ValueError):
+                        pass
+                rows.append({
+                    'market_ticker': f"{contract.get('id') or contract.get('condition_id') or 'market'}:{side}",
+                    'team': quote.get('team') or side,
+                    'bid': bid, 'ask': ask, 'midpoint': midpoint,
+                    'updated_at': updated, 'age_seconds': age,
+                })
+        errors = list((market or {}).get('errors') or [])
+        complete = rows and len(ages) == len(rows) and all(r['midpoint'] is not None for r in rows)
+        status = 'OK' if complete and not errors else ('WARNING' if rows else 'UNAVAILABLE')
+        return {'source': 'polymarket', 'status': status,
+                'fetched_at': utc(observed_at).isoformat(),
+                'age_seconds': max(ages) if ages else None,
+                'markets': rows, 'errors': errors}
+
+    def _pregame_agent(self, game):
+        if game.game_id not in self.pregame_agents:
+            output = self.run_root / game.game_id / 'pregame'
+            manager = AlertManager(output, config=self.alert_config, mode='live', run_id=self.run_root.name,
+                                   players=self.players, background_delivery=True)
+            self.pregame_agents[game.game_id] = PregameAgent(
+                self.tables, self.players, game, HistoricalRecordPrior(),
+                LiveNews(timeout=3, report_slots=1), output,
+                clock=lambda: pd.Timestamp.now(tz='UTC'), alert_manager=manager,
+                alert_mode='live')
+        return self.pregame_agents[game.game_id]
 
     def poll(self, game_id, budget=100, position=None):
         budget = _finite(budget, 'budget', lo=1, hi=100000)
@@ -182,16 +232,22 @@ class LiveDashboard:
             cached = self.board_cache.get(key)
             if not cached or time.monotonic()-cached[0] >= 5:
                 if phase == 'pregame':
-                    if game.game_id not in self.pregame_agents:
-                        self.pregame_agents[game.game_id] = PregameAgent(self.tables, self.players, game,
-                            HistoricalRecordPrior(), LiveNews(timeout=3, report_slots=1), self.run_root/game.game_id/'pregame',
-                            clock=lambda: pd.Timestamp.now(tz='UTC'))
-                    agent = self.pregame_agents[game.game_id]
+                    agent = self._pregame_agent(game)
                 else:
                     agent = self._agent(game)
                 with ThreadPoolExecutor(max_workers=2) as pool:
-                    prediction = pool.submit(agent.poll, now)
                     reference = pool.submit(self.market.fetch_bet_contracts, game)
+                    if phase == 'pregame':
+                        # Reuse this poll's order books. Forecast features never consume
+                        # them; PregameAgent attaches them after calculating probability.
+                        def alert_quotes(_game, observed):
+                            try:
+                                fresh_market = reference.result()
+                            except (requests.RequestException, ValueError, TypeError, KeyError):
+                                fresh_market = {'contracts': [], 'errors': ['Polymarket reference unavailable.']}
+                            return self._alert_market_snapshot(fresh_market, observed)
+                        agent.market_provider = alert_quotes
+                    prediction = pool.submit(agent.poll, now)
                     result = prediction.result()
                     raw = result.get('snapshot') or agent.latest
                     if raw is None:
@@ -227,11 +283,36 @@ class LiveDashboard:
             view['pre_curve'] = [{'minute': (utc(s['as_of'])-utc(past[0]['as_of'])).total_seconds()/60, 'p': s['p_home']} for s in past] if past else []
             view.update(board, phase=phase, market_connected=any(r['reference_quote'] for r in board['bets']),
                         connection_note='; '.join(market.get('errors', [])), auto_refresh_seconds=5, tip_time=utc(game.tip_time).isoformat())
+            view['alerts'] = self.alert_history(game.game_id)
+            view['alert_unread_count'] = sum(not row.get('acknowledged', False) for row in view['alerts'])
+            view['alert_notifications_enabled'] = self.alert_config.can_notify('live')
+            view['alert_error'] = snapshot.get('alert_error')
             return view
+
+    def alert_history(self, game_id):
+        if not str(game_id).isdigit():
+            raise ValueError('Select a current NBA game')
+        agent = self.pregame_agents.get(str(game_id))
+        manager = getattr(agent, 'alert_manager', None)
+        if manager:
+            return manager.store.latest()
+        return AlertStore(self.run_root / str(game_id) / 'pregame').latest()
+
+    def acknowledge_alerts(self, game_id, event_ids):
+        if not str(game_id).isdigit():
+            raise ValueError('Select a current NBA game')
+        with self.lock:
+            game_lock = self.board_locks.setdefault(str(game_id), threading.RLock())
+        with game_lock:
+            agent = self.pregame_agents.get(str(game_id))
+            manager = getattr(agent, 'alert_manager', None)
+            store = manager.store if manager else AlertStore(self.run_root / str(game_id) / 'pregame')
+            return {'acknowledged': store.acknowledge(event_ids)}
 
     def close(self):
         for agent in self.agents.values():
             agent.provider.close()
         for agent in self.pregame_agents.values():
             agent.provider.session.close()
+            agent.alert_manager.close()
         self.market.close()

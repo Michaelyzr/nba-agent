@@ -2,6 +2,7 @@
 import json
 import re
 import subprocess
+import shutil
 from pathlib import Path
 
 import pytest
@@ -42,9 +43,10 @@ def test_streamlit_betting_choices_parlay_and_full_game():
 
 
 JSC = Path('/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc')
+JS_RUNTIME = str(JSC) if JSC.exists() else shutil.which('node')
 
 
-@pytest.mark.skipif(not JSC.exists(), reason='system JavaScriptCore unavailable')
+@pytest.mark.skipif(not JS_RUNTIME, reason='JavaScript runtime unavailable')
 def test_exported_browser_bet_math_replay_and_live_recovery(tmp_path):
     html = (SAMPLE_OUTPUT/'demo.html').read_text()
     data = re.search(r'<script type="application/json" id="loop-data">(.*?)</script>', html, re.S)[1]
@@ -75,10 +77,13 @@ class Element {
   append(...n){this.children.push(...n);}
   replaceChildren(...n){this.children=n;}
   click(){if(!this.disabled&&this.onclick)return this.onclick();}
+  after(){}
+  get firstChild(){return this.children[0];}
 }
 const elements={};IDS.forEach(id=>elements[id]=new Element('div'));
 elements['loop-data'].textContent=DATA;
-for(const [id,value] of Object.entries({stake:20,legs:2,goal:'profit',heldstake:20,heldodds:2}))elements[id].value=String(value);
+for(const [id,value] of Object.entries({stake:20,legs:2,goal:'profit',heldstake:20,heldodds:2,alertseverity:'all',alerttype:'all'}))elements[id].value=String(value);
+if(typeof process!=='undefined'){globalThis.print=console.log;globalThis.quit=code=>process.exit(code);}
 globalThis.document={getElementById:id=>elements[id],createElement:tag=>new Element(tag),createElementNS:(ns,tag)=>new Element(tag)};
 globalThis.window={addEventListener:()=>{}};globalThis.location={protocol:'file:'};
 const timers=new Map();let timerId=0;globalThis.setInterval=(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;};globalThis.clearInterval=id=>timers.delete(id);
@@ -99,6 +104,16 @@ check(elements.chartcard.hidden&&elements.probchart.children.length===0,'no pre-
 check(elements.homechance.textContent!=='—'&&elements.awaychance.textContent!=='—','own pre-game estimates');
 check(timers.size===1&&[...timers.values()][0].ms===1400,'demo updates automatically');
 elements.play.click();check(timers.size===0,'pause demo');
+elements.seek.oninput({target:{value:4}});
+check(elements.alertlist.children.some(e=>allText(e).includes('Trigger conditions & evidence')),'demo exposes traceable alerts');
+check(!allText(elements.alertlist).includes('Webhook:'),'replay hides external delivery status');
+const alertCount=elements.alertlist.children.length;
+elements.alertseverity.value='high';elements.alertseverity.onchange();
+check(elements.alertlist.children.length<=alertCount,'severity filters alerts');
+elements.alertseverity.value='all';elements.alertseverity.onchange();
+elements.alertread.click();check(elements.alertcount.textContent.startsWith('0 unread'),'demo acknowledges locally');
+check(fetchCount===0,'demo acknowledgement never calls the live service');
+elements.restart.click();
 elements.betoptions.children[0].children[1].children[0].click();
 check(elements.picks.children.length===1&&elements.slipchance.textContent!=='—','click creates bet slip');
 elements.total.click();check(elements.betoptions.children.length===1,'total filter');
@@ -136,12 +151,12 @@ check(elements.actiontitle.textContent==='Game finished'&&timers.size===0,'repla
 '''
     source='const IDS='+json.dumps(ids)+';const DATA='+json.dumps(data)+';const FRAMES='+json.dumps(frames)+';const EXPECTED='+json.dumps(expected)+';const PARLAYS='+json.dumps(parlays)+';const HEDGES='+json.dumps(hedges)+';\n'+fixture+scripts+checks
     path=tmp_path/'betting-ui.js';path.write_text(source)
-    run=subprocess.run([str(JSC),str(path)],capture_output=True,text=True,timeout=30)
+    run=subprocess.run([JS_RUNTIME,str(path)],capture_output=True,text=True,timeout=30)
     assert run.returncode==0,run.stdout+run.stderr
     assert 'reconnect passed' in run.stdout
 
 
-@pytest.mark.skipif(not JSC.exists(), reason='system JavaScriptCore unavailable')
+@pytest.mark.skipif(not JS_RUNTIME, reason='JavaScript runtime unavailable')
 def test_hosted_page_starts_live_polling_without_a_click(tmp_path):
     html=(SAMPLE_OUTPUT/'demo.html').read_text()
     data=re.search(r'<script type="application/json" id="loop-data">(.*?)</script>',html,re.S)[1]
@@ -149,6 +164,9 @@ def test_hosted_page_starts_live_polling_without_a_click(tmp_path):
     ids=re.findall(r'\bid="([^"]+)"',html)
     fixture=r'''class Element{constructor(){this.children=[];this.textContent='';this.value='';this.clientWidth=520;this.attrs={};}appendChild(n){this.children.push(n);return n;}replaceChildren(...n){this.children=n;}setAttribute(k,v){this.attrs[k]=v;}click(){return this.onclick();}}
 const E={};IDS.forEach(id=>E[id]=new Element());E['loop-data'].textContent=DATA;
+Element.prototype.after=function(){};
+Object.defineProperty(Element.prototype,'firstChild',{get(){return this.children[0];}});
+if(typeof process!=='undefined'){globalThis.print=console.log;globalThis.quit=code=>process.exit(code);}
 Object.assign(E.stake,{value:'20'});Object.assign(E.legs,{value:'2'});Object.assign(E.goal,{value:'profit'});
 globalThis.document={getElementById:id=>E[id],createElement:()=>new Element(),createElementNS:()=>new Element()};
 globalThis.window={addEventListener:()=>{}};globalThis.location={protocol:'http:'};
@@ -163,6 +181,6 @@ if(E.homechance.textContent==='—')throw Error('own win chance must be visible 
 print('Hosted page starts live automatically');})().catch(e=>{print(e.stack);quit(1);});
 '''
     path=tmp_path/'hosted.js';path.write_text('const IDS='+json.dumps(ids)+';const DATA='+json.dumps(data)+';'+fixture+scripts+checks)
-    run=subprocess.run([str(JSC),str(path)],capture_output=True,text=True,timeout=15)
+    run=subprocess.run([JS_RUNTIME,str(path)],capture_output=True,text=True,timeout=15)
     assert run.returncode==0,run.stdout+run.stderr
     assert 'starts live automatically' in run.stdout
