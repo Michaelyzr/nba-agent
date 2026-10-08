@@ -11,6 +11,9 @@ GeminiBackend uses google-genai with temperature 0, JSON output and thinking
 off; tests and dry runs pass a stub. The key comes from GEMINI_API_KEY in .env.
 DeepSeekBackend posts to DeepSeek's OpenAI-compatible /chat/completions with
 httpx (temperature 0, JSON mode); the key comes from DEEPSEEK_API_KEY.
+For deepseek-reasoner (thinking mode) it drops temperature, which thinking mode
+ignores, and allows a larger max_tokens; reasoning_content is kept out of the
+answer and only its length is recorded.
 """
 import hashlib
 import json
@@ -27,9 +30,11 @@ DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40),
           "gemini-3.5-flash-lite": (0.10, 0.40),   # assumed equal to 2.5 Flash-Lite
           "gemini-2.5-pro": (1.25, 10.0),
-          "deepseek-chat": (0.27, 1.10)}           # approximate DeepSeek list price, cache-miss input
+          "deepseek-chat": (0.27, 1.10),           # approximate DeepSeek list price, cache-miss input
+          "deepseek-reasoner": (0.27, 1.10)}       # same underlying model as deepseek-chat, thinking on; an estimate
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_URL = "https://api.deepseek.com"
+REASONER_MAX_TOKENS = 8192     # reasoning tokens count against max_tokens
 MAX_WAIT = 300                 # seconds; a longer retry hint means the daily quota is spent
 
 
@@ -49,7 +54,16 @@ def parse_json(text: str):
         out = json.loads(m.group(0))
         return out if isinstance(out, dict) else None
     except json.JSONDecodeError:
-        return None
+        pass
+    decoder = json.JSONDecoder()
+    for start in (i for i, ch in enumerate(text) if ch == "{"):
+        try:
+            out, _ = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(out, dict):
+            return out
+    return None
 
 
 def cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
@@ -113,10 +127,12 @@ class GeminiBackend:
 
 
 class DeepSeekBackend:
-    """DeepSeek chat completions over httpx: temperature 0, JSON mode, retries on 429/5xx and timeouts."""
+    """DeepSeek chat completions over httpx: temperature 0, JSON mode, retries on 429/5xx and timeouts.
+
+    deepseek-reasoner: no temperature, max_tokens REASONER_MAX_TOKENS, a longer timeout."""
 
     def __init__(self, model: str = DEEPSEEK_MODEL, max_retries: int = 8, min_interval: float = 0.0,
-                 base_url: str = DEEPSEEK_URL, timeout: float = 120.0, client=None):
+                 base_url: str = DEEPSEEK_URL, timeout: float | None = None, client=None):
         import httpx
         from dotenv import load_dotenv
 
@@ -125,14 +141,21 @@ class DeepSeekBackend:
         if not key and client is None:
             raise RuntimeError("DEEPSEEK_API_KEY is not set (add it to .env)")
         self.model, self.max_retries, self.min_interval = model, max_retries, min_interval
+        self.thinking = "reasoner" in model
+        if timeout is None:
+            timeout = 600.0 if self.thinking else 120.0
         self.client = client or httpx.Client(base_url=base_url, timeout=timeout,
                                              headers={"Authorization": f"Bearer {key}"})
         self._last = 0.0
         self._lock = threading.Lock()
 
     def _body(self, system: str, prompt: str) -> dict:
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+        if self.thinking:
+            return {"model": self.model, "max_tokens": REASONER_MAX_TOKENS,
+                    "response_format": {"type": "json_object"}, "messages": messages}
         return {"model": self.model, "temperature": 0.0, "response_format": {"type": "json_object"},
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}
+                "messages": messages}
 
     def generate(self, system: str, prompt: str, meta=None):
         import httpx
@@ -149,9 +172,15 @@ class DeepSeekBackend:
                 if code == 200:
                     data = r.json()
                     u = data.get("usage") or {}
-                    text = (data["choices"][0]["message"].get("content") or "")
-                    return text, {"tokens_in": int(u.get("prompt_tokens", 0) or 0),
-                                  "tokens_out": int(u.get("completion_tokens", 0) or 0)}
+                    message = data["choices"][0]["message"]
+                    text = message.get("content") or ""
+                    usage = {"tokens_in": int(u.get("prompt_tokens", 0) or 0),
+                             "tokens_out": int(u.get("completion_tokens", 0) or 0)}
+                    if self.thinking:
+                        details = u.get("completion_tokens_details") or {}
+                        usage.update(reasoning_tokens=int(details.get("reasoning_tokens", 0) or 0),
+                                     reasoning_chars=len(message.get("reasoning_content") or ""))
+                    return text, usage
                 err = f"HTTP {code}: {r.text[:200]}"
                 retry_after = r.headers.get("retry-after")
             except httpx.TransportError as exc:          # timeouts, dropped connections
@@ -202,25 +231,30 @@ class CachedLLM:
         if path is not None and path.exists():
             hit = json.loads(path.read_text())
             out = {"text": hit["text"], "cached": True, "tokens_in": hit["tokens_in"], "tokens_out": hit["tokens_out"],
+                   "reasoning_tokens": hit.get("reasoning_tokens", 0), "reasoning_chars": hit.get("reasoning_chars", 0),
                    "latency": hit["latency"], "error": None}
         else:
             t0 = time.time()
             try:
                 text, usage = self.backend.generate(system, prompt, {**(meta or {}), "role": role})
             except Exception as exc:
-                out = {"text": "", "cached": False, "tokens_in": 0, "tokens_out": 0, "latency": time.time() - t0,
+                out = {"text": "", "cached": False, "tokens_in": 0, "tokens_out": 0, "reasoning_tokens": 0,
+                       "reasoning_chars": 0, "latency": time.time() - t0,
                        "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
                 out.update(json=None, cost=0.0, key=key, role=role)
                 self.log.append({k: v for k, v in out.items() if k not in ("json", "text")})
                 return out
             out = {"text": text, "cached": False, "tokens_in": usage["tokens_in"], "tokens_out": usage["tokens_out"],
-                   "latency": time.time() - t0, "error": None}
+                   "reasoning_tokens": usage.get("reasoning_tokens", 0),
+                   "reasoning_chars": usage.get("reasoning_chars", 0), "latency": time.time() - t0, "error": None}
             if path is not None:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
                 tmp.write_text(json.dumps({"model": self.model, "temperature": self.temperature, "role": role,
                                            "system": system, "prompt": prompt, "text": text,
                                            "tokens_in": out["tokens_in"], "tokens_out": out["tokens_out"],
+                                           "reasoning_tokens": out["reasoning_tokens"],
+                                           "reasoning_chars": out["reasoning_chars"],
                                            "latency": out["latency"], "created": time.time()}))
                 os.replace(tmp, path)
         out.update(json=parse_json(out["text"]), cost=cost_usd(self.model, out["tokens_in"], out["tokens_out"]),

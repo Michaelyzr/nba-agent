@@ -1,4 +1,4 @@
-"""Precompute compact, as-of agent traces for the hosted demo (demo_app.py reads only demo/traces/).
+"""Precompute compact, as-of agent traces for the hosted demo (research_demo_app.py reads only demo/traces/).
 
     PYTHONPATH=. python demo/build_traces.py                    # all scenarios -> demo/traces/*.json
     PYTHONPATH=. python demo/build_traces.py --live 401810565 "2026-02-02 01:30"   # one trader run -> stdout JSON
@@ -69,7 +69,8 @@ def clean(x, depth=0):
 class Ctx:
     def __init__(self):
         from forecast.api import Forecaster
-        self.tables = replay.load_tables()
+        from evaluation.llm_agent_eval import load_frozen
+        self.tables = load_frozen()
         self.forecaster = Forecaster.load()
         players = self.tables.get("players")
         if players is None:
@@ -339,7 +340,9 @@ class Recorder:
     def ask(self, role, system, prompt, meta=None):
         out = self.llm.ask(role, system, prompt, meta)
         self.calls.append({"role": role, "prompt": prompt, "reply": out.get("json"), "text": out.get("text", "")[:600],
-                           "cached": out.get("cached"), "error": out.get("error")})
+                           "cached": out.get("cached"), "error": out.get("error"),
+                           "tokens_out": out.get("tokens_out", 0), "reasoning_tokens": out.get("reasoning_tokens", 0),
+                           "reasoning_chars": out.get("reasoning_chars", 0)})
         return out
 
 
@@ -359,7 +362,11 @@ def tool_turns(calls):
     for i, c in enumerate(calls):
         if c["role"] != "analyst":
             continue
-        turn = {"turn": len(turns) + 1, "reply": c["reply"], "tool_results": []}
+        turn = {"turn": len(turns) + 1, "reply": c["reply"], "tool_results": [],
+                "tokens_out": c.get("tokens_out", 0), "reasoning_tokens": c.get("reasoning_tokens", 0),
+                "reasoning_chars": c.get("reasoning_chars", 0)}
+        if c["reply"] is None:
+            turn["raw_text"] = c.get("text", "")[:300]
         nxt = next((d for d in calls[i + 1:] if d["role"] == "analyst"), None)
         if nxt is not None:
             m = re.findall(r"\[turn (\d+)\] tool results: (.*)", nxt["prompt"])
@@ -446,6 +453,254 @@ def gemini_candidates():
                 out.append((len(d.get("tool_calls", [])), d["game_id"], d["as_of"], d["status"], d.get("reason"),
                             m["model"], m["setup"]))
     return [o[1:] for o in sorted(out, key=lambda o: -o[0])]
+
+
+# ---------------- DeepSeek LLM-agent runs (real responses, replayed from runs/llm_cache) ----------------
+
+LLM_RUNS = ROOT / "runs" / "llm_agent"
+RESULTS_REF = "origin/results/deepseek-llm-agent"
+RESULTS_MD = "evaluation/results/llm_agent.md"
+MODEL_LABEL = {"deepseek-chat": "DeepSeek chat",
+               "deepseek-reasoner": "DeepSeek reasoner (V4.1-Flash, thinking)"}
+SETUP_LABEL = {"plain": "plain LLM, one call, no tools", "tool": "tool agent, no sceptic",
+               "tool_sceptic": "tool agent + priced-in sceptic"}
+PUNCHLINE = ("Works correctly and safely, but finds no edge; the sceptic helps only by vetoing ~95% of trades — "
+             "like every upgrade, it wins by trading less.")
+
+
+def run_rows(tag, setup):
+    return [json.loads(x) for x in (LLM_RUNS / tag / setup / "trace.jsonl").read_text().splitlines() if x.strip()]
+
+
+def plain_info(prompt):
+    """The INFORMATION block the plain LLM was shown (quotes, anchors, news, M4), parsed from its prompt."""
+    m = re.search(r"INFORMATION\n(\{.*\})\n", prompt or "", re.S)
+    try:
+        return json.loads(m.group(1)) if m else None
+    except json.JSONDecodeError:
+        return None
+
+
+def run_deepseek(ctx, impact, tag, setup, gid, at, label):
+    """Replay one DeepSeek decision through the real ToolAgent / PlainLLMAgent with every LLM reply from the cache."""
+    from agents.llm_client import REASONER_MAX_TOKENS, CachedLLM
+    from agents.tool_agent import GROUND_BAND, PlainLLMAgent, ToolAgent, validate_proposal
+    from replay import Order
+    meta = json.loads((LLM_RUNS / tag / setup / "meta.json").read_text())
+    model = meta["model"]
+    orig = next(r for r in run_rows(tag, setup) if r["game_id"] == gid and pd.Timestamp(r["as_of"]) == pd.Timestamp(at))
+    rec = Recorder(CachedLLM(CacheOnly(model)))
+    kw = {"forecaster": ctx.forecaster, "impact": impact, "players": ctx.names}
+    agent = PlainLLMAgent(rec, **kw) if setup == "plain" else ToolAgent(rec, sceptic=setup == "tool_sceptic", **kw)
+    game, now = ctx.game(gid), pd.Timestamp(at)
+    view = ctx.view(now)
+    orders = agent.policy(view, game, now)
+    tr = agent.traces[-1]
+    if any(c["error"] for c in rec.calls) or tr["status"] != orig["status"]:
+        print(f"  replay mismatch {tag}/{setup} {gid} {at}: {tr['status']} vs {orig['status']} "
+              f"({[c['error'] for c in rec.calls if c['error']][:1]})", flush=True)
+        return None
+    tools = agent.tools(view, game, now)
+    market = [{"team": t, **{k: v for k, v in tools.get_quote(t).items() if k != "team"},
+               **{k: v for k, v in tools.get_anchor(t).items() if k not in ("team", "mid_now")}} for t in tools.teams]
+    analyst = [c for c in rec.calls if c["role"] in ("analyst", "plain")]
+    last = analyst[-1] if analyst else {}
+    out_of_budget = model == "deepseek-reasoner" and last.get("text", "") == "" and \
+        last.get("tokens_out", 0) >= REASONER_MAX_TOKENS - 64
+    validation = None
+    proposal = tr.get("proposal")
+    if setup != "plain" and proposal and str(proposal.get("decision", "")).lower() == "buy":
+        results = {}
+        for t in tool_turns(rec.calls):
+            for r in t["tool_results"]:
+                if "id" in r:
+                    results[r["id"]] = {"tool": r["tool"], "args": r["args"], "output": r["output"]}
+        ok, why, detail = validate_proposal(proposal, tools, results, view)
+        validation = {"ok": ok, "result": why, "detail": detail,
+                      "checks": [{"check": "valid JSON in the schema, known team label",
+                                  "pass": why not in ("bad_schema", "unknown_team")},
+                                 {"check": "cites tool numbers", "pass": why != "no_citations"},
+                                 {"check": "cited numbers match the tool outputs (0.5c tolerance)",
+                                  "pass": why != "number_mismatch"},
+                                 {"check": f"estimate grounded (within {GROUND_BAND * 100:.0f} pts of a tool probability)",
+                                  "pass": why != "ungrounded_estimate"},
+                                 {"check": "no banned wording", "pass": why != "banned_wording"},
+                                 {"check": "news public at decision time", "pass": why != "citation_after_decision"}]}
+    elif tr["status"] == "invalid":
+        why = tr.get("reason")
+        if out_of_budget:
+            detail = (f"Empty answer: the hidden reasoning used the whole {REASONER_MAX_TOKENS:,}-token budget "
+                      f"({last.get('reasoning_tokens', 0):,} reasoning tokens) and returned no JSON. Treated as "
+                      "invalid, so no trade: a pass.")
+        else:
+            detail = tr.get("detail") or ""
+        validation = {"ok": False, "result": why, "detail": detail, "out_of_reasoning_budget": out_of_budget,
+                      "checks": [{"check": "reply is a JSON object in the schema",
+                                  "pass": why not in ("invalid_json", "bad_schema")},
+                                 {"check": "final answer within the tool-call / turn budget",
+                                  "pass": why != "budget_exhausted"}]}
+    sceptic_call = next((c for c in rec.calls if c["role"] == "sceptic"), None)
+    decisions = pd.read_parquet(LLM_RUNS / tag / setup / "decisions.parquet")
+    drow = decisions[(decisions.game_id == gid) & (pd.to_datetime(decisions.as_of, utc=True) == now)]
+    risk = None if drow.empty else {"risk_result": drow.iloc[0].risk_result, "fill_result": drow.iloc[0].fill_result}
+    settled = settle_orders(ctx, orders, now, game)
+    counter = []
+    cand = tr.get("candidate") or (tr.get("order") if not orders else None)
+    if not orders and cand:
+        counter = settle_orders(ctx, [Order(cand["ticker"], cand["side"], 0.5, 20.0, "counterfactual", [],
+                                            "platform", [], "x")], now, game)
+    elif not orders:
+        steps = run_trader(ctx, gid, now)["steps"]
+        counter = settle_orders(ctx, candidate_orders(next((s["candidates"] for s in steps
+                                                            if s["node"] == "analyse"), [])), now, game)
+    fills = pd.read_parquet(LLM_RUNS / tag / setup / "fills.parquet") if orders else pd.DataFrame()
+    if orders and len(fills):
+        f = fills[(fills.game_id == gid) & (pd.to_datetime(fills.as_of, utc=True) == now)]
+        assert len(f) == 1 and abs(float(f.pnl.iloc[0]) - settled[0]["pnl"]) < 0.02, (gid, settled)
+    settlement = {"revealed_at": pd.Timestamp(game.tip_time).isoformat(), "fills": settled,
+                  "counterfactual": counter, "final": final_score(game)}
+    reasoning = {"chars": sum(c.get("reasoning_chars", 0) for c in rec.calls),
+                 "tokens": sum(c.get("reasoning_tokens", 0) for c in rec.calls),
+                 "excerpt": None, "excerpt_note": "Hidden reasoning text is not cached (only its length is logged)."} \
+        if model == "deepseek-reasoner" else None
+    return clean({"agent": "tool_agent", "source": "deepseek", "label": label, "game_id": gid,
+                  "matchup": f"{game.away_team} @ {game.home_team}", "tip_time": pd.Timestamp(game.tip_time).isoformat(),
+                  "as_of": now.isoformat(), "model": model, "model_label": MODEL_LABEL[model],
+                  "llm": f"{MODEL_LABEL[model]}, real responses replayed from the run's response cache",
+                  "stub": False, "run": f"runs/llm_agent/{tag}/{setup}", "setup": setup,
+                  "setup_label": SETUP_LABEL[setup], "sceptic_enabled": setup == "tool_sceptic",
+                  "status": tr["status"], "reason": tr.get("reason"), "detail": tr.get("detail"),
+                  "market": market, "turns": [] if setup == "plain" else tool_turns(rec.calls),
+                  "plain_info": plain_info(analyst[0]["prompt"]) if setup == "plain" and analyst else None,
+                  "proposal": proposal, "validation": validation, "out_of_reasoning_budget": out_of_budget,
+                  "gap_after_fees": tr.get("gap"), "min_edge": agent.min_edge, "order": tr.get("order"),
+                  "sceptic": None if sceptic_call is None else {
+                      "verdict": tr.get("sceptic"), "reply": sceptic_call["reply"],
+                      "reasoning_chars": sceptic_call.get("reasoning_chars", 0)},
+                  "risk": risk, "reasoning": reasoning, "usage": tr.get("llm"), "settlement": settlement,
+                  "game_outcome": game_outcome(ctx, game, settlement)})
+
+
+def deepseek_picks():
+    """Showcase decisions: (trace name, tag, setup, game_id, as_of, label), chosen from the run traces."""
+    st_ = pd.read_parquet(ROOT / "data" / "frozen" / "settlements.parquet").set_index("market_ticker").outcome
+    picks = []
+    rs = "test-deepseek-reasoner"
+    for i, r in enumerate(x for x in run_rows(rs, "tool_sceptic") if x["status"] == "order"):
+        picks.append((f"tool_ds_kept_{i + 1}", rs, "tool_sceptic", r["game_id"], r["as_of"],
+                      "DeepSeek reasoner + sceptic: trade kept and placed"))
+    vetoes = [x for x in run_rows(rs, "tool_sceptic") if x["status"] == "sceptic_reject" and "candidate" in x]
+
+    def would_win(x):
+        c = x["candidate"]
+        return (st_.get(c["ticker"]) == 1) == (c["side"] == "yes")
+    chat_bought = {x["game_id"] for x in run_rows("test-deepseek", "tool") if x["status"] == "order"}
+    lost = [x for x in vetoes if not would_win(x)]
+    won = [x for x in vetoes if would_win(x)]
+    chosen = [next((x for x in lost if x["game_id"] in chat_bought), lost[0] if lost else None),
+              next((x for x in won if x["game_id"] in chat_bought), won[0] if won else None),
+              next((x for x in lost if x["game_id"] not in chat_bought), None)]
+    for i, x in enumerate(c for c in chosen if c):
+        picks.append((f"tool_ds_veto_{i + 1}", rs, "tool_sceptic", x["game_id"], x["as_of"],
+                      "DeepSeek reasoner + sceptic: the sceptic vetoes the trade"))
+    vetoed = {x["game_id"] for x in chosen if x}
+    chat = [x for x in run_rows("test-deepseek", "tool") if x["status"] == "order"]
+    c = next((x for x in chat if x["game_id"] not in vetoed), chat[0] if chat else None)
+    if c:
+        picks.append(("tool_ds_chat", "test-deepseek", "tool", c["game_id"], c["as_of"],
+                      "DeepSeek chat tool agent (no sceptic): buys"))
+    budget = [x for x in run_rows(rs, "tool_sceptic") if x["status"] == "invalid" and x["reason"] == "invalid_json"
+              and not x.get("detail")]
+    if budget:
+        picks.append(("tool_ds_budget", rs, "tool_sceptic", budget[0]["game_id"], budget[0]["as_of"],
+                      "DeepSeek reasoner: ran out of reasoning budget (invalid, so a pass)"))
+    plain = [x for x in run_rows("test-deepseek", "plain") if x["status"] == "order"]
+    if plain:
+        picks.append(("tool_ds_plain", "test-deepseek", "plain", plain[0]["game_id"], plain[0]["as_of"],
+                      "DeepSeek chat plain LLM (no tools): one call, buys"))
+    return picks
+
+
+def md_tables(text):
+    """Markdown tables in `text` as lists of dicts (header row -> values)."""
+    tables, cur = [], None
+    for line in text.splitlines():
+        if line.startswith("|"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if cur is None:
+                cur = {"head": cells, "rows": []}
+            elif not all(set(c) <= set("-: ") for c in cells):
+                cur["rows"].append(dict(zip(cur["head"], cells)))
+        elif cur is not None:
+            tables.append(cur["rows"])
+            cur = None
+    if cur is not None:
+        tables.append(cur["rows"])
+    return tables
+
+
+def llm_results():
+    """Scoreboard, paired differences and sceptic diagnostics parsed from the DeepSeek results file."""
+    import subprocess
+    try:
+        text = subprocess.run(["git", "show", f"{RESULTS_REF}:{RESULTS_MD}"], cwd=ROOT, capture_output=True,
+                              text=True, check=True).stdout
+        src = f"{RESULTS_MD} on {RESULTS_REF}"
+    except subprocess.CalledProcessError:
+        text, src = (ROOT / RESULTS_MD).read_text(), RESULTS_MD
+    out = {"agent": "results", "source": src, "punchline": PUNCHLINE, "models": {}}
+    for tag, model in (("test-deepseek", "deepseek-chat"), ("test-deepseek-reasoner", "deepseek-reasoner")):
+        part = text.split(f"### {tag}:", 1)[1].split("\n### ", 1)[0]
+        score, paired, diag = md_tables(part)[:3]
+        out["models"][model] = {"label": MODEL_LABEL[model], "scoreboard": score, "paired": paired,
+                                "diagnostics": diag}
+    cost = re.search(r"\*\*\$([\d.]+)\s+for\s+all\s+six", text)
+    budget = re.search(r"(\d+)\s+calls\s+used\s+the\s+full\s+([\d,]+)-token\s+budget", text)
+    out["cost_usd"] = float(cost.group(1)) if cost else None
+    out["reasoning_budget_calls"] = int(budget.group(1)) if budget else None
+    out["reasoning_budget_tokens"] = budget.group(2) if budget else None
+    return out
+
+
+def build_deepseek(ctx, impact):
+    """Write the DeepSeek traces and llm_results.json; return [(trace name, trace)] in showcase order."""
+    built = []
+    for name, tag, setup, gid, at, label in deepseek_picks():
+        tr = run_deepseek(ctx, impact, tag, setup, gid, at, label)
+        if tr:
+            write(name, tr)
+            built.append((name, tr))
+    write("llm_results", llm_results())
+    print(f"deepseek replays: {len(built)}", flush=True)
+    return built
+
+
+def deepseek_scenario(name, tr):
+    who = tr["model_label"]
+    if name.startswith("tool_ds_kept"):
+        title = f"{tr['matchup']}: {who} + sceptic, trade kept"
+        summary = ("The analyst calls the as-of tools, proposes a buy, code validates the cited numbers and the 4c "
+                   "edge, and the priced-in sceptic allows it: one of only 2 trades the reasoner + sceptic placed in "
+                   "304 decisions.")
+    elif name.startswith("tool_ds_veto"):
+        title = f"{tr['matchup']}: {who}, sceptic vetoes"
+        summary = ("The analyst finds an edge that passes validation and the 4c gap check; the sceptic vetoes it as "
+                   "already priced in. The graded panel shows what the vetoed trade would have done "
+                   "(counterfactual).")
+    elif name == "tool_ds_chat":
+        title = f"{tr['matchup']}: {who} tool agent buys (no sceptic)"
+        summary = "The chat model (no thinking) with the same tools, validation and edge rule, without the sceptic."
+    elif name == "tool_ds_budget":
+        title = f"{tr['matchup']}: {who} runs out of reasoning budget"
+        res = BUILT.get("llm_results") or {}
+        summary = (f"The reasoner spends the whole {res.get('reasoning_budget_tokens') or '8,192'}-token budget "
+                   "thinking and returns an empty answer. Code treats it as invalid, so no trade: a pass. This "
+                   f"happened on {res.get('reasoning_budget_calls') or 'several'} calls in the test run.")
+    else:
+        title = f"{tr['matchup']}: {who} plain LLM, no tools"
+        summary = ("For contrast: one call with the decision-time quotes, anchors, news and M4 as text, no tools, "
+                   "no sceptic; the same 4c edge rule decides.")
+    return {"id": name.replace("tool_", ""), "title": title, "summary": summary, "agents": {"tool_agent": name}}
 
 
 # ---------------- coach, orchestrator, pregame, in-play ----------------
@@ -647,9 +902,10 @@ def build_all():
     print(f"gemini replays: {len(gem)}", flush=True)
     write("tool_stub_cle_por", run_tool_agent(ctx, CLE_POR, CLE_POR_AT, "heuristic", True, impact,
                                               "Stub LLM tool agent + sceptic: CLE @ POR"))
+    ds = build_deepseek(ctx, impact)
     rej = None
     stub_run = ROOT / "runs" / "llm_agent" / "test-stub" / "tool_sceptic" / "trace.jsonl"
-    if stub_run.exists():
+    if stub_run.exists() and not any(n.startswith("tool_ds_veto") for n, _ in ds):
         for line in stub_run.read_text().splitlines():
             d = json.loads(line)
             if d.get("status") == "sceptic_reject":
@@ -701,6 +957,9 @@ def build_all():
         add("sceptic", f"{rej['matchup']}: priced-in sceptic rejects (stub LLM)",
             "The analyst finds an edge, code validates it, and the sceptic rejects because the price already moved.",
             {"tool_agent": "tool_stub_sceptic_reject"})
+    for name, tr in ds:
+        sc_ = deepseek_scenario(name, tr)
+        add(sc_["id"], sc_["title"], sc_["summary"], sc_["agents"])
     for i, tr in enumerate(gem):
         add(f"gemini{i + 1}", f"{tr['matchup']}: real Gemini tool agent ({tr['status']})",
             f"Replayed from the cached Gemini responses ({tr['llm']}). Outcome: {tr['status']} - {tr.get('reason')}.",
@@ -708,6 +967,33 @@ def build_all():
     write("index", {"scenarios": scenarios, "built_at": pd.Timestamp.now(tz="UTC").isoformat(),
                     "note": "Decision steps use only data available at the decision time; settlement is revealed at "
                             "tip-off."})
+
+
+def deepseek_only():
+    """Rebuild only the DeepSeek traces and splice them into the existing index (replacing the stub sceptic)."""
+    ctx = Ctx()
+    print("context loaded", flush=True)
+    try:
+        from forecast.impact import load_impact
+        impact = load_impact()
+    except Exception:
+        impact = None
+    ds = build_deepseek(ctx, impact)
+    index = json.loads((OUT / "index.json").read_text())
+    names = {n for n, _ in ds}
+    keep = [s for s in index["scenarios"] if not str(s["id"]).startswith("ds_")
+            and not (s["id"] == "sceptic" and any(n.startswith("tool_ds_veto") for n in names))]
+    new = []
+    for name, tr in ds:
+        sc_ = deepseek_scenario(name, tr)
+        sc_["game_outcome"] = tr["game_outcome"]
+        new.append(sc_)
+    at = next((i for i, s in enumerate(keep) if str(s["id"]).startswith("gemini")), len(keep))
+    index["scenarios"] = keep[:at] + new + keep[at:]
+    index["built_at"] = pd.Timestamp.now(tz="UTC").isoformat()
+    write("index", index)
+    if any(n.startswith("tool_ds_veto") for n in names):
+        (OUT / "tool_stub_sceptic_reject.json").unlink(missing_ok=True)
 
 
 def live(gid, at):
@@ -719,8 +1005,11 @@ def live(gid, at):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", nargs=2, metavar=("GAME_ID", "AS_OF_UTC"))
+    ap.add_argument("--deepseek", action="store_true", help="rebuild only the DeepSeek traces into the index")
     a = ap.parse_args()
     if a.live:
         live(*a.live)
+    elif a.deepseek:
+        deepseek_only()
     else:
         build_all()

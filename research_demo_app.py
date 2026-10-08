@@ -1,6 +1,6 @@
 """Hosted demo: the thought process of every agent, replayed from precomputed traces.
 
-    streamlit run demo_app.py
+    streamlit run research_demo_app.py
 
 Reads only demo/traces/*.json (built by demo/build_traces.py from as-of data), so it needs no data,
 models or API keys and runs on Streamlit Community Cloud.
@@ -23,9 +23,13 @@ st.set_page_config(page_title="NBA market agents: thought process", layout="wide
 
 
 @st.cache_data
+def _load(name: str, mtime: float):
+    return json.loads((TRACES / f"{name}.json").read_text())
+
+
 def load(name: str):
     path = TRACES / f"{name}.json"
-    return json.loads(path.read_text()) if path.exists() else None
+    return _load(name, path.stat().st_mtime) if path.exists() else None
 
 
 def pct(x, d=1):
@@ -256,7 +260,116 @@ def show_review(r):
 
 # ---------------- tool agent ----------------
 
+STATUS_TEXT = {"order": "order placed", "sceptic_reject": "vetoed by the sceptic", "pass": "pass",
+               "invalid": "invalid output (no trade)", "gap": "gap too small (no trade)"}
+
+
+def show_deepseek(t):
+    st.markdown(f"### {t['label']}")
+    st.success(f"Real LLM: **{t['model_label']}** — {t['setup_label']}. Every reply below is the model's real "
+               f"response, replayed from the run's response cache (`{t['run']}`); tools, validation, edge, sceptic "
+               "wiring and risk are the production code.")
+    c = st.columns(4)
+    c[0].metric("Game", t["matchup"])
+    c[1].metric("Decision time (UTC, as-of)", t["as_of"][5:16].replace("T", " "))
+    c[2].metric("Tip-off (UTC)", t["tip_time"][5:16].replace("T", " "))
+    c[3].metric("Outcome", STATUS_TEXT.get(t["status"], t["status"]))
+    st.markdown("**Market at the decision time (quote and 24h anchor)**")
+    st.dataframe([{"team": m["team"], "bid-ask": f"{m['bid'] * 100:.0f}-{m['ask'] * 100:.0f}c",
+                   "mid": pct(m.get("mid")), "anchor (24h before tip)": pct(m.get("anchor_mid")),
+                   "move since anchor": cents(m.get("move_since_anchor")),
+                   "volume last hour": f"{m.get('volume_last_hour') or 0:,.0f}"} for m in t["market"] if "bid" in m],
+                 hide_index=True, width="stretch")
+    rs = t.get("reasoning")
+    step = 1
+    if t["setup"] == "plain":
+        st.markdown(f"**{step}. One LLM call, no tools: the information it was given**")
+        with st.expander("Information shown to the LLM (as-of)", expanded=False):
+            st.json(t.get("plain_info") or {}, expanded=False)
+    else:
+        st.markdown(f"**{step}. Analyst LLM ↔ as-of tools** (in call order)")
+        for turn in t["turns"]:
+            reply = turn.get("reply")
+            kind = "tool calls" if reply and "tool_calls" in reply else "final proposal" if reply else "no answer"
+            thought = f" — thought for {turn['reasoning_chars']:,} characters" if rs else ""
+            with st.expander(f"Turn {turn['turn']}: {kind}{thought}", expanded=True):
+                if reply is None:
+                    st.error(f"Empty or unparseable reply ({turn.get('tokens_out', 0):,} output tokens, "
+                             f"{turn.get('reasoning_tokens', 0):,} of them hidden reasoning). Raw text: "
+                             f"{turn.get('raw_text') or '(empty)'!r}")
+                for r in turn.get("tool_results", []):
+                    st.markdown(f"`{r.get('id')}` **{r.get('tool')}**(`{json.dumps(r.get('args'))}`) →")
+                    st.json(r.get("output"), expanded=False)
+                if reply and "final" in reply:
+                    st.json(reply, expanded=False)
+    step += 1
+    if rs:
+        st.caption(f"Hidden reasoning (thinking mode): {rs['chars']:,} characters, {rs['tokens']:,} tokens over "
+                   f"this decision. {rs['excerpt_note']}")
+    st.markdown(f"**{step}. Proposal**")
+    p = t.get("proposal")
+    if p and t["setup"] == "plain":
+        st.write(f"Estimate p(home wins) = **{pct(p.get('p_home'))}**. Rationale: {p.get('rationale')}")
+    elif p:
+        st.write(f"Decision **{str(p.get('decision', '')).upper()}**"
+                 + (f" {p.get('team')}, estimate **{pct(p.get('estimate_p'))}**" if p.get("team") else ""))
+        if p.get("citations"):
+            st.dataframe([{"call": x.get("call_id"), "field": x.get("field"), "value cited": x.get("value")}
+                          for x in p["citations"] if isinstance(x, dict)], hide_index=True, width="stretch")
+        st.caption(f"Reasoning note: {p.get('rationale')}")
+    else:
+        st.info("No proposal: the model did not return a usable final answer.")
+    step += 1
+    st.markdown(f"**{step}. Validation in code**")
+    v = t.get("validation")
+    if v:
+        for c_ in v["checks"]:
+            badge(c_["pass"], c_["check"])
+        if v.get("detail"):
+            (st.warning if not v["ok"] else st.caption)(v["detail"])
+    elif t["setup"] == "plain":
+        st.caption("Plain LLM: only the probability is parsed; no tool citations to match.")
+    else:
+        st.info("The analyst passed, so there was nothing to validate. Passing costs nothing.")
+    step += 1
+    st.markdown(f"**{step}. Edge (code): gap after fees must exceed {t.get('min_edge', 0.04) * 100:.0f}c**")
+    if t.get("gap_after_fees") is not None:
+        badge(t["gap_after_fees"] > t.get("min_edge", 0.04), f"gap after fees {cents(t['gap_after_fees'])}")
+    else:
+        st.caption("Not reached.")
+    step += 1
+    st.markdown(f"**{step}. Priced-in sceptic**")
+    sc = t.get("sceptic")
+    if sc:
+        verdict = (sc.get("verdict") or {}).get("verdict")
+        reason = (sc.get("reply") or {}).get("reason") or (sc.get("verdict") or {}).get("reason")
+        thought = f" (thought for {sc['reasoning_chars']:,} characters)" if rs else ""
+        if verdict == "approve":
+            st.success(f"ALLOW{thought}: {reason}")
+        else:
+            st.error(f"VETO{thought}: {reason}")
+    else:
+        st.caption("Sceptic not enabled in this run." if not t.get("sceptic_enabled") else
+                   "Sceptic not reached (no valid candidate trade).")
+    step += 1
+    st.markdown(f"**{step}. Pre-trade risk and final action**")
+    if t.get("risk"):
+        badge(t["risk"]["risk_result"] == "approved", f"pre-trade risk: {t['risk']['risk_result']}")
+    if t.get("order"):
+        o = t["order"]
+        st.success(f"ORDER: buy `{o['side']}` on `{o['ticker']}` at {o['price'] * 100:.0f}c "
+                   f"(estimate {pct(o['p_model'])}, gap after fees {cents(o['gap'])}).")
+    else:
+        st.info(f"No order: {STATUS_TEXT.get(t['status'], t['status'])}. Passing costs nothing.")
+    if t.get("usage"):
+        u = t["usage"]
+        st.caption(f"LLM usage: {u.get('calls')} calls, {u.get('tokens_in'):,} tokens in / {u.get('tokens_out'):,} "
+                   f"out, about ${u.get('cost', 0):.4f}.")
+
+
 def show_tool(t):
+    if t.get("source") == "deepseek":
+        return show_deepseek(t)
     st.markdown(f"### {t['label']}")
     if t.get("stub"):
         st.warning("**stub LLM**: every LLM reply below comes from the deterministic `heuristic_reply` stub, not "
@@ -416,6 +529,56 @@ def overview():
 | Orchestrator (`agents/orchestrator.py`) | Supervisor routes pregame → trader → Coach → briefs for one night | Orchestrator tab |
 | Pregame / in-play (`agents/pregame.py`, `agents/inplay.py`) | News polling and fair odds before and during games | Pregame and In-play tabs |
 """)
+    llm_results_panel()
+
+
+def find_row(rows, key, value, **match):
+    return next((r for r in rows if r.get(key, "").startswith(value)
+                 and all(r.get(k) == v for k, v in match.items())), {})
+
+
+def llm_results_panel():
+    r = load("llm_results")
+    if not r:
+        return
+    st.divider()
+    st.header("LLM agent vs original agent (test period, 304 decision points)")
+    st.info(f"**{r['punchline']}**")
+    chat, rsn = r["models"]["deepseek-chat"], r["models"]["deepseek-reasoner"]
+    cols = ("Trades", "Mean CLV [95% CI]", "CLV $ [95% CI]", "P&L after fees [95% CI]")
+    rows = [("A. Deterministic agent (original)", find_row(rsn["scoreboard"], "Setup", "A."))]
+    for m, lab in ((chat, "DeepSeek chat"), (rsn, "DeepSeek reasoner")):
+        for k, name in (("B.", "B. plain LLM"), ("C.", "C. tool agent"), ("D.", "D. tool agent + sceptic")):
+            rows.append((f"{name} ({lab})", find_row(m["scoreboard"], "Setup", k)))
+    rows.append(("Never trade", find_row(rsn["scoreboard"], "Setup", "Never")))
+    st.markdown("**Scoreboard** (CLV $ and P&L vs never trading; 95% day-clustered bootstrap CIs)")
+    st.dataframe([{"setup": n, **{c: x.get(c, "") for c in cols}} for n, x in rows], hide_index=True, width="stretch")
+    paired = [("D − A (reasoner + sceptic vs original)", find_row(rsn["paired"], "Comparison", "tool_sceptic − anchor",
+                                                                  Metric="CLV $")),
+              ("D − C sceptic effect (reasoner)", find_row(rsn["paired"], "Comparison", "tool_sceptic − tool",
+                                                           Metric="CLV $")),
+              ("D − C sceptic effect (chat)", find_row(chat["paired"], "Comparison", "tool_sceptic − tool",
+                                                       Metric="CLV $"))]
+    st.markdown("**Paired differences (CLV $, same game-days)**")
+    st.dataframe([{"comparison": n, "difference [95% CI]": x.get("Difference [95% CI]", ""), "p": x.get("p", "")}
+                  for n, x in paired], hide_index=True, width="stretch")
+    st.markdown("**The sceptic: what it vetoed vs what it kept**")
+    diag = []
+    for m, lab in ((chat, "DeepSeek chat"), (rsn, "DeepSeek reasoner")):
+        d = find_row(m["diagnostics"], "Setup", "tool_sceptic")
+        diag.append({"model": lab, "sceptic vetoes / calls": d.get("Sceptic rejects / calls", ""),
+                     "vetoed vs kept CLV (per contract)": d.get("Vetoed vs kept CLV", ""),
+                     "invalid outputs": d.get("Invalid (rate)", ""), "cost (D arm)": d.get("Cost", "")})
+    st.dataframe(diag, hide_index=True, width="stretch")
+    extra = []
+    if r.get("reasoning_budget_calls"):
+        extra.append(f"{r['reasoning_budget_calls']} reasoner calls used the whole {r['reasoning_budget_tokens']}-token "
+                     "budget on hidden reasoning and returned no answer (counted as invalid, so a pass)")
+    if r.get("cost_usd"):
+        extra.append(f"total DeepSeek spend ${r['cost_usd']:.2f}")
+    if extra:
+        st.caption("; ".join(extra).capitalize() + ".")
+    st.caption(f"Source: {r['source']}. The kept-trade CLV rests on 2 trades: not evidence of skill.")
 
 
 def main():

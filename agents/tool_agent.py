@@ -227,6 +227,8 @@ class _Base:
         trace["llm"] = {"calls": len(calls), "cached": sum(c["cached"] for c in calls),
                         "errors": sum(bool(c["error"]) for c in calls),
                         "tokens_in": sum(c["tokens_in"] for c in calls), "tokens_out": sum(c["tokens_out"] for c in calls),
+                        "reasoning_tokens": sum(c.get("reasoning_tokens", 0) for c in calls),
+                        "reasoning_chars": sum(c.get("reasoning_chars", 0) for c in calls),
                         "cost": sum(c["cost"] for c in calls), "latency": sum(c["latency"] for c in calls),
                         "by_role": {r: sum(c["role"] == r for c in calls) for r in {c["role"] for c in calls}}}
         self.traces.append(trace)
