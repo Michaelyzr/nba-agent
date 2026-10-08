@@ -24,6 +24,7 @@ MODEL = "deepseek-reasoner"
 MIN_EDGE = 0.04
 ANCHOR = OUT / "test-full-anchor" / "anchor"
 PARTS = OUT / "sceptic-full-cacheonly"
+FULL_RUNS = ("test-reasoner-full", "test-reasoner-full-b")
 LONG_SHOT = 0.20
 BANKROLL = 1000.0
 LAUNCH = pd.Timestamp("2026-10-08 21:19", tz="Asia/Hong_Kong").timestamp()
@@ -60,6 +61,25 @@ def run_day(day: str) -> dict:
     return out
 
 
+def from_runs(games: pd.DataFrame, days: list) -> list:
+    """Per-day parts from finished full-sample D runs (fills.parquet written only when a run completes)."""
+    day_of = games.set_index("game_id").date.astype(str)
+    parts = {}
+    for run in FULL_RUNS:
+        folder = OUT / run / "tool_sceptic"
+        if not (folder / "meta.json").exists():
+            continue
+        meta = json.loads((folder / "meta.json").read_text())
+        fills = pd.read_parquet(folder / "fills.parquet") if (folder / "fills.parquet").exists() else pd.DataFrame()
+        traces = load_traces(folder)
+        for d in days:
+            if meta["start"] <= d <= meta["end"] and d not in parts:
+                parts[d] = {"day": d, "complete": True,
+                            "fills": fills[fills.game_id.map(day_of) == d] if len(fills) else fills,
+                            "traces": [t for t in traces if day_of.get(t["game_id"]) == d]}
+    return list(parts.values())
+
+
 def spend() -> tuple:
     from agents.llm_client import CACHE_DIR, cost_usd
     job = total = 0.0
@@ -75,7 +95,7 @@ def spend() -> tuple:
 
 def summary(t: pd.DataFrame, f: pd.DataFrame) -> dict:
     b = bootstrap(t)
-    staked = float(t.staked.sum())
+    staked = float((f.price * f.contracts + f.fee).sum()) if len(f) else 0.0
     ci = lambda m: (b.loc[m, "estimate"], b.loc[m, "ci_low"], b.loc[m, "ci_high"])
     pnl, clv = ci("pnl"), ci("clv_dollars")
     ls = f[f.price > LONG_SHOT] if len(f) else f
@@ -91,6 +111,9 @@ def summary(t: pd.DataFrame, f: pd.DataFrame) -> dict:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--live", type=Path, default=OUT / "test-reasoner-full" / "tool_sceptic",
+                    help="finished live D run over the whole period; the cache-only replay is used if absent")
+    ap.add_argument("--no-replay", action="store_true", help="score only days covered by finished runs")
     args = ap.parse_args()
     from evaluation.walkforward import market_days
     tables = load_frozen()
@@ -98,9 +121,10 @@ def main():
     start, end = WINDOWS["test"]
     days = market_days(tables, start, end)
     t0 = time.time()
+    parts = from_runs(games, days)
+    todo = [] if args.no_replay else [d for d in days if d not in {p["day"] for p in parts}]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        parts = []
-        for p in pool.map(run_day, days):
+        for p in pool.map(run_day, todo):
             parts.append(p)
             print(p["day"], "complete" if p["complete"] else "incomplete", flush=True)
     done = [p for p in parts if p["complete"]]
@@ -143,10 +167,12 @@ def main():
 
     f = lambda v: f"{v:+,.0f}"
     md = ["# Arm D (reasoner tool agent + sceptic) vs arm A (anchor), full test period", "",
-          f"**Partial result: {len(dset)} of {len(days)} game-days complete, {n_pts} of {len(a_all)} decision points** "
-          f"(every decision point on a completed day; no subsampling). D was replayed from the LLM cache only, so a "
-          f"day counts only if the live `deepseek-reasoner` run had answered every call on it. A is the full-sample "
-          f"anchor run restricted to the same days. Replay: $20 stake, caps $50/$100/$300, fills at the ask plus the "
+          f"**{'Complete' if len(dset) == len(days) else 'Partial'} result: {len(dset)} of {len(days)} game-days, "
+          f"{n_pts} of {len(a_all)} decision points** (every decision point on a scored day; no subsampling). D comes "
+          f"from the finished full-sample `deepseek-reasoner` runs ({', '.join(FULL_RUNS)}); days they do not cover "
+          f"are replayed from the LLM cache only and count only if every call on them was cached. A is the "
+          f"full-sample anchor run restricted to the same days. Staked includes fees. Replay: $20 stake, caps "
+          f"$50/$100/$300, fills at the ask plus the "
           f"Kalshi fee, min edge {MIN_EDGE * 100:.0f}¢, no learning. 95% CIs from a day-clustered bootstrap "
           f"({REPS} replicates, seed {SEED}).", "",
           "| Arm | Trades | Staked | P&L [95% CI] | Return on staked | Return on $1,000 | CLV $ [95% CI] | Win rate |",
