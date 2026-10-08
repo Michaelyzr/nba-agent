@@ -1,5 +1,6 @@
 """Offline full-game charts, using game-clock positions for both news measures."""
 import json
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from agents.game_timeline import elapsed_seconds
@@ -17,6 +18,7 @@ def export_visuals(payload, output):
     from types import SimpleNamespace
     import pandas as pd
     games = read_table('games', ROOT/'data'/'sample')
+    players = read_table('players', ROOT/'data'/'sample')
     selected = games[games.game_id.astype(str) == payload['game_id']].iloc[0]
     same_tip = games[games.tip_time == selected.tip_time]
     slate_games = [SimpleNamespace(**selected.to_dict())]+[SimpleNamespace(**r) for r in same_tip.to_dict('records') if str(r['game_id']) != payload['game_id']][:3]
@@ -28,6 +30,9 @@ def export_visuals(payload, output):
     data_payload = {'home_team': payload['home_team'], 'away_team': payload['away_team'],
                     'steps': [], 'pregame_steps': []}
     histories, previous, lines_models = {}, {}, {}
+    from agents.alerts import AlertManager, AlertConfig
+    alert_scratch = TemporaryDirectory()
+    alert_managers, alert_previous = {}, {}
     for step in payload['steps']:
         phase, actual = step['phase'], step['snapshot']
         slate = []
@@ -59,11 +64,22 @@ def export_visuals(payload, output):
             history.append({'phase': phase, 'snapshot': snapshot})
             view = match_view({'home_team': g.home_team, 'away_team': g.away_team}, history, snapshot)
             view.update(make_board(g, snapshot, own, contracts, True), phase=phase, tip_time=pd.Timestamp(g.tip_time).isoformat())
+            if gid not in alert_managers:
+                alert_managers[gid] = AlertManager(Path(alert_scratch.name) / gid,
+                    config=AlertConfig(), mode='replay', run_id='courtside-demo', players=players)
+            if phase == 'pregame':
+                from agents.dashboard_live import LiveDashboard
+                alert_snapshot = {**snapshot, 'phase': 'update',
+                    'polymarket': LiveDashboard._alert_market_snapshot({'contracts': contracts}, snapshot['as_of'])}
+                alert_managers[gid].process(alert_previous.get(gid), alert_snapshot, 'replay')
+                alert_previous[gid] = alert_snapshot
+            view['alerts'] = alert_managers[gid].store.latest()
             slate.append(view)
             if own: previous[(gid, phase)] = own
         item = {'view': slate[0], 'slate': slate}
         data_payload['pregame_steps' if phase == 'pregame' else 'steps'].append(item)
     data = json.dumps(data_payload, ensure_ascii=False, default=str, allow_nan=False).replace("<", "\\u003c")
+    alert_scratch.cleanup()
     (output / "demo.html").write_text(
         template.replace("__LOOP_DATA__", data)
         .replace("__ANALYSIS_SCRIPT__", (Path(__file__).parent / "templates" / "betting_math.js").read_text(encoding="utf-8"))

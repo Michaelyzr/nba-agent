@@ -675,7 +675,7 @@ These deterministic briefs use forecast numbers and retained evidence.
 
 ```bash
 python -m agents.loop_demo                       # regenerate the offline sample
-python -m agents.dashboard_server               # English dashboard + automatic live APIs
+python -m agents.dashboard_server               # Courtside + automatic live APIs
 streamlit run loop_demo_app.py                   # optional shared Streamlit view
 ```
 
@@ -1369,3 +1369,19 @@ website includes a four-game synthetic slate for the parlay demo. Live data refr
 automatically through `python -m agents.dashboard_server`. See the
 [dashboard guide](docs/sample_loop.md) for model assumptions, read-only APIs,
 replay instructions and combined-quote limitations.
+
+The Courtside page now includes a **Pregame alerts** card below the forecast.
+It shows local injury, probability, market, source-health and stale-quote alerts
+with severity/type/unread filters, evidence details, read-state and JSONL
+download. Demo/replay alerts are synthetic and never call an external service.
+Live alerts are saved under the dashboard run directory. To retain the same
+history after restarting the service, provide a stable run root:
+
+```bash
+python -m agents.dashboard_server --run-root runs/dashboard/courtside-live
+```
+
+Webhook delivery is opt-in. Set `ALERT_ENABLED=true` and
+`ALERT_WEBHOOK_URL=<url>`, then start with `--notify`; without all three
+conditions alerts remain local. Optional `--alert-config <path>` overrides the
+thresholds. Replay and test modes always suppress external delivery.

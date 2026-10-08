@@ -14,6 +14,8 @@ import math
 import os
 import threading
 import time
+from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping
@@ -131,7 +133,7 @@ class AlertConfig:
                     values[key] = converter(os.environ[env_name])
                 except (TypeError, ValueError):
                     continue
-        cooldowns = dict(values.get("cooldowns", {}))
+        cooldowns = {**cls().cooldowns, **values.get("cooldowns", {})}
         for name, default in cls().cooldowns.items():
             env_name = "ALERT_COOLDOWN_" + name.upper()
             if env_name in os.environ:
@@ -229,7 +231,8 @@ class AlertStore:
         return None
 
     def latest(self, limit: int | None = None) -> list[dict]:
-        rows = list(self.events)
+        with self._lock:
+            rows = deepcopy(self.events)
         return rows[-limit:] if limit else rows
 
     def acknowledge(self, event_ids):
@@ -377,7 +380,8 @@ class AlertDetector:
         # A replay without a market provider has no quote state to alert on.
         if new_poly:
             old_age, new_age = _num(old_poly.get("age_seconds")), _num(new_poly.get("age_seconds"))
-            old_stale = old_age is not None and old_age > self.config.quote_max_age_seconds
+            old_stale = bool(old_poly) and (old_age is None or old_age > self.config.quote_max_age_seconds
+                                          or old_poly.get("status") in {"WARNING", "UNAVAILABLE"})
             new_stale = (new_age is None or new_age > self.config.quote_max_age_seconds
                          or new_poly.get("status") in {"WARNING", "UNAVAILABLE"})
             if new_stale and not old_stale:
@@ -401,7 +405,7 @@ class AlertDetector:
         within_window = True
         if old_as_of and new_as_of:
             try:
-                within_window = (_utc(new_as_of) - _utc(old_as_of)).total_seconds() <= self.config.market_window_minutes * 60
+                within_window = 0 <= (_utc(new_as_of) - _utc(old_as_of)).total_seconds() <= self.config.market_window_minutes * 60
             except (TypeError, ValueError):
                 within_window = False
         if within_window and not new_stale:
@@ -450,7 +454,8 @@ class WebhookNotifier:
                     return "sent", attempt, None
                 last_error = f"HTTP {response.status_code}"
             except requests.RequestException as exc:
-                last_error = str(exc)
+                # Do not persist webhook URLs, credentials or query-string secrets.
+                last_error = type(exc).__name__
             if attempt < total:
                 time.sleep(min(1.0, 0.25 * attempt))
         return "failed", total, last_error or "webhook delivery failed"
@@ -458,7 +463,8 @@ class WebhookNotifier:
 
 class AlertManager:
     def __init__(self, output: Path | str, *, config: AlertConfig | None = None, mode: str = "replay",
-                 run_id: str | None = None, players=None, notifier: WebhookNotifier | None = None):
+                 run_id: str | None = None, players=None, notifier: WebhookNotifier | None = None,
+                 background_delivery: bool = False):
         self.output = Path(output)
         self.config = config or AlertConfig.from_env()
         self.mode = mode
@@ -466,6 +472,18 @@ class AlertManager:
         self.store = AlertStore(self.output)
         self.detector = AlertDetector(self.config, players)
         self.notifier = notifier or WebhookNotifier(self.config)
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="alerts") if background_delivery else None
+
+    def _deliver(self, event):
+        try:
+            status, attempts, error = self.notifier.send(event)
+        except Exception as exc:
+            status, attempts, error = "failed", 1, type(exc).__name__
+        self.store.update_delivery(event["event_id"], status, attempts=attempts, error=error)
+
+    def close(self):
+        if self.executor:
+            self.executor.shutdown(wait=True)
 
     def process(self, previous: dict | None, current: dict, mode: str | None = None) -> list[dict]:
         mode = mode or self.mode
@@ -478,9 +496,10 @@ class AlertManager:
             if saved is None:
                 continue
             if self.config.can_notify(mode) and SEVERITY_RANK[event["severity"]] >= SEVERITY_RANK[self.config.min_severity]:
-                status, attempts, error = self.notifier.send(saved)
-                self.store.update_delivery(saved["event_id"], status, attempts=attempts, error=error)
-                saved["delivery"].update(status=status, attempts=attempts, last_error=error)
+                if self.executor:
+                    self.executor.submit(self._deliver, deepcopy(saved))
+                else:
+                    self._deliver(saved)
             else:
                 self.store.update_delivery(saved["event_id"], "not_sent", attempts=0, error=None)
                 saved["delivery"].update(status="not_sent", attempts=0, last_error=None)
