@@ -567,7 +567,8 @@ def llm_results_panel():
     for m, lab in ((chat, "DeepSeek chat"), (rsn, "DeepSeek reasoner")):
         d = find_row(m["diagnostics"], "Setup", "tool_sceptic")
         diag.append({"model": lab, "sceptic vetoes / calls": d.get("Sceptic rejects / calls", ""),
-                     "vetoed vs kept CLV (per contract)": d.get("Vetoed vs kept CLV", ""),
+                     "vetoed vs kept CLV (per contract)": d.get("Vetoed vs kept CLV", "").replace(
+                         "+nan", "n/a (none kept)"),
                      "invalid outputs": d.get("Invalid (rate)", ""), "cost (D arm)": d.get("Cost", "")})
     st.dataframe(diag, hide_index=True, width="stretch")
     extra = []
@@ -577,7 +578,7 @@ def llm_results_panel():
     if r.get("cost_usd"):
         extra.append(f"total DeepSeek spend ${r['cost_usd']:.2f}")
     if extra:
-        st.caption("; ".join(extra).capitalize() + ".")
+        st.caption("; ".join(extra) + ".")
     st.caption(f"Source: {r['source']}. The kept-trade CLV rests on 2 trades: not evidence of skill.")
 
 
