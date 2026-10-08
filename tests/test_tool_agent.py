@@ -191,6 +191,36 @@ def test_deepseek_backend_parses_retries_and_keys_cache_by_model(monkeypatch, tm
     assert gemini.key("analyst", "Reply in JSON.", "prompt") != out["key"]
 
 
+def test_deepseek_reasoner_keeps_reasoning_out_of_the_answer(monkeypatch, tmp_path):
+    import httpx
+
+    from agents import llm_client
+    sleeps, bodies = [], []
+    monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    content = 'Final answer:\n```json\n{"decision": "pass", "rationale": "no {edge}"}\n```'
+    replies = [httpx.Response(503, text="busy"),
+               httpx.Response(200, json={"choices": [{"message": {"content": content,
+                                                                  "reasoning_content": "Think {not json} " * 10}}],
+                                         "usage": {"prompt_tokens": 20, "completion_tokens": 90,
+                                                   "completion_tokens_details": {"reasoning_tokens": 70}}})]
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return replies.pop(0)
+    client = httpx.Client(base_url="https://api.deepseek.com", transport=httpx.MockTransport(handler))
+    b = llm_client.DeepSeekBackend(model="deepseek-reasoner", client=client)
+    llm = CachedLLM(b, cache_dir=tmp_path)
+    out = llm.ask("analyst", "Reply in JSON.", "prompt")
+    assert out["json"] == {"decision": "pass", "rationale": "no {edge}"} and "Think" not in out["text"]
+    assert (out["reasoning_tokens"], out["reasoning_chars"]) == (70, len("Think {not json} " * 10))
+    assert sleeps == [2.0] and len(bodies) == 2
+    assert "temperature" not in bodies[0] and bodies[0]["max_tokens"] == llm_client.REASONER_MAX_TOKENS
+    again = CachedLLM(b, cache_dir=tmp_path).ask("analyst", "Reply in JSON.", "prompt")
+    assert again["cached"] and again["reasoning_tokens"] == 70 and again["json"] == out["json"]
+    chat = CachedLLM(StubBackend(lambda *a: {}, model="deepseek-chat"), cache_dir=tmp_path)
+    assert chat.key("analyst", "Reply in JSON.", "prompt") != out["key"]
+
+
 def test_deepseek_backend_does_not_retry_auth_errors(monkeypatch):
     import httpx
 
@@ -272,6 +302,41 @@ def test_plain_llm_uses_same_trading_rule():
     a = PlainLLMAgent(llm, forecaster=_forecaster())
     decisions, fills, _ = run(a, tables_with_history())
     assert len(fills) == 1 and decisions.iloc[0].market_ticker == "SYN-g2-AWY"
+
+
+def test_min_edge_flag_reaches_every_agent_and_the_prompt():
+    from agents.graph import DEFAULT_MIN_EDGE, MarketAgent
+    from evaluation.llm_agent_eval import make_agent
+
+    s = {"forecaster": _forecaster(), "impact": None, "players": {}}
+    backend = StubBackend(heuristic_reply, model="test-stub")
+    for e in (DEFAULT_MIN_EDGE, 0.0):
+        agents = [make_agent(setup, backend, s, e) for setup in ("anchor", "plain", "tool", "tool_sceptic")]
+        assert isinstance(agents[0], MarketAgent) and all(a.min_edge == e for a in agents)
+        assert f"more than {e} " in agents[2].system
+    assert make_agent("tool", backend, s).min_edge == DEFAULT_MIN_EDGE == 0.04
+
+
+def test_zero_min_edge_trades_a_small_positive_gap_but_still_pays_fees():
+    def plain(role, system, prompt, meta):
+        return {"p_home": 0.565, "rationale": "Slight lean to the away team."}
+    traded = {}
+    for e in (0.04, 0.0):
+        a = PlainLLMAgent(CachedLLM(StubBackend(plain), cache_dir=None), forecaster=_forecaster(), min_edge=e)
+        _, fills, _ = run(a, tables_with_history())
+        traded[e] = (len(fills), a.traces[0])
+    n4, t4 = traded[0.04]
+    n0, t0 = traded[0.0]
+    assert n4 == 0 and t4["status"] == "gap" and 0 < t4["gap"] < 0.04
+    assert n0 == 1 and t0["status"] == "order" and t0["order"]["gap"] == pytest.approx(t4["gap"])
+
+
+def test_report_diagnostics_without_llm_columns():
+    from evaluation.llm_agent_eval import stringify_dicts
+    anchor_only = pd.DataFrame({"setup": ["anchor"], "trades": [129]})
+    assert stringify_dicts(anchor_only).equals(anchor_only)
+    llm = stringify_dicts(pd.DataFrame({"setup": ["tool"], "tools_used": [{"injuries": 2}]}))
+    assert llm.tools_used.iloc[0] == "{'injuries': 2}"
 
 
 def test_one_position_per_game():

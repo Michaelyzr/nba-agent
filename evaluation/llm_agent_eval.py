@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from agents.graph import DEFAULT_MIN_EDGE
 from agents.llm_client import DEFAULT_MODEL
 from evaluation.stats import REPS, SEED, bootstrap, day_table, paired
 
@@ -105,14 +106,14 @@ def make_backend(kind: str, model: str | None, min_interval: float):
     return GeminiBackend(model or DEFAULT_MODEL, min_interval=min_interval)
 
 
-def make_agent(setup: str, backend, s: dict):
+def make_agent(setup: str, backend, s: dict, min_edge: float = DEFAULT_MIN_EDGE):
     from agents.graph import MarketAgent
     from agents.llm_client import CachedLLM
     from agents.tool_agent import PlainLLMAgent, ToolAgent
     if setup == "anchor":
-        return MarketAgent(forecaster=s["forecaster"], learn=False)
+        return MarketAgent(forecaster=s["forecaster"], learn=False, min_edge=min_edge)
     llm = CachedLLM(backend)
-    kw = {"forecaster": s["forecaster"], "impact": s["impact"], "players": s["players"]}
+    kw = {"forecaster": s["forecaster"], "impact": s["impact"], "players": s["players"], "min_edge": min_edge}
     if setup == "plain":
         return PlainLLMAgent(llm, **kw)
     return ToolAgent(llm, sceptic=setup == "tool_sceptic", anonymise=setup == "tool_anon", **kw)
@@ -122,7 +123,7 @@ def _run_chunk(job: dict) -> dict:
     from replay import Replay
     s = _shared()
     backend = None if job["setup"] == "anchor" else make_backend(job["backend"], job["model"], job["min_interval"])
-    agent = make_agent(job["setup"], backend, s)
+    agent = make_agent(job["setup"], backend, s, job.get("min_edge", DEFAULT_MIN_EDGE))
     t0 = time.time()
     decisions, fills = Replay(s["tables"], sampled(agent.policy, job["frac"], job["seed"])).run(job["start"], job["end"])
     for frame in (decisions, fills):
@@ -140,8 +141,8 @@ def chunks(tables, start, end, size=CHUNK_DAYS) -> list:
 def run_setup(setup, tag, start, end, args) -> Path:
     tables = _shared()["tables"] if _STATE else load_frozen()
     jobs = [{"setup": setup, "start": a, "end": b, "chunk": f"{a}", "backend": args.backend, "model": args.model,
-             "frac": args.subsample, "seed": args.seed, "min_interval": args.min_interval}
-            for a, b in chunks(tables, start, end)]
+             "frac": args.subsample, "seed": args.seed, "min_interval": args.min_interval, "min_edge": args.min_edge}
+            for a, b in chunks(tables, start, end, args.chunk_days)]
     t0 = time.time()
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         parts = list(pool.map(_run_chunk, jobs))
@@ -156,7 +157,7 @@ def run_setup(setup, tag, start, end, args) -> Path:
     (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in traces))
     meta = {"setup": setup, "start": start, "end": end, "backend": args.backend,
             "model": args.model or default_model(args.backend), "subsample": args.subsample,
-            "seed": args.seed, "wall_seconds": time.time() - t0, "fills": len(fills)}
+            "seed": args.seed, "min_edge": args.min_edge, "wall_seconds": time.time() - t0, "fills": len(fills)}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"  {setup}: {len(fills)} fills, {len(traces)} decision points in {(time.time() - t0) / 60:.1f} min",
           flush=True)
@@ -215,6 +216,8 @@ def diagnostics(setup: str, traces: list, fills: pd.DataFrame, anchor_games: set
             "share_trades_not_in_anchor_games": float(added) if not pd.isna(added) else np.nan,
             "tools_used": tools_used, "llm_calls": calls, "cache_hits": sum(x.get("cached", 0) for x in llm),
             "tokens_in": sum(x.get("tokens_in", 0) for x in llm), "tokens_out": sum(x.get("tokens_out", 0) for x in llm),
+            "reasoning_tokens": sum(x.get("reasoning_tokens", 0) for x in llm),
+            "reasoning_chars_per_call": sum(x.get("reasoning_chars", 0) for x in llm) / calls if calls else 0.0,
             "cost_usd": sum(x.get("cost", 0.0) for x in llm),
             "latency_per_call_s": sum(x.get("latency", 0.0) for x in llm) / calls if calls else np.nan,
             "latency_per_llm_decision_s": (sum(x.get("latency", 0.0) for x in llm) / len(asked)) if asked else np.nan}
@@ -302,6 +305,11 @@ def chart(tabs_by_window: dict, path: Path):
     plt.close(fig)
 
 
+def stringify_dicts(diags: pd.DataFrame) -> pd.DataFrame:
+    """Dict-valued diagnostics as text for the CSV; anchor-only runs have no such columns."""
+    return diags.astype({c: str for c in ("invalid_by_reason", "tools_used") if c in diags.columns})
+
+
 def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agent"):
     tables = load_frozen()
     prices = tables["prices"].sort_values("ts")
@@ -327,7 +335,7 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
         return
     rows, pairs, diags = pd.concat(all_rows), pd.concat(all_pairs), pd.concat(all_diags)
     out = pd.concat([rows.assign(kind="setup"), pairs.assign(kind="paired"),
-                     diags.assign(kind="diagnostics").astype({"invalid_by_reason": str, "tools_used": str})])
+                     stringify_dicts(diags.assign(kind="diagnostics"))])
     out.to_csv(RESULTS / f"{stem}.csv", index=False)
     chart(tabs_by_window, RESULTS / f"{stem}.png")
     md = ["# LLM tool agent vs deterministic agent vs plain LLM vs never trade", "",
@@ -342,7 +350,15 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
         model = next((v for k, v in models.items() if k != "plain_gemini"), next(iter(models.values()), "–"))
         sub = next((v["subsample"] for v in m.values()), 1.0)
         md += [f"## {tag}: {extra['days'][0]} – {extra['days'][-1]} ({len(extra['days'])} game-days)", ""]
-        if model.startswith("deepseek"):
+        if model == "deepseek-reasoner":
+            md += ["**Stronger model (deviation, chosen before seeing its results).** Setups B, C and D re-run on "
+                   "DeepSeek `deepseek-reasoner`, chosen as the strongest model that could finish before the deadline. "
+                   "On this API both `deepseek-chat` and `deepseek-reasoner` are served by DeepSeek-V4.1-Flash; the "
+                   "reasoner has thinking mode on (hidden chain of thought, kept out of the parsed answer). Temperature "
+                   f"is not sent (thinking mode ignores it), max_tokens is {8192}; replies are cached, so the replay is "
+                   "fixed. Prompts, tools, validation, the 4¢ edge rule, the sceptic, MAX_TOOL_CALLS / MAX_TURNS and "
+                   "the decision points are identical to the `deepseek-chat` run.", ""]
+        elif model.startswith("deepseek"):
             secondary = models.get("plain_gemini")
             md += [f"**Model deviation from the pre-registration.** The pre-registered model was Gemini 2.5 Flash "
                    f"(`gemini-2.5-flash`), which is no longer available to new API keys, and the Gemini free-tier "
@@ -364,7 +380,8 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
                    f"20 requests per day. All LLM arms therefore used `{model}` (free tier, about 15 requests per "
                    f"minute). Prompts, tools, validation and the trading rule are unchanged.", ""]
         md += [
-               f"LLM: `{model}`, temperature 0. Decision points: "
+               f"LLM: `{model}`, " + ("thinking mode" if model == "deepseek-reasoner" else "temperature 0")
+               + ". Decision points: "
                + ("all" if sub >= 1 else f"fixed {sub:.0%} subsample (seed {next(iter(m.values()))['seed']}), same for every setup")
                + ".", "",
                "| Setup | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] | p (CLV > 0) |",
@@ -401,6 +418,10 @@ def write_report(windows: list, probe: dict | None = None, stem: str = "llm_agen
             md += ["", "Invalid outputs by reason: " + "; ".join(f"{x.setup}: {x.invalid_by_reason or 'none'}"
                                                              for x in d.itertuples()),
                    "", "Tool use: " + "; ".join(f"{x.setup}: {x.tools_used}" for x in d.itertuples() if x.tools_used)]
+            if d.reasoning_tokens.sum() > 0:
+                md += ["", "Hidden reasoning (thinking mode, not shown to the parser): " + "; ".join(
+                    f"{x.setup}: {x.reasoning_tokens:,} reasoning tokens, {x.reasoning_chars_per_call:,.0f} characters "
+                    f"per call" for x in d.itertuples() if x.reasoning_tokens)]
         md.append("")
     if probe:
         md += ["## Memorisation probe", "", probe["summary"], ""]
@@ -463,6 +484,9 @@ def main():
     ap.add_argument("--min-interval", type=float, default=0.0, help="seconds between API calls per process")
     ap.add_argument("--subsample", type=float, default=1.0, help="share of decision points kept (fixed seed)")
     ap.add_argument("--seed", type=int, default=SEED)
+    ap.add_argument("--min-edge", type=float, default=DEFAULT_MIN_EDGE,
+                    help="gap after fees an order must exceed (fees are always charged)")
+    ap.add_argument("--chunk-days", type=int, default=CHUNK_DAYS, help="game-days per parallel job")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--report", default="test,holdout", help="run folders to put in the report")
     ap.add_argument("--stem", default="llm_agent", help="results file name in evaluation/results/")
