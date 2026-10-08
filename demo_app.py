@@ -32,6 +32,10 @@ def pct(x, d=1):
     return "n/a" if x is None else f"{x * 100:.{d}f}%"
 
 
+def dollars(x):
+    return "n/a" if x is None else f"{'-' if x < 0 else '+'}${abs(x):.2f}"
+
+
 def cents(x, d=1):
     return "n/a" if x is None else f"{x * 100:+.{d}f}c"
 
@@ -58,34 +62,7 @@ def graph(nodes, edges, path, title=""):
     st.graphviz_chart("\n".join(lines), width="stretch")
 
 
-def settlement_panel(s, proposed_label="the order"):
-    st.subheader("Graded by the market (revealed at tip-off)")
-    st.caption(f"Nothing below was visible to the agent. Revealed at {s.get('revealed_at')}.")
-    reveal = st.toggle("Reveal closing price, CLV and P&L", value=False, key=f"rev{id(s)}{proposed_label}")
-    if not reveal:
-        return
-    fills = s.get("fills") or []
-    if not fills and s.get("counterfactual"):
-        st.info("No order was placed. Counterfactual: what the blocked or rejected order would have done.")
-        fills = s["counterfactual"]
-    if not fills:
-        st.info("No order, so nothing to grade: passing costs nothing.")
-    for f in fills:
-        if "price" not in f:
-            st.write(f"{f.get('ticker')} {f.get('side')}: not filled ({f.get('fill')})")
-            continue
-        c = st.columns(5)
-        c[0].metric("Bought", f"{f['side']} @ {f['price'] * 100:.1f}c", f"{f['contracts']} contracts")
-        c[1].metric("Close (tip-off mid)", f"{f['close_price'] * 100:.1f}c")
-        c[2].metric("CLV", cents(f["clv"]))
-        c[3].metric("P&L", f"${f['pnl']:+.2f}" if f.get("pnl") is not None else "n/a", f"fee ${f['fee_dollars']:.2f}")
-        c[4].metric("Contract outcome", "yes" if f.get("outcome_yes") == 1 else "no")
-    fin = s.get("final") or {}
-    if fin:
-        st.write(f"Final score: {fin['away']} {fin['away_pts']} @ {fin['home']} {fin['home_pts']}")
-
-
-# ---------------- game outcome ----------------
+# ---------------- graded by the market (outcome + settlement) ----------------
 
 def game_outcomes(agent, data):
     if agent == "orchestrator":
@@ -95,51 +72,93 @@ def game_outcomes(agent, data):
     return [data["game_outcome"]] if data.get("game_outcome") else []
 
 
-def outcome_card(go, key, synthetic=False):
+def final_score(go):
+    return f"{go['away']} {go['away_pts']} – {go['home_pts']} {go['home']}"
+
+
+def outcome_block(go, synthetic=False):
     with st.container(border=True):
-        st.subheader(f"Game outcome: {go['matchup']}")
-        if st.session_state.get("present") and not st.session_state.get(key):
-            st.caption("Hidden in presentation mode. The agent decided before this was known.")
-            if st.button("Reveal game outcome", key=f"btn_{key}"):
-                st.session_state[key] = True
-                st.rerun()
-            return
         ot = go.get("overtime_periods")
-        ot_txt = "" if not ot else f", {ot}OT" if ot > 1 else ", OT"
-        winner, loser = go.get("winner"), go["home"] if go.get("winner") == go["away"] else go["away"]
-        pos = go.get("positions") or []
-        c = st.columns(5)
-        c[0].metric("Final score", f"{go['away']} {go['away_pts']} - {go['home_pts']} {go['home']}")
-        c[1].metric("Winner", winner or "tie", f"by {go.get('margin')}{ot_txt}" if winner else None, delta_color="off")
-        if pos:
-            p = pos[0]
-            c[2].metric("Counterfactual bet (not placed)" if p["counterfactual"] else "Agent's bet",
-                        f"{p['team']} {p['side']} @ {p['price'] * 100:.0f}c",
-                        f"{'WON' if p['result'] == 'won' else 'LOST'}: settled ${p['settled_value']:.0f}",
-                        delta_color="normal" if p["result"] == "won" else "inverse")
-            c[3].metric("P&L" + (" (counterfactual)" if p["counterfactual"] else ""), f"${p['pnl']:+.2f}")
-            c[4].metric("CLV" + (" (counterfactual)" if p["counterfactual"] else ""), cents(p.get("clv")))
-            if p["counterfactual"]:
-                st.info(f"COUNTERFACTUAL: no order was placed. Had the agent bought {p['team']} '{p['side']}' at "
-                        f"{p['price'] * 100:.0f}c ({p['contracts']} contracts), it would have {p['result']} "
-                        f"${abs(p['pnl']):.2f}.")
-            if len(pos) > 1:
-                st.dataframe(pos, hide_index=True, width="stretch")
-        else:
-            c[2].metric("Agent's bet", "none")
-            c[3].metric("P&L", "$0.00")
-            c[4].metric("CLV", "n/a")
-            if winner:
-                st.write(f"A pick on **{winner}** would have won; a pick on **{loser}** would have lost.")
+        ot_txt = "" if not ot else f" ({ot}OT)" if ot > 1 else " (OT)"
+        winner = go.get("winner")
+        loser = go["home"] if winner == go["away"] else go["away"]
+        st.markdown(f"#### {go['matchup']}: final score **{final_score(go)}**{ot_txt}")
+        st.markdown(f"Winner: **{winner}** by {go.get('margin')}{ot_txt}" if winner else "Result: tie")
         mk = go.get("markets") or []
         if mk:
-            st.write("Kalshi settlement: " + ", ".join(f"{m['team']} 'yes' paid ${m['settled_yes']}" for m in mk))
+            st.write("Kalshi settlement: " + "; ".join(
+                f"{m['team']} YES paid ${m['settled_yes']}, NO paid ${1 - m['settled_yes']}" for m in mk))
+        pos = go.get("positions") or []
+        for p in pos:
+            won = p["result"] == "won"
+            settle = (f"{p['team']} {p['side'].upper()} {p['result']} → paid ${p['settled_value']:.0f}/contract")
+            if p["counterfactual"]:
+                st.info(f"No trade placed. Counterfactual (not traded): buying {p['team']} {p['side'].upper()} at "
+                        f"{p['price'] * 100:.0f}c ({p['contracts']} contracts) would have {p['result']} "
+                        f"${abs(p['pnl']):.2f} after fees ({settle}; CLV {cents(p.get('clv'))}).")
+            else:
+                (st.success if won else st.error)(f"Bet {'WON' if won else 'LOST'}: {settle}.")
+            label = " (counterfactual)" if p["counterfactual"] else ""
+            c = st.columns(4)
+            c[0].metric("Counterfactual bet (not placed)" if p["counterfactual"] else "Agent's bet",
+                        f"{p['team']} {p['side']} @ {p['price'] * 100:.0f}c", f"{p['contracts']} contracts",
+                        delta_color="off")
+            c[1].metric("Settled", f"${p['settled_value']:.0f}/contract", "WON" if won else "LOST",
+                        delta_color="normal" if won else "inverse")
+            c[2].metric("P&L after fees" + label, dollars(p["pnl"]))
+            c[3].metric("CLV" + label, cents(p.get("clv")))
+        if not pos:
+            st.info("No trade placed, so no P&L: passing costs nothing.")
+            if winner:
+                st.write(f"A pick on **{winner}** would have won; a pick on **{loser}** would have lost.")
         if synthetic:
-            st.warning("The in-play score script on this page is SYNTHETIC; this card is the real final result.")
+            st.warning("The in-play score script on this page is SYNTHETIC (not historical play-by-play); "
+                       "this is the real final result of the game.")
         elif go.get("note"):
             st.caption(go["note"])
-        st.caption(f"Final at {go.get('final_at', '')[:16].replace('T', ' ')} UTC. Not visible to the agent at "
-                   f"decision time. Source: {go.get('source')}.")
+        st.caption(f"Final at {go.get('final_at', '')[:16].replace('T', ' ')} UTC. Source: {go.get('source')}.")
+
+
+def fills_table(s):
+    fills = s.get("fills") or []
+    counterfactual = not fills and bool(s.get("counterfactual"))
+    if counterfactual:
+        fills = s["counterfactual"]
+    if not fills:
+        return
+    st.markdown("**Closing price and CLV**" + (" (counterfactual: the order was not placed)" if counterfactual else ""))
+    for f in fills:
+        if "price" not in f:
+            st.write(f"{f.get('ticker')} {f.get('side')}: not filled ({f.get('fill')})")
+            continue
+        c = st.columns(5)
+        c[0].metric("Bought" + (" (counterfactual)" if counterfactual else ""),
+                    f"{f['side']} @ {f['price'] * 100:.1f}c", f"{f['contracts']} contracts")
+        c[1].metric("Close (tip-off mid)", f"{f['close_price'] * 100:.1f}c")
+        c[2].metric("CLV", cents(f["clv"]))
+        c[3].metric("P&L after fees", dollars(f.get("pnl")),
+                    f"fee ${f['fee_dollars']:.2f}")
+        c[4].metric("Contract outcome", "yes" if f.get("outcome_yes") == 1 else "no")
+
+
+def graded_panel(outcomes, settlement, key, synthetic=False):
+    if not outcomes and not settlement:
+        return
+    st.divider()
+    st.subheader("Graded by the market (revealed at tip-off)")
+    revealed = (settlement or {}).get("revealed_at")
+    st.caption("Nothing below was visible to the agent at decision time"
+               + (f". Revealed at {revealed}." if revealed else "."))
+    if st.session_state.get("present") and not st.session_state.get(key):
+        st.caption("Hidden in presentation mode. The agent decided before this was known.")
+        if st.button("Reveal game outcome", key=f"btn_{key}"):
+            st.session_state[key] = True
+            st.rerun()
+        return
+    for go in outcomes:
+        outcome_block(go, synthetic)
+    if settlement:
+        fills_table(settlement)
 
 
 # ---------------- trader ----------------
@@ -217,7 +236,6 @@ def show_trader(t):
             trader_step(s)
             with st.popover("raw JSON"):
                 st.json(s)
-    settlement_panel(t["settlement"], t["label"])
 
 
 def show_review(r):
@@ -287,7 +305,6 @@ def show_tool(t):
         st.json(t["order"])
     if t.get("usage"):
         st.caption(f"LLM usage: {t['usage']}")
-    settlement_panel(t["settlement"], t["label"])
 
 
 # ---------------- coach ----------------
@@ -427,9 +444,9 @@ def main():
     if data is None:
         st.error("Trace missing for this agent.")
         return
-    for go in game_outcomes(agent, data):
-        outcome_card(go, f"reveal_{sc['id']}_{go['game_id']}", synthetic=agent == "inplay")
     RENDER[agent](data)
+    graded_panel(game_outcomes(agent, data), data.get("settlement"), f"reveal_{sc['id']}_{agent}",
+                 synthetic=agent == "inplay")
 
 
 main()

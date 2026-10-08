@@ -103,9 +103,63 @@ def test_cle_por_headline_numbers():
     assert load("trader_cle_por_blocked")["status"] == "blocked"
 
 
+APP = TRACES.parents[1] / "demo_app.py"
+GRADED = "Graded by the market (revealed at tip-off)"
+
+
+def panel_text(at):
+    texts = [e.value for e in at.main if hasattr(e, "value") and isinstance(e.value, str)]
+    texts += [f"{m.label} {m.value}" for m in at.metric]
+    start = next(i for i, t in enumerate(texts) if t == GRADED)
+    return "\n".join(texts[start:])
+
+
+def test_graded_panel_shows_cle_por_outcome():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    at.sidebar.radio[0].set_value("Scenarios").run()
+    title = next(t for t in at.sidebar.selectbox[0].options if t.startswith("CLE @ POR"))
+    at.sidebar.selectbox[0].set_value(title).run()
+    assert at.sidebar.toggle[0].value is False
+    for agent in ("trader", "tool_agent", "coach", "orchestrator", "pregame", "inplay"):
+        at.sidebar.radio[1].set_value(agent).run()
+        assert not at.exception, agent
+        assert any(s.value == GRADED for s in at.subheader), agent
+        text = panel_text(at)
+        assert "CLE 130 – 111 POR" in text, agent
+        assert "Winner: **CLE** by 19" in text, agent
+    at.sidebar.radio[1].set_value("trader").run()
+    text = panel_text(at)
+    assert "POR NO won → paid $1/contract" in text and "+$15.57" in text and "+7.5c" in text
+    at.sidebar.radio[1].set_value("inplay").run()
+    assert "SYNTHETIC" in panel_text(at)
+
+
+def test_graded_panel_labels_counterfactual_for_pass():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    at.sidebar.radio[0].set_value("Scenarios").run()
+    index = load("index")
+    sc = next(s for s in index["scenarios"] if s["agents"].get("trader") == "trader_pass")
+    at.sidebar.selectbox[0].set_value(sc["title"]).run()
+    at.sidebar.radio[1].set_value("trader").run()
+    text = panel_text(at)
+    assert "No trade placed. Counterfactual" in text and "would have lost $21.18" in text
+
+
+def test_outcome_not_in_decision_steps_before_panel():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    at.sidebar.radio[0].set_value("Scenarios").run()
+    at.sidebar.radio[1].set_value("trader").run()
+    texts = [e.value for e in at.main if hasattr(e, "value") and isinstance(e.value, str)]
+    before = "\n".join(texts[:texts.index(GRADED)])
+    assert "130 – 111" not in before and "15.57" not in before
+
+
 def test_app_renders_every_scenario_and_agent():
     from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file(str(TRACES.parents[1] / "demo_app.py"), default_timeout=60).run()
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
     assert not at.exception
     at.sidebar.radio[0].set_value("Scenarios").run()
     for title in at.sidebar.selectbox[0].options:
@@ -115,12 +169,14 @@ def test_app_renders_every_scenario_and_agent():
             assert not at.exception, (title, agent, at.exception)
     at.sidebar.selectbox[0].set_value(at.sidebar.selectbox[0].options[0]).run()
     at.sidebar.radio[1].set_value("trader").run()
-    assert any("Game outcome" in s.value for s in at.subheader)
+    assert any(s.value == GRADED for s in at.subheader)
     at.sidebar.toggle[0].set_value(True).run()
     assert not at.exception
     assert any(b.label == "Reveal game outcome" for b in at.button)
+    assert "CLE 130 – 111 POR" not in panel_text(at)
     next(b for b in at.button if b.label == "Reveal game outcome").click().run()
     assert not at.exception and not any(b.label == "Reveal game outcome" for b in at.button)
+    assert "CLE 130 – 111 POR" in panel_text(at)
 
 
 def test_stub_llm_traces_are_labelled():
