@@ -31,23 +31,25 @@ Gate decisions: 6 accepted, 38 rejected, 20 deferred (warm-up). Final weights: a
 
 ## Trading (simplified offline trader, same for every forecaster)
 
-Quotes: APPROXIMATE quotes: mid 1 h before tip +/- 1 cent (data/frozen/prices.parquet was evicted by iCloud and not available offline). One decision per game on the home market 30 min before tip, edge > 4¢ after fees, $20 stake, no volume cap, no notebook rules. This is not the full agent replay, so absolute numbers differ from `gate_audit.md`; the comparison isolates the probability.
+Quotes: Kalshi quotes 30 min before tip (replay price table). One decision per game on the home market 30 min before tip, edge > 4¢ after fees, $20 stake, no volume cap, no notebook rules. This is not the full agent replay, so absolute numbers differ from `gate_audit.md`; the comparison isolates the probability.
 
 | Forecaster | Trades | Mean CLV [95% CI] | CLV $ [95% CI] | P&L after fees [95% CI] |
 | --- | --- | --- | --- | --- |
-| Anchor + M4 shift (agent) | 91 | -0.0073 [-0.0114, -0.0027] | -42 [-65, -21] | -134 [-599, +302] |
-| Anchor + MLP shift | 158 | -0.0073 [-0.0097, -0.0048] | -41 [-62, -23] | +94 [-348, +532] |
-| Blend (all inputs) | 87 | -0.0059 [-0.0107, -0.0009] | -23 [-46, -4] | -112 [-471, +223] |
-| Blend, no market inputs | 331 | -0.0085 [-0.0103, -0.0064] | -316 [-390, -244] | -2180 [-3137, -1204] |
+| Anchor + M4 shift (agent) | 104 | -0.0059 [-0.0087, -0.0027] | -37 [-55, -20] | -239 [-670, +197] |
+| Anchor + MLP shift | 180 | -0.0041 [-0.0056, -0.0027] | -31 [-45, -19] | +90 [-477, +689] |
+| Blend (all inputs) | 98 | -0.0034 [-0.0063, -0.0003] | -19 [-35, -5] | -243 [-638, +131] |
+| Blend, no market inputs | 339 | -0.0049 [-0.0059, -0.0040] | -176 [-212, -141] | -2003 [-3047, -885] |
 
 | Paired comparison | Metric | Difference [95% CI] |
 | --- | --- | --- |
-| Blend (all inputs) − Anchor + M4 shift | clv_dollars | +19 [+2, +37] |
-| Blend (all inputs) − Anchor + M4 shift | pnl | +23 [-293, +362] |
-| Anchor + MLP shift − Anchor + M4 shift | clv_dollars | +1 [-29, +30] |
-| Anchor + MLP shift − Anchor + M4 shift | pnl | +228 [-250, +740] |
-| Blend, no market inputs − Anchor + M4 shift | clv_dollars | -274 [-345, -208] |
-| Blend, no market inputs − Anchor + M4 shift | pnl | -2046 [-2939, -1086] |
+| Blend (all inputs) − Anchor + M4 shift | clv_dollars | +18 [+4, +33] |
+| Blend (all inputs) − Anchor + M4 shift | pnl | -4 [-365, +378] |
+| Anchor + MLP shift − Anchor + M4 shift | clv_dollars | +6 [-11, +24] |
+| Anchor + MLP shift − Anchor + M4 shift | pnl | +329 [-219, +897] |
+| Blend, no market inputs − Anchor + M4 shift | clv_dollars | -139 [-170, -106] |
+| Blend, no market inputs − Anchor + M4 shift | pnl | -1764 [-2727, -737] |
+
+Reading: the blend trades about as often as the agent but loses less CLV per contract; the CLV-dollar gain survives real quotes (an earlier run on approximate quotes, 1 h mid ± 1¢, gave +$19 [+2, +37]), while P&L is indistinguishable. Part of the gain can come from the 1 h mid input pulling the estimate toward the traded price (fewer, smaller disagreements with the market). The forecast gain is not significant: Brier −0.0010 vs the agent, and still behind anchor + MLP alone and the market at tip.
 
 ## Weight log
 

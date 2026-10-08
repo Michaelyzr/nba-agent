@@ -30,6 +30,7 @@ from replay import kalshi_fee
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "evaluation" / "results"
 CACHE = ROOT / "runs" / "forecast_blend"
+FALLBACK_PRICES = Path("/tmp/nba_frozen/prices.parquet")   # local copy when iCloud evicts the frozen price table
 MIN_EDGE = 0.04
 STAKE = 20.0
 HALF_SPREAD = 0.01
@@ -55,6 +56,8 @@ def signals() -> pd.DataFrame:
 def quotes(t: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     """Home-market bid/ask 30 min before tip and the tip-off mid; real quotes if the price file is local."""
     path = ROOT / "data" / "frozen" / "prices.parquet"
+    if not path.exists() and FALLBACK_PRICES.exists():
+        path = FALLBACK_PRICES
     cache = CACHE / "quotes.parquet"
     if cache.exists():
         return pd.read_parquet(cache), "Kalshi quotes 30 min before tip (replay price table)"
@@ -251,6 +254,11 @@ def markdown(acc, trades, pairs, learner, quote_note, t):
     L += ["", "| Paired comparison | Metric | Difference [95% CI] |", "| --- | --- | --- |"]
     for r in pairs.itertuples():
         L.append(f"| {r.comparison} | {r.metric} | {f0(r.estimate, r.ci_low, r.ci_high)} |")
+    L += ["", "Reading: the blend trades about as often as the agent but loses less CLV per contract; the CLV-dollar "
+          "gain survives real quotes (an earlier run on approximate quotes, 1 h mid ± 1¢, gave +$19 [+2, +37]), "
+          "while P&L is indistinguishable. Part of the gain can come from the 1 h mid input pulling the estimate "
+          "toward the traded price (fewer, smaller disagreements with the market). The forecast gain is not "
+          "significant: Brier −0.0010 vs the agent, and still behind anchor + MLP alone and the market at tip."]
     L += ["", "## Weight log", "", "Accepted proposals (full log in `forecast_blend_log.json`):", ""]
     for e in learner.log:
         if e["result"] == "accepted":
