@@ -411,6 +411,7 @@ with graded:
 
 with pregame:
     from uuid import uuid4
+    from agents.alerts import AlertConfig, AlertStore, read_alerts
     from agents.pregame import PregameAgent, run_loop
     from data_sources.live_news import TableNews
     from data_sources.news_registry import NewsRegistry
@@ -434,12 +435,32 @@ with pregame:
                    "Official reports and team announcements take priority, then ESPN/CBS, Shams and team reporters.")
     interval = st.selectbox("News check interval (minutes)", [1, 5, 15, 30], index=1)
     model_choice = st.selectbox("Forecast model", ["Trained M4", "Record baseline (demo)"])
+    default_alerts = AlertConfig.from_env()
+    with st.expander("Alert thresholds", expanded=False):
+        alert_probability_pp = st.number_input(
+            "Probability shift threshold (percentage points)", min_value=0.1, max_value=50.0,
+            value=float(default_alerts.probability_shift_pp), step=0.5, key=f"pregame-alert-prob-{gid}",
+        )
+        alert_market_pp = st.number_input(
+            "Market move threshold (percentage points)", min_value=0.1, max_value=50.0,
+            value=float(default_alerts.market_move_pp), step=0.5, key=f"pregame-alert-market-{gid}",
+        )
+        alert_quote_age = st.number_input(
+            "Quote max age (seconds)", min_value=1.0, max_value=3600.0,
+            value=float(default_alerts.quote_max_age_seconds), step=5.0, key=f"pregame-alert-age-{gid}",
+        )
     if st.button("Run the pregame loop", type="primary"):
         from agents.graph import record_forecaster
         f = forecaster() if model_choice == "Trained M4" else record_forecaster
         people = pd.DataFrame({"player_id": list(names), "player_name": list(names.values())})
         output = replay.RUNS / f"pregame-ui-{gid}-{uuid4().hex[:8]}"
-        agent = PregameAgent(tables, people, game, f, TableNews(tables["news"]), output)
+        alert_config = AlertConfig(
+            **{**default_alerts.__dict__, "probability_shift_pp": alert_probability_pp,
+               "market_move_pp": alert_market_pp, "quote_max_age_seconds": alert_quote_age,
+               "notify_requested": False}
+        )
+        agent = PregameAgent(tables, people, game, f, TableNews(tables["news"]), output,
+                             alert_config=alert_config, alert_mode="replay")
         with st.spinner("Polling replay news and recomputing probabilities..."):
             run_loop(agent, interval * 60, start=game.tip_time - pd.Timedelta(hours=6), replay_mode=True)
         snapshots = [json.loads(line) for line in (output / "snapshots.jsonl").read_text().splitlines()]
@@ -479,6 +500,33 @@ with pregame:
             with st.expander("Automatic news-impact brief"):
                 st.markdown(snapshots[-1]["report"]["markdown"])
                 st.download_button("Download brief (.md)", snapshots[-1]["report"]["markdown"], file_name="pregame-report.md")
+        alert_path = Path(output) / "alerts.jsonl"
+        alerts = read_alerts(alert_path)
+        st.subheader("Pregame alerts")
+        if not alerts:
+            st.info("No alert thresholds were crossed during this replay.")
+        else:
+            alert_types = sorted({str(row.get("type", "unknown")) for row in alerts})
+            alert_levels = sorted({str(row.get("severity", "low")) for row in alerts})
+            c1, c2 = st.columns(2)
+            selected_types = c1.multiselect("Alert type", alert_types, default=alert_types,
+                                            key=f"pregame-alert-types-{gid}")
+            selected_levels = c2.multiselect("Severity", alert_levels, default=alert_levels,
+                                             key=f"pregame-alert-levels-{gid}")
+            shown_alerts = [row for row in alerts if row.get("type") in selected_types
+                            and row.get("severity") in selected_levels]
+            unread = sum(not row.get("acknowledged", False) for row in alerts)
+            st.metric("Unread alerts", unread, f"{len(alerts)} total")
+            if st.button("Mark displayed alerts as read", key=f"pregame-alert-read-{gid}"):
+                AlertStore(Path(output)).acknowledge(row["event_id"] for row in shown_alerts)
+                st.rerun()
+            rows = [{"severity": row.get("severity"), "type": row.get("type"),
+                     "observed_at": row.get("observed_at"), "title": row.get("title"),
+                     "message": row.get("message")}
+                    for row in shown_alerts]
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            st.download_button("Download alerts (.jsonl)", alert_path.read_text(encoding="utf-8"),
+                               file_name="pregame-alerts.jsonl", mime="application/jsonl")
         st.caption("Questionable/probable/doubtful weights are scenario assumptions pending calibration. "
                    f"Snapshot and source logs: {output}")
 

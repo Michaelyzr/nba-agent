@@ -17,6 +17,7 @@ from typing import Any, TypedDict
 import pandas as pd
 from langgraph.graph import END, START, StateGraph
 
+from agents.alerts import AlertConfig, AlertManager
 from data_sources import FROZEN, ROOT, read_table
 from data_sources.live_news import LiveNews, TableNews
 from data_sources.news_registry import NewsRegistry, DEFAULT_REGISTRY
@@ -58,7 +59,8 @@ class PollState(TypedDict, total=False):
 
 class PregameAgent:
     def __init__(self, tables, players, game, model, provider, output: Path,
-                 lookback_hours=48, clock=None, market_provider=None):
+                 lookback_hours=48, clock=None, market_provider=None, alert_manager=None,
+                 alert_mode="replay", alert_config: AlertConfig | None = None):
         if not math.isfinite(lookback_hours) or lookback_hours <= 0:
             raise ValueError("lookback_hours must be positive")
         self.tables, self.players, self.game = tables, players, game
@@ -67,6 +69,11 @@ class PregameAgent:
         self.lookback = pd.Timedelta(hours=lookback_hours)
         self.clock = clock  # live: observation time is AFTER the network request
         self.market_provider = market_provider
+        self.alert_mode = alert_mode
+        self.alert_manager = alert_manager or AlertManager(
+            output, config=alert_config or AlertConfig.from_env(), mode=alert_mode,
+            run_id=Path(output).name, players=players,
+        )
         self.baseline, self.factors, self.seen, self.last_as_of = None, {}, set(), None
         self.latest = None
         self._history_index = None
@@ -153,6 +160,7 @@ class PregameAgent:
         if self.baseline is None:
             self.baseline = {"as_of": state["now"].isoformat()}
             self.baseline.update(odds(self._probability({})))
+            self.baseline.update(alert_ids=[], alert_count=0)
             self._append("snapshots.jsonl", {"phase": "baseline", "game_id": self.game.game_id,
                                              "model": self.model_name, **self.baseline})
             self._save_state(state["now"])
@@ -308,6 +316,17 @@ class PregameAgent:
         from agents.news_report import make_report, persist_report
         snapshot["report"] = make_report(snapshot, self.game, self.players, self.latest, state["new_rows"])
         persist_report(self.output, snapshot["report"])
+        previous = self.latest or self.baseline
+        try:
+            events = self.alert_manager.process(previous, snapshot, self.alert_mode)
+            snapshot["alert_ids"] = [event["event_id"] for event in events]
+            snapshot["alert_count"] = len(events)
+        except Exception as exc:
+            # Alerts are an optional side effect; a notifier or corrupt alert file
+            # must never prevent the forecast snapshot from being recorded.
+            snapshot["alert_ids"] = []
+            snapshot["alert_count"] = 0
+            snapshot["alert_error"] = f"{type(exc).__name__}: {exc}"
         self._append("snapshots.jsonl", snapshot)
         self.latest = snapshot
         self._save_state(state["now"])
@@ -374,6 +393,8 @@ def main():
     ap.add_argument("--no-official", action="store_true")
     ap.add_argument("--no-x", action="store_true", help="disable X requests (otherwise missing credentials are logged)")
     ap.add_argument("--news-registry", type=Path, default=DEFAULT_REGISTRY)
+    ap.add_argument("--notify", action="store_true", help="allow live-mode webhook delivery (still requires ALERT_ENABLED and a URL)")
+    ap.add_argument("--alert-config", type=Path, help="optional JSON file with alert thresholds and delivery settings")
     ap.add_argument("--name", default="pregame")
     args = ap.parse_args()
     if args.mode == "live" and args.start_time:
@@ -408,9 +429,15 @@ def main():
         from data_sources.polymarket_live import PolymarketLiveProvider
         polymarket = PolymarketLiveProvider()
         market_provider = polymarket.for_game
-    agent = PregameAgent(tables, players, game, model, provider, RUNS / args.name,
+    alert_config = AlertConfig.from_env(args.alert_config)
+    alert_config.notify_requested = bool(args.notify)
+    output = RUNS / args.name
+    alert_manager = AlertManager(output, config=alert_config, mode=args.mode,
+                                 run_id=args.name, players=players)
+    agent = PregameAgent(tables, players, game, model, provider, output,
                          args.lookback_hours, clock=live_clock if args.mode == "live" else None,
-                         market_provider=market_provider)
+                         market_provider=market_provider, alert_manager=alert_manager,
+                         alert_mode=args.mode)
     start = utc(args.start_time) if args.start_time else utc(game.tip_time) - pd.Timedelta(hours=args.window_hours)
     if args.mode == "replay" and agent.last_as_of is not None and not args.start_time:
         start = agent.last_as_of + pd.Timedelta(seconds=args.poll_seconds)

@@ -7,7 +7,7 @@ from agents.game_timeline import elapsed_seconds
 
 def export_visuals(payload, output):
     output = Path(output)
-    template = (Path(__file__).parent / "templates" / "loop_demo.html").read_text()
+    template = (Path(__file__).parent / "templates" / "loop_demo.html").read_text(encoding="utf-8")
     from agents.match_view import match_view
     from agents.betting import make_board, simulated_contracts
     from forecast.betting import historical_distribution, distribution
@@ -64,7 +64,12 @@ def export_visuals(payload, output):
         item = {'view': slate[0], 'slate': slate}
         data_payload['pregame_steps' if phase == 'pregame' else 'steps'].append(item)
     data = json.dumps(data_payload, ensure_ascii=False, default=str, allow_nan=False).replace("<", "\\u003c")
-    (output / "demo.html").write_text(template.replace("__LOOP_DATA__", data).replace("__ANALYSIS_SCRIPT__", (Path(__file__).parent / "templates" / "betting_math.js").read_text()).replace("__DASHBOARD_SCRIPT__", (Path(__file__).parent / "templates" / "match_dashboard.js").read_text()))
+    (output / "demo.html").write_text(
+        template.replace("__LOOP_DATA__", data)
+        .replace("__ANALYSIS_SCRIPT__", (Path(__file__).parent / "templates" / "betting_math.js").read_text(encoding="utf-8"))
+        .replace("__DASHBOARD_SCRIPT__", (Path(__file__).parent / "templates" / "match_dashboard.js").read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
     plot_sample(payload, output)
 
 

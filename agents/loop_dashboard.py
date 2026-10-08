@@ -23,7 +23,13 @@ def render_demo(key='news_loop_sample'):
     if not path.exists():
         st.info('Run python -m agents.loop_demo to generate the demo.')
         return
-    data = json.loads(re.search(r'<script type="application/json" id="loop-data">(.*?)</script>', path.read_text(), re.S)[1])
+    # demo.html is generated as UTF-8; do not rely on the Windows locale (often GBK).
+    html = path.read_text(encoding='utf-8')
+    match = re.search(r'<script type="application/json" id="loop-data">(.*?)</script>', html, re.S)
+    if not match:
+        st.error(f'Invalid demo file: missing loop-data in {path}')
+        return
+    data = json.loads(match[1])
     def reset():
         st.session_state[key+'_selected'] = []
         st.session_state[key+'_index'] = st.session_state[key+'_seek'] = 0
