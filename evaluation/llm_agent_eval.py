@@ -28,6 +28,7 @@ runs/llm_cache/, so re-runs are free and identical.
 import argparse
 import hashlib
 import json
+import os
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -77,12 +78,14 @@ def sampled(policy, frac: float, seed: int):
 
 def _shared():
     if not _STATE:
-        from forecast.api import Forecaster
+        from forecast.api import MODELS, Forecaster
+        # NBA_MODEL_DIR: walk-forward refits (m4/win.pkl, m6/impact.pkl) for windows before the default split.
+        folder = Path(os.environ.get("NBA_MODEL_DIR", MODELS))
         _STATE["tables"] = load_frozen()
-        _STATE["forecaster"] = Forecaster.load()
+        _STATE["forecaster"] = Forecaster.load(folder)
         try:
             from forecast.impact import load_impact
-            _STATE["impact"] = load_impact()
+            _STATE["impact"] = load_impact(folder / "m6" / "impact.pkl")
         except Exception:
             _STATE["impact"] = None
         path = ROOT / "data" / "frozen" / "players.parquet"
