@@ -183,3 +183,106 @@ def test_stub_llm_traces_are_labelled():
     for f in TRACES.glob("tool_*.json"):
         t = json.loads(f.read_text())
         assert ("stub" in t["llm"].lower()) == t["stub"]
+
+
+OUTCOME_KEYS = ("close_price", "clv", "pnl", "outcome_yes", "home_pts", "away_pts", "winner", "settled_yes",
+                "settled_value", "game_outcome", "settlement", "final_at")
+
+
+def deepseek_traces():
+    return [(f.name, json.loads(f.read_text())) for f in sorted(TRACES.glob("tool_ds_*.json"))]
+
+
+def keys(x):
+    if isinstance(x, dict):
+        for k, v in x.items():
+            yield k
+            yield from keys(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from keys(v)
+
+
+def test_deepseek_traces_are_real_as_of_and_complete():
+    ds = deepseek_traces()
+    assert len(ds) >= 6
+    names = {n for n, _ in ds}
+    assert {"tool_ds_kept_1.json", "tool_ds_kept_2.json", "tool_ds_chat.json", "tool_ds_budget.json",
+            "tool_ds_plain.json"} <= names and sum(n.startswith("tool_ds_veto") for n in names) >= 2
+    for name, t in ds:
+        assert t["source"] == "deepseek" and not t["stub"] and t["model"] in ("deepseek-chat", "deepseek-reasoner")
+        assert t["model_label"] in ("DeepSeek chat", "DeepSeek reasoner (V4.1-Flash, thinking)")
+        assert not SECRET.search(json.dumps(t)), name
+        now = pd.Timestamp(t["as_of"])
+        assert now < pd.Timestamp(t["tip_time"]) <= pd.Timestamp(t["settlement"]["revealed_at"])
+        decision = {k: v for k, v in t.items() if k not in ("settlement", "game_outcome")}
+        leaked = set(keys(decision)) & set(OUTCOME_KEYS)
+        assert not leaked, f"{name}: outcome data {leaked} in the decision steps"
+        assert t["market"] and all("anchor_mid" in m for m in t["market"])
+        if t["setup"] != "plain":
+            calls = [r for turn in t["turns"] for r in turn["tool_results"]]
+            assert calls and all(r["tool"] and "output" in r for r in calls), name
+        if t["status"] in ("order", "sceptic_reject") and t["setup"] != "plain":
+            assert t["validation"]["ok"] and t["gap_after_fees"] > t["min_edge"], name
+        if t["setup"] == "tool_sceptic" and t["status"] in ("order", "sceptic_reject"):
+            want = "approve" if t["status"] == "order" else "reject"
+            assert t["sceptic"]["verdict"]["verdict"] == want, name
+        if t["model"] == "deepseek-reasoner":
+            assert t["reasoning"]["chars"] > 0 and t["reasoning"]["excerpt"] is None
+        go = t["game_outcome"]
+        assert go["positions"] and all(p["counterfactual"] == (t["status"] != "order") for p in go["positions"])
+
+
+def test_deepseek_scenarios_match_the_run():
+    kept = sorted((load(n)["game_outcome"]["positions"][0]["pnl"]) for n in ("tool_ds_kept_1", "tool_ds_kept_2"))
+    assert kept == [pytest.approx(-20.71), pytest.approx(120.92)]
+    vetoes = [t for n, t in deepseek_traces() if n.startswith("tool_ds_veto")]
+    results = {t["game_outcome"]["positions"][0]["result"] for t in vetoes}
+    assert results == {"won", "lost"}, "show a veto that would have lost and one that would have won"
+    b = load("tool_ds_budget")
+    assert b["status"] == "invalid" and b["out_of_reasoning_budget"] and b["validation"]["out_of_reasoning_budget"]
+    assert load("tool_ds_plain")["turns"] == [] and load("tool_ds_plain")["plain_info"]
+    ids = {s["id"] for s in load("index")["scenarios"]}
+    assert "sceptic" not in ids and {"ds_kept_1", "ds_veto_1", "ds_chat", "ds_budget", "ds_plain"} <= ids
+
+
+def test_llm_results_parsed_from_results_file():
+    r = load("llm_results")
+    rsn = r["models"]["deepseek-reasoner"]
+    d = next(x for x in rsn["scoreboard"] if x["Setup"].startswith("D."))
+    assert d["Trades"] == "2" and d["CLV $ [95% CI]"] == "+4 [-3, +15]"
+    a = next(x for x in rsn["scoreboard"] if x["Setup"].startswith("A."))
+    assert a["Trades"] == "53" and a["CLV $ [95% CI]"] == "-19 [-36, -1]"
+    sc = next(x for x in rsn["paired"] if x["Comparison"] == "tool_sceptic − tool" and x["Metric"] == "CLV $")
+    assert sc["Difference [95% CI]"] == "+17 [+4, +32]" and sc["p"] == "0.010"
+    assert "95%" in r["punchline"] and r["reasoning_budget_calls"] == 21 and r["cost_usd"] == 3.49
+
+
+def test_deepseek_scenarios_render_and_gate_outcome():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(str(APP), default_timeout=60).run()
+    at.sidebar.radio[0].set_value("Overview").run()
+    assert not at.exception
+    assert any("LLM agent vs original agent" in h.value for h in at.header)
+    assert any("finds no edge" in str(i.value) for i in at.info)
+    at.sidebar.radio[0].set_value("Scenarios").run()
+    index = load("index")
+    for sc in index["scenarios"]:
+        if not sc["id"].startswith("ds_"):
+            continue
+        t = load(sc["agents"]["tool_agent"])
+        at.sidebar.selectbox[0].set_value(sc["title"]).run()
+        at.sidebar.radio[1].set_value("tool_agent").run()
+        assert not at.exception, sc["id"]
+        texts = [e.value for e in at.main if hasattr(e, "value") and isinstance(e.value, str)]
+        assert any(t["model_label"] in x for x in texts), sc["id"]
+        before = "\n".join(texts[:texts.index(GRADED)])
+        go = t["game_outcome"]
+        assert f"{go['away_pts']} – {go['home_pts']}" not in before, sc["id"]
+        assert f"{go['away']} {go['away_pts']} – {go['home_pts']} {go['home']}" in panel_text(at), sc["id"]
+        if t["status"] == "sceptic_reject":
+            assert any(x.value.startswith("VETO") for x in at.error) and "Counterfactual" in panel_text(at)
+        at.sidebar.toggle[0].set_value(True).run()
+        assert any(b.label == "Reveal game outcome" for b in at.button), sc["id"]
+        assert f"{go['away']} {go['away_pts']} – {go['home_pts']} {go['home']}" not in panel_text(at)
+        at.sidebar.toggle[0].set_value(False).run()
