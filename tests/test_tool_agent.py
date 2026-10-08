@@ -304,6 +304,33 @@ def test_plain_llm_uses_same_trading_rule():
     assert len(fills) == 1 and decisions.iloc[0].market_ticker == "SYN-g2-AWY"
 
 
+def test_min_edge_flag_reaches_every_agent_and_the_prompt():
+    from agents.graph import DEFAULT_MIN_EDGE, MarketAgent
+    from evaluation.llm_agent_eval import make_agent
+
+    s = {"forecaster": _forecaster(), "impact": None, "players": {}}
+    backend = StubBackend(heuristic_reply, model="test-stub")
+    for e in (DEFAULT_MIN_EDGE, 0.0):
+        agents = [make_agent(setup, backend, s, e) for setup in ("anchor", "plain", "tool", "tool_sceptic")]
+        assert isinstance(agents[0], MarketAgent) and all(a.min_edge == e for a in agents)
+        assert f"more than {e} " in agents[2].system
+    assert make_agent("tool", backend, s).min_edge == DEFAULT_MIN_EDGE == 0.04
+
+
+def test_zero_min_edge_trades_a_small_positive_gap_but_still_pays_fees():
+    def plain(role, system, prompt, meta):
+        return {"p_home": 0.565, "rationale": "Slight lean to the away team."}
+    traded = {}
+    for e in (0.04, 0.0):
+        a = PlainLLMAgent(CachedLLM(StubBackend(plain), cache_dir=None), forecaster=_forecaster(), min_edge=e)
+        _, fills, _ = run(a, tables_with_history())
+        traded[e] = (len(fills), a.traces[0])
+    n4, t4 = traded[0.04]
+    n0, t0 = traded[0.0]
+    assert n4 == 0 and t4["status"] == "gap" and 0 < t4["gap"] < 0.04
+    assert n0 == 1 and t0["status"] == "order" and t0["order"]["gap"] == pytest.approx(t4["gap"])
+
+
 def test_one_position_per_game():
     a = agent(sceptic=False)
     decisions, fills, _ = run(a, tables_with_history())
