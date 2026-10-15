@@ -39,7 +39,7 @@ before tip. Any absence the market already knew at the anchor is counted again.
 before tip − 24 h" baseline is always empty and would change nothing. What is public at the anchor is each team's
 previous inactive list; 41% of all listed absences (1,372 / 3,371) were already on the team's previous list.
 
-**Fix.** `MarketAgent(shift_baseline="anchor")` (new default; `--shift-baseline` on `agents.graph`) uses
+**Fix.** `MarketAgent(shift_baseline="anchor")` (opt-in; `--shift-baseline` on `agents.graph`) uses
 `anchor_out(view, game)`: for each team, the latest status per player (`OUT_STATUSES`) from that team's most
 recent game tipping at or before the anchor, using only news published at or before the anchor. The shift is
 then `M4(out now) − M4(out at anchor)`, i.e. only news since the anchor moves the price. Until tonight's list is published (and for games with no list in the
@@ -86,9 +86,11 @@ noise, while the forecast's Brier is *significantly worse*. So the 24 h anchor d
 the previous game: whether the player sits again is still uncertain a day out, and counting the full M4 effect again
 was closer to the truth than counting none. A partial baseline (e.g. half the anchor-time effect, or the probability
 the player is still out) might sit in between; it is not tried here because it would be tuned on the test period.
-The new default is therefore the conceptually cleaner `anchor` baseline, but the evidence favours `empty`.
-**Recommendation: switch the default back to `empty`** unless the shift is redesigned. Split-gate learning was not
+The evidence favours `empty`. Split-gate learning was not
 re-run with the fix (a single sequential replay with gate back-tests did not finish in the time available).
+
+**Default reverted to `empty`.** Anchor baseline tested (121 trades, −$438, Brier 0.1690 vs 0.1663): worse, not default.
+`anchor` stays available as an opt-in (`MarketAgent(shift_baseline="anchor")`, `--shift-baseline anchor`).
 
 ## 4. Deterministic pre-filter before the LLM
 

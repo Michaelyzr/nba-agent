@@ -343,13 +343,14 @@ class MarketAgent:
                  sizing: str = "flat", kelly_fraction: float = DEFAULT_KELLY_FRACTION,
                  bankroll: float = DEFAULT_BANKROLL, forecast_cache: dict | None = None,
                  adaptive_edge: bool = False, model_review: bool = False, components: Callable | None = None,
-                 shift_baseline: str = "anchor"):
+                 shift_baseline: str = "empty"):
         if gate not in GATE_MODES or sizing not in SIZINGS:
             raise ValueError(f"gate must be one of {GATE_MODES} and sizing one of {SIZINGS}")
         if shift_baseline not in SHIFT_BASELINES:
             raise ValueError(f"shift_baseline must be one of {SHIFT_BASELINES}")
-        # News shift = M4(out now) - M4(out at baseline). "anchor": absences already known at the anchor time,
-        # so only news since the anchor moves the price; "empty": no absences (the published runs).
+        # News shift = M4(out now) - M4(out at baseline). "empty" (default, the published runs): no absences;
+        # "anchor" (opt-in): absences already known at the anchor time, so only news since the anchor moves the
+        # price. "anchor" was tested and forecasts worse (Brier 0.1690 vs 0.1663).
         self.shift_baseline = shift_baseline
         if model_review and components is None:
             raise ValueError("model_review needs a components source (forecast.blend.Components)")
@@ -1218,8 +1219,8 @@ def main():
     ap.add_argument("--signal", choices=["anchor", "impact"], default="anchor",
                     help="anchor + M4 news shift (default), or M6: current mid + predicted move to tip")
     ap.add_argument("--impact-model", type=Path, default=None, help="M6 pickle (default models/m6/impact.pkl)")
-    ap.add_argument("--shift-baseline", choices=SHIFT_BASELINES, default="anchor",
-                    help="news shift against absences known at the anchor (default) or none (published runs)")
+    ap.add_argument("--shift-baseline", choices=SHIFT_BASELINES, default="empty",
+                    help="news shift against no absences (default, published runs) or absences known at the anchor")
     ap.add_argument("--gate", choices=GATE_MODES, default="split",
                     help="split (default): disjoint selection and test days, CLV dollars; split-edge: edge over "
                          "the mid; legacy: the published runs (overlapping windows, mean CLV)")

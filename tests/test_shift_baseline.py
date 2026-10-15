@@ -58,6 +58,18 @@ def test_empty_baseline_reproduces_the_published_double_count():
     assert "news shift -10.2 points" in decisions.iloc[0].reason
 
 
+def test_default_shift_baseline_is_empty():
+    assert MarketAgent().shift_baseline == "empty"
+    decisions, _, _ = run_graph(MarketAgent(), with_previous_list(make_tables()))
+    assert "news shift -10.2 points" in decisions.iloc[0].reason
+
+
+def test_cli_default_shift_baseline_is_empty():
+    import agents.graph as graph
+    src = open(graph.__file__).read()
+    assert re.search(r'"--shift-baseline", choices=SHIFT_BASELINES, default="empty"', src)
+
+
 def test_anchor_out_ignores_news_published_after_the_anchor():
     tables = with_previous_list(make_tables(), published_at=TIP2 - ANCHOR_LEAD + pd.Timedelta(minutes=1))
     view, game, _ = view_at(tables)
