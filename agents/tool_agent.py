@@ -25,6 +25,7 @@ tests for that.
 import json
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -77,6 +78,35 @@ Do not introduce new numbers."""
 PLAIN_SYSTEM = """You estimate the probability that the home team wins an NBA game, for a Kalshi game-winner market. \
 You are given the information available at this decision time. Reply with exactly one JSON object: \
 {"p_home": probability between 0 and 1, "rationale": one or two sentences}."""
+
+# Opt-in LLM probability estimate (evaluation/llm_upgrade.py): p = anchor + w * (p_llm - anchor).
+PROB_SYSTEM = """You estimate the probability that the home team wins an NBA game, for a Kalshi game-winner market. \
+You are given only the information available at this decision time: market quotes, the market anchor 24 hours \
+before tip, the recent price history, the published inactive lists and the M4 win model's news shift. The market is \
+usually well calibrated; move away from it only for information it has not absorbed.
+
+Reply with exactly one JSON object: {"p_home": probability between 0 and 1, "confidence": "low", "medium" or "high", \
+"rationale": one or two sentences}."""
+
+
+def parse_prob(reply: dict) -> dict | None:
+    """{"p_home", "confidence"} from a PROB_SYSTEM reply, or None if missing, non-numeric or outside [0, 1]."""
+    if reply.get("error"):
+        return None
+    msg = reply.get("json") or {}
+    try:
+        p = float(msg.get("p_home"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(p) or not 0 <= p <= 1:
+        return None
+    conf = str(msg.get("confidence", "")).lower()
+    return {"p_home": p, "confidence": conf if conf in ("low", "medium", "high") else "unknown"}
+
+
+def blend_prob(anchor: float, p_llm: float, w: float) -> float:
+    """Shrink the LLM estimate toward the market anchor: anchor + w * (p_llm - anchor), clipped to [P_MIN, P_MAX]."""
+    return min(max(anchor + w * (p_llm - anchor), P_MIN), P_MAX)
 
 
 def tool_menu() -> str:
@@ -276,9 +306,11 @@ class _Base:
 class ToolAgent(_Base):
     """Analyst LLM with as-of tools, code validation, optional priced-in sceptic."""
 
-    def __init__(self, llm, sceptic=True, max_tool_calls=MAX_TOOL_CALLS, max_turns=MAX_TURNS, **kw):
+    def __init__(self, llm, sceptic=True, max_tool_calls=MAX_TOOL_CALLS, max_turns=MAX_TURNS, sceptic_votes=1, **kw):
         super().__init__(llm, **kw)
         self.sceptic = sceptic
+        # >1: opt-in majority vote, sceptic_votes fresh draws run concurrently (evaluation/llm_upgrade.py)
+        self.sceptic_votes = int(sceptic_votes)
         self.max_tool_calls, self.max_turns = max_tool_calls, max_turns
         self.setup = ("tool_sceptic" if sceptic else "tool") + ("_anon" if self.anonymise else "")
         self.system = ANALYST_SYSTEM.format(tools=tool_menu(), min_edge=self.min_edge, budget=max_tool_calls)
@@ -366,16 +398,41 @@ class ToolAgent(_Base):
                     "news": tools.get_news(), "analyst_tool_results": {k: v["output"] for k, v in results.items()}}
         prompt = "\n".join(["DECISION CONTEXT", head, "", "EVIDENCE", dumps(evidence), "",
                             "Reply with your JSON verdict."])
-        reply = self.llm.ask("sceptic", SCEPTIC_SYSTEM, prompt, {"tools": tools, "route": route, "results": results})
-        msg = reply["json"] or {}
-        verdict = str(msg.get("verdict", "")).lower()
-        if reply["error"] or verdict not in ("approve", "reject"):
-            return {"verdict": "reject", "reason": "sceptic output invalid or failed (fail closed)",
-                    "invalid": True}
-        reason = str(msg.get("reason", ""))[:300]
-        if BANNED.search(reason):
-            return {"verdict": "reject", "reason": "sceptic used banned wording (fail closed)", "invalid": True}
-        return {"verdict": verdict, "reason": reason}
+        meta = {"tools": tools, "route": route, "results": results}
+        if self.sceptic_votes <= 1:
+            return parse_verdict(self.llm.ask("sceptic", SCEPTIC_SYSTEM, prompt, meta))
+        with ThreadPoolExecutor(max_workers=self.sceptic_votes) as pool:
+            replies = list(pool.map(lambda k: self.llm.ask(vote_role(k), SCEPTIC_SYSTEM, prompt, meta),
+                                    range(1, self.sceptic_votes + 1)))
+        return majority([parse_verdict(r) for r in replies])
+
+
+def parse_verdict(reply: dict) -> dict:
+    """One sceptic reply -> {"verdict", "reason"[, "invalid"]}; fails closed."""
+    msg = reply["json"] or {}
+    verdict = str(msg.get("verdict", "")).lower()
+    if reply["error"] or verdict not in ("approve", "reject"):
+        return {"verdict": "reject", "reason": "sceptic output invalid or failed (fail closed)", "invalid": True}
+    reason = str(msg.get("reason", ""))[:300]
+    if BANNED.search(reason):
+        return {"verdict": "reject", "reason": "sceptic used banned wording (fail closed)", "invalid": True}
+    return {"verdict": verdict, "reason": reason}
+
+
+def vote_role(k: int) -> str:
+    """Cache role of sceptic vote k (1-based); distinct roles make each vote a fresh draw, not a cache hit."""
+    return f"sceptic_vote{k}"
+
+
+def majority(votes: list) -> dict:
+    """Approve iff a strict majority of the parsed votes approve (invalid votes count as rejects)."""
+    n = len(votes)
+    k = sum(v["verdict"] == "approve" for v in votes)
+    approve = n > 0 and k > n / 2
+    first = next((v["reason"] for v in votes if (v["verdict"] == "approve") == approve), "")
+    return {"verdict": "approve" if approve else "reject", "reason": f"{k}/{n} votes approve. {first}"[:300],
+            "approve_fraction": k / n if n else 0.0, "votes": [v["verdict"] for v in votes],
+            "invalid": sum(bool(v.get("invalid")) for v in votes)}
 
 
 class PlainLLMAgent(_Base):
@@ -444,7 +501,7 @@ def heuristic_reply(role, system, prompt, meta):
         anchor = info["anchors"][tools.home].get("anchor_mid") or info["quotes"][tools.home]["mid"]
         shift = (info["m4_win_model"] or {}).get("shift", {}).get(tools.home, 0.0)
         return {"p_home": round(anchor + shift, 4), "rationale": "Anchor plus the model's news shift."}
-    if role == "sceptic":
+    if role.startswith("sceptic"):
         team = meta["route"]["team"]
         move = tools.get_anchor(team).get("move_since_anchor") or 0.0
         if move >= 0.03:

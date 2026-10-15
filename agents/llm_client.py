@@ -179,7 +179,7 @@ class DeepSeekBackend:
     def __init__(self, model: str = DEEPSEEK_MODEL, thinking: bool | None = None, max_tokens: int | None = None,
                  max_retries: int = DEEPSEEK_RETRIES, min_interval: float = 0.0, base_url: str = DEEPSEEK_URL,
                  first_token_s: float = FIRST_TOKEN_S, attempt_s: float = ATTEMPT_S, client=None,
-                 clock=time.monotonic):
+                 clock=time.monotonic, temperature: float | None = None):
         import httpx
         from dotenv import load_dotenv
 
@@ -189,6 +189,8 @@ class DeepSeekBackend:
             raise RuntimeError("DEEPSEEK_API_KEY is not set (add it to .env)")
         self.model = model                     # the requested name; legacy names keep their old cache keys
         self.resolved_model, self.thinking = resolve_deepseek(model, thinking)
+        # Temperature only applies with thinking off; default 0. Opt-in sampling (e.g. majority-vote sceptic).
+        self.temperature = 0.0 if self.thinking else (0.0 if temperature is None else float(temperature))
         self.max_tokens = max_tokens or (REASONER_MAX_TOKENS if self.thinking else None)
         self.max_retries, self.min_interval = max_retries, min_interval
         self.first_token_s, self.attempt_s, self.clock = first_token_s, attempt_s, clock
@@ -204,7 +206,7 @@ class DeepSeekBackend:
                 "thinking": {"type": "enabled" if self.thinking else "disabled"},
                 "stream": True, "stream_options": {"include_usage": True}}
         if not self.thinking:
-            body["temperature"] = 0.0
+            body["temperature"] = self.temperature
         if self.max_tokens:
             body["max_tokens"] = self.max_tokens
         return body
@@ -283,13 +285,14 @@ class StubBackend:
 
 
 class CachedLLM:
-    def __init__(self, backend, cache_dir: Path | None = CACHE_DIR, temperature: float = 0.0):
+    def __init__(self, backend, cache_dir: Path | None = CACHE_DIR, temperature: float | None = None):
         self.backend = backend
         self.model = getattr(backend, "model", "unknown")
         # DeepSeekBackend: the model id actually called and the thinking flag, both part of the cache key.
         self.resolved_model = getattr(backend, "resolved_model", None)
         self.thinking = getattr(backend, "thinking", None) if self.resolved_model else None
-        self.temperature = temperature
+        # Prefer the backend's temperature (DeepSeek sampling) when the caller does not override.
+        self.temperature = float(getattr(backend, "temperature", 0.0) if temperature is None else temperature)
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.log = []              # one entry per request in this process
 
