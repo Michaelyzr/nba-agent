@@ -164,15 +164,21 @@ def test_spent_daily_quota_fails_fast_and_is_not_cached(monkeypatch, tmp_path):
     assert not list(tmp_path.rglob("*.json"))
 
 
+def _sse(*chunks) -> bytes:
+    return b"".join(f"data: {json.dumps(c)}\n\n".encode() for c in chunks) + b"data: [DONE]\n\n"
+
+
 def test_deepseek_backend_parses_retries_and_keys_cache_by_model(monkeypatch, tmp_path):
     import httpx
 
     from agents import llm_client
     sleeps, bodies = [], []
     monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    monkeypatch.setattr(llm_client, "is_peak", lambda ts=None: False)
     replies = [httpx.Response(429, headers={"retry-after": "3"}, text="rate limited"),
-               httpx.Response(200, json={"choices": [{"message": {"content": '{"decision": "pass"}'}}],
-                                         "usage": {"prompt_tokens": 11, "completion_tokens": 5}})]
+               httpx.Response(200, content=_sse({"choices": [{"delta": {"content": '{"decision": "pass"}'}}]},
+                                                {"choices": [], "usage": {"prompt_tokens": 11,
+                                                                          "completion_tokens": 5}}))]
 
     def handler(request):
         bodies.append(json.loads(request.content))
@@ -183,10 +189,11 @@ def test_deepseek_backend_parses_retries_and_keys_cache_by_model(monkeypatch, tm
     out = llm.ask("analyst", "Reply in JSON.", "prompt")
     assert out["json"] == {"decision": "pass"} and (out["tokens_in"], out["tokens_out"]) == (11, 5)
     assert sleeps == [4.0] and len(bodies) == 2
-    assert bodies[0]["model"] == "deepseek-chat" and bodies[0]["temperature"] == 0.0
+    assert bodies[0]["model"] == "deepseek-flash" and bodies[0]["temperature"] == 0.0
+    assert bodies[0]["thinking"] == {"type": "disabled"} and bodies[0]["stream"] is True
     assert bodies[0]["response_format"] == {"type": "json_object"}
     assert [m["role"] for m in bodies[0]["messages"]] == ["system", "user"]
-    assert out["cost"] == pytest.approx((11 * 0.27 + 5 * 1.10) / 1e6)
+    assert out["cost"] == pytest.approx((11 * 0.15 + 5 * 0.60) / 1e6)
     gemini = CachedLLM(StubBackend(lambda *a: {}, model="gemini-3.5-flash-lite"), cache_dir=tmp_path)
     assert gemini.key("analyst", "Reply in JSON.", "prompt") != out["key"]
 
@@ -197,12 +204,14 @@ def test_deepseek_reasoner_keeps_reasoning_out_of_the_answer(monkeypatch, tmp_pa
     from agents import llm_client
     sleeps, bodies = [], []
     monkeypatch.setattr(llm_client.time, "sleep", sleeps.append)
+    monkeypatch.setattr(llm_client.random, "uniform", lambda a, b: 1.0)
     content = 'Final answer:\n```json\n{"decision": "pass", "rationale": "no {edge}"}\n```'
     replies = [httpx.Response(503, text="busy"),
-               httpx.Response(200, json={"choices": [{"message": {"content": content,
-                                                                  "reasoning_content": "Think {not json} " * 10}}],
-                                         "usage": {"prompt_tokens": 20, "completion_tokens": 90,
-                                                   "completion_tokens_details": {"reasoning_tokens": 70}}})]
+               httpx.Response(200, content=_sse(
+                   {"choices": [{"delta": {"reasoning_content": "Think {not json} " * 10}}]},
+                   {"choices": [{"delta": {"content": content}, "finish_reason": "stop"}]},
+                   {"choices": [], "usage": {"prompt_tokens": 20, "completion_tokens": 90,
+                                             "completion_tokens_details": {"reasoning_tokens": 70}}}))]
 
     def handler(request):
         bodies.append(json.loads(request.content))
@@ -215,6 +224,7 @@ def test_deepseek_reasoner_keeps_reasoning_out_of_the_answer(monkeypatch, tmp_pa
     assert (out["reasoning_tokens"], out["reasoning_chars"]) == (70, len("Think {not json} " * 10))
     assert sleeps == [2.0] and len(bodies) == 2
     assert "temperature" not in bodies[0] and bodies[0]["max_tokens"] == llm_client.REASONER_MAX_TOKENS
+    assert bodies[0]["thinking"] == {"type": "enabled"} and bodies[0]["model"] == "deepseek-flash"
     again = CachedLLM(b, cache_dir=tmp_path).ask("analyst", "Reply in JSON.", "prompt")
     assert again["cached"] and again["reasoning_tokens"] == 70 and again["json"] == out["json"]
     chat = CachedLLM(StubBackend(lambda *a: {}, model="deepseek-chat"), cache_dir=tmp_path)

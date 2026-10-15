@@ -9,15 +9,22 @@ never cached.
 Backends are plain objects with generate(system, prompt, meta) -> (text, usage).
 GeminiBackend uses google-genai with temperature 0, JSON output and thinking
 off; tests and dry runs pass a stub. The key comes from GEMINI_API_KEY in .env.
-DeepSeekBackend posts to DeepSeek's OpenAI-compatible /chat/completions with
-httpx (temperature 0, JSON mode); the key comes from DEEPSEEK_API_KEY.
-For deepseek-reasoner (thinking mode) it drops temperature, which thinking mode
-ignores, and allows a larger max_tokens; reasoning_content is kept out of the
-answer and only its length is recorded.
+DeepSeekBackend streams DeepSeek's OpenAI-compatible /chat/completions over
+httpx in JSON mode; the key comes from DEEPSEEK_API_KEY. Thinking is an explicit
+flag sent as {"thinking": {"type": "enabled" | "disabled"}}: off means
+temperature 0, on drops temperature (ignored in thinking mode) and allows
+REASONER_MAX_TOKENS; reasoning_content is kept out of the answer and only its
+length is recorded. The legacy names deepseek-chat / deepseek-reasoner resolve to
+deepseek-flash with thinking off / on.
+
+DeepSeek cache keys hash the resolved model id and the thinking flag. A request
+made under a legacy name first looks up the key it had before the migration, so
+the cached published runs replay without API calls.
 """
 import hashlib
 import json
 import os
+import random
 import re
 import threading
 import time
@@ -26,16 +33,39 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "runs" / "llm_cache"
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
-# USD per million tokens (input, output), Google AI Studio paid tier list prices; an estimate only.
+# USD per million tokens (input, output), list prices; an estimate only. DeepSeek input is the cache-miss price.
 PRICES = {"gemini-3.8-flash": (0.30, 2.50), "gemini-2.5-flash": (0.30, 2.50), "gemini-2.5-flash-lite": (0.10, 0.40),
           "gemini-3.5-flash-lite": (0.10, 0.40),   # assumed equal to 2.5 Flash-Lite
           "gemini-2.5-pro": (1.25, 10.0),
-          "deepseek-chat": (0.27, 1.10),           # approximate DeepSeek list price, cache-miss input
-          "deepseek-reasoner": (0.27, 1.10)}       # same underlying model as deepseek-chat, thinking on; an estimate
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+          "deepseek-chat": (0.27, 1.10),           # legacy name; the estimate used for the published runs
+          "deepseek-reasoner": (0.27, 1.10),       # legacy name, thinking on; same estimate
+          "deepseek-flash": (0.15, 0.60),          # off-peak; PEAK_FACTOR applies in DeepSeek peak hours
+          "deepseek-v4-pro": (0.66, 1.98)}
+PEAK_FACTOR = 2.0                                  # DeepSeek peak prices are twice the off-peak ones
+PEAK_HOURS_UTC = ((1, 4), (6, 10))                 # [start, end) hours, Monday - Friday (Chinese holidays ignored)
+PEAK_PRICED = ("deepseek-flash", "deepseek-v4-pro")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+DEEPSEEK_MODELS = ("deepseek-flash", "deepseek-v4-pro")
+LEGACY_DEEPSEEK = {"deepseek-chat": ("deepseek-flash", False), "deepseek-reasoner": ("deepseek-flash", True)}
 DEEPSEEK_URL = "https://api.deepseek.com"
-REASONER_MAX_TOKENS = 8192     # reasoning tokens count against max_tokens
+REASONER_MAX_TOKENS = int(os.getenv("DEEPSEEK_REASONING_MAX_TOKENS", "32768"))  # reasoning counts against it
+LEGACY_REASONER_MAX_TOKENS = 8192  # the budget of the published deepseek-reasoner runs
+CONNECT_S, FIRST_TOKEN_S, ATTEMPT_S = 10.0, 60.0, 180.0   # per attempt; keep-alives do not count as tokens
+DEEPSEEK_RETRIES = 5
+BACKOFF_MIN, BACKOFF_MAX = 2.0, 60.0
+RETRY_CODES = (429, 500, 502, 503, 504)
 MAX_WAIT = 300                 # seconds; a longer retry hint means the daily quota is spent
+
+
+def resolve_deepseek(model: str, thinking: bool | None = None) -> tuple:
+    """(model id sent to the API, thinking flag); legacy names map to deepseek-flash, an explicit flag wins."""
+    resolved, default = LEGACY_DEEPSEEK.get(model, (model, False))
+    return resolved, default if thinking is None else bool(thinking)
+
+
+def is_peak(ts: float | None = None) -> bool:
+    t = time.gmtime(time.time() if ts is None else ts)
+    return t.tm_wday < 5 and any(a <= t.tm_hour < b for a, b in PEAK_HOURS_UTC)
 
 
 def parse_json(text: str):
@@ -66,11 +96,14 @@ def parse_json(text: str):
     return None
 
 
-def cost_usd(model: str, tokens_in: int, tokens_out: int) -> float:
+def cost_usd(model: str, tokens_in: int, tokens_out: int, at: float | None = None) -> float:
+    """List-price estimate; deepseek-flash / v4-pro cost PEAK_FACTOR more in peak hours (at = unix time, default now)."""
     if model.startswith("gemini"):
         price_in, price_out = PRICES.get(model, PRICES["gemini-3.8-flash"])
     elif model.startswith("deepseek"):
-        price_in, price_out = PRICES.get(model, PRICES["deepseek-chat"])
+        price_in, price_out = PRICES.get(model, PRICES["deepseek-flash"])
+        if model in PEAK_PRICED and is_peak(at):
+            price_in, price_out = price_in * PEAK_FACTOR, price_out * PEAK_FACTOR
     else:
         return 0.0
     return (tokens_in * price_in + tokens_out * price_out) / 1e6
@@ -126,13 +159,27 @@ class GeminiBackend:
                 delay = min(delay * 2, 60)
 
 
+class TruncatedError(RuntimeError):
+    """The reply spent the whole max_tokens budget (usually on reasoning) and has no answer."""
+
+
+class _Retry(Exception):
+    def __init__(self, code, msg, retry_after=None):
+        super().__init__(msg)
+        self.code, self.retry_after = code, retry_after
+
+
 class DeepSeekBackend:
-    """DeepSeek chat completions over httpx: temperature 0, JSON mode, retries on 429/5xx and timeouts.
+    """Streamed DeepSeek chat completions over httpx, JSON mode, explicit thinking flag.
 
-    deepseek-reasoner: no temperature, max_tokens REASONER_MAX_TOKENS, a longer timeout."""
+    An attempt fails if no content or reasoning token arrives within first_token_s (DeepSeek answers 200 and then
+    sends only keep-alives when overloaded, which defeats a plain read timeout) or it runs past attempt_s. Failed
+    attempts, 429 and 5xx are retried up to max_retries times with jittered exponential backoff (2 - 60 s)."""
 
-    def __init__(self, model: str = DEEPSEEK_MODEL, max_retries: int = 8, min_interval: float = 0.0,
-                 base_url: str = DEEPSEEK_URL, timeout: float | None = None, client=None):
+    def __init__(self, model: str = DEEPSEEK_MODEL, thinking: bool | None = None, max_tokens: int | None = None,
+                 max_retries: int = DEEPSEEK_RETRIES, min_interval: float = 0.0, base_url: str = DEEPSEEK_URL,
+                 first_token_s: float = FIRST_TOKEN_S, attempt_s: float = ATTEMPT_S, client=None,
+                 clock=time.monotonic):
         import httpx
         from dotenv import load_dotenv
 
@@ -140,58 +187,85 @@ class DeepSeekBackend:
         key = os.getenv("DEEPSEEK_API_KEY")
         if not key and client is None:
             raise RuntimeError("DEEPSEEK_API_KEY is not set (add it to .env)")
-        self.model, self.max_retries, self.min_interval = model, max_retries, min_interval
-        self.thinking = "reasoner" in model
-        if timeout is None:
-            timeout = 600.0 if self.thinking else 120.0
-        self.client = client or httpx.Client(base_url=base_url, timeout=timeout,
-                                             headers={"Authorization": f"Bearer {key}"})
+        self.model = model                     # the requested name; legacy names keep their old cache keys
+        self.resolved_model, self.thinking = resolve_deepseek(model, thinking)
+        self.max_tokens = max_tokens or (REASONER_MAX_TOKENS if self.thinking else None)
+        self.max_retries, self.min_interval = max_retries, min_interval
+        self.first_token_s, self.attempt_s, self.clock = first_token_s, attempt_s, clock
+        self.client = client or httpx.Client(base_url=base_url, headers={"Authorization": f"Bearer {key}"})
+        self.client.timeout = httpx.Timeout(first_token_s, connect=CONNECT_S, write=30.0, pool=30.0)
         self._last = 0.0
         self._lock = threading.Lock()
 
     def _body(self, system: str, prompt: str) -> dict:
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+        body = {"model": self.resolved_model, "messages": [{"role": "system", "content": system},
+                                                           {"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+                "thinking": {"type": "enabled" if self.thinking else "disabled"},
+                "stream": True, "stream_options": {"include_usage": True}}
+        if not self.thinking:
+            body["temperature"] = 0.0
+        if self.max_tokens:
+            body["max_tokens"] = self.max_tokens
+        return body
+
+    def _attempt(self, body: dict):
+        t0, first, content, reasoning, usage, finish = self.clock(), None, [], 0, {}, None
+        with self.client.stream("POST", "/chat/completions", json=body) as r:
+            if r.status_code != 200:
+                r.read()
+                raise _Retry(r.status_code, f"HTTP {r.status_code}: {r.text[:200]}", r.headers.get("retry-after"))
+            for line in r.iter_lines():
+                elapsed = self.clock() - t0
+                if elapsed > self.attempt_s or (first is None and elapsed > self.first_token_s):
+                    raise _Retry(None, f"stalled after {elapsed:.0f} s ({'no token' if first is None else 'slow'})")
+                if not line.startswith("data:") or line.strip() == "data: [DONE]":
+                    continue
+                chunk = json.loads(line[5:])
+                usage = chunk.get("usage") or usage
+                for ch in chunk.get("choices") or []:
+                    d = ch.get("delta") or {}
+                    if d.get("content") or d.get("reasoning_content"):
+                        first = elapsed if first is None else first
+                    content.append(d.get("content") or "")
+                    reasoning += len(d.get("reasoning_content") or "")
+                    finish = ch.get("finish_reason") or finish
+        if first is None:
+            raise _Retry(None, "stream ended without tokens")
+        text = "".join(content)
+        out = {"tokens_in": int(usage.get("prompt_tokens", 0) or 0),
+               "tokens_out": int(usage.get("completion_tokens", 0) or 0)}
         if self.thinking:
-            return {"model": self.model, "max_tokens": REASONER_MAX_TOKENS,
-                    "response_format": {"type": "json_object"}, "messages": messages}
-        return {"model": self.model, "temperature": 0.0, "response_format": {"type": "json_object"},
-                "messages": messages}
+            details = usage.get("completion_tokens_details") or {}
+            out.update(reasoning_tokens=int(details.get("reasoning_tokens", 0) or 0), reasoning_chars=reasoning)
+        if not text.strip() and (finish == "length" or (self.max_tokens and out["tokens_out"] >= self.max_tokens)):
+            raise TruncatedError(f"truncated: no answer after {out['tokens_out']} tokens "
+                                 f"(max_tokens {self.max_tokens}, reasoning {out.get('reasoning_tokens', 0)})")
+        return text, out
 
     def generate(self, system: str, prompt: str, meta=None):
         import httpx
-        delay = 2.0
+        body = self._body(system, prompt)
         for attempt in range(self.max_retries + 1):
             with self._lock:
                 wait = self._last + self.min_interval - time.time()
                 if wait > 0:
                     time.sleep(wait)
                 self._last = time.time()
+            retry_after = None
             try:
-                r = self.client.post("/chat/completions", json=self._body(system, prompt))
-                code = r.status_code
-                if code == 200:
-                    data = r.json()
-                    u = data.get("usage") or {}
-                    message = data["choices"][0]["message"]
-                    text = message.get("content") or ""
-                    usage = {"tokens_in": int(u.get("prompt_tokens", 0) or 0),
-                             "tokens_out": int(u.get("completion_tokens", 0) or 0)}
-                    if self.thinking:
-                        details = u.get("completion_tokens_details") or {}
-                        usage.update(reasoning_tokens=int(details.get("reasoning_tokens", 0) or 0),
-                                     reasoning_chars=len(message.get("reasoning_content") or ""))
-                    return text, usage
-                err = f"HTTP {code}: {r.text[:200]}"
-                retry_after = r.headers.get("retry-after")
+                return self._attempt(body)
+            except _Retry as exc:
+                code, err, retry_after = exc.code, str(exc), exc.retry_after
             except httpx.TransportError as exc:          # timeouts, dropped connections
-                code, err, retry_after = None, f"{exc.__class__.__name__}: {exc}", None
-            if (code is not None and code not in (429, 500, 502, 503, 504)) or attempt == self.max_retries:
+                code, err = None, f"{exc.__class__.__name__}: {exc}"
+            if (code is not None and code not in RETRY_CODES) or attempt == self.max_retries:
                 raise RuntimeError(err)
             hint = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else None
             if hint is not None and hint > MAX_WAIT:
                 raise RuntimeError(err)
+            delay = min(BACKOFF_MAX, max(BACKOFF_MIN, BACKOFF_MIN * 2 ** attempt * random.uniform(0.5, 1.5)))
             time.sleep(max(delay, hint + 1) if hint is not None else delay)
-            delay = min(delay * 2, 60)
 
 
 class StubBackend:
@@ -212,27 +286,51 @@ class CachedLLM:
     def __init__(self, backend, cache_dir: Path | None = CACHE_DIR, temperature: float = 0.0):
         self.backend = backend
         self.model = getattr(backend, "model", "unknown")
+        # DeepSeekBackend: the model id actually called and the thinking flag, both part of the cache key.
+        self.resolved_model = getattr(backend, "resolved_model", None)
+        self.thinking = getattr(backend, "thinking", None) if self.resolved_model else None
         self.temperature = temperature
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.log = []              # one entry per request in this process
 
-    def key(self, role: str, system: str, prompt: str) -> str:
-        blob = json.dumps({"model": self.model, "temperature": self.temperature, "role": role,
-                           "system": system, "prompt": prompt}, sort_keys=True)
+    def _hash(self, **fields) -> str:
+        blob = json.dumps({"temperature": self.temperature, **fields}, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()
+
+    def key(self, role: str, system: str, prompt: str) -> str:
+        """Where a new reply is stored: (resolved model, thinking) for DeepSeekBackend, else the requested model."""
+        if self.resolved_model is None:
+            return self._hash(model=self.model, role=role, system=system, prompt=prompt)
+        return self._hash(model=self.resolved_model, thinking=bool(self.thinking), role=role, system=system,
+                          prompt=prompt)
+
+    def legacy_key(self, role: str, system: str, prompt: str) -> str | None:
+        """The pre-migration key of a legacy deepseek-chat / deepseek-reasoner request (the published runs)."""
+        if self.resolved_model is None or self.model not in LEGACY_DEEPSEEK:
+            return None
+        if resolve_deepseek(self.model) != (self.resolved_model, bool(self.thinking)):
+            return None
+        return self._hash(model=self.model, role=role, system=system, prompt=prompt)
 
     def _path(self, key: str) -> Path:
         return self.cache_dir / key[:2] / f"{key}.json"
 
     def ask(self, role: str, system: str, prompt: str, meta: dict | None = None) -> dict:
-        """{"json", "text", "cached", "tokens_in", "tokens_out", "cost", "latency", "error", "key"}."""
+        """{"json", "text", "cached", "tokens_in", "tokens_out", "cost", "latency", "error", "truncated", "key"}."""
         key = self.key(role, system, prompt)
         path = self._path(key) if self.cache_dir else None
-        if path is not None and path.exists():
-            hit = json.loads(path.read_text())
+        hit = None
+        if self.cache_dir:
+            for k in (self.legacy_key(role, system, prompt), key):
+                if k is not None and self._path(k).exists():
+                    hit, key = json.loads(self._path(k).read_text()), k
+                    break
+        model = self.resolved_model or self.model
+        if hit is not None:
             out = {"text": hit["text"], "cached": True, "tokens_in": hit["tokens_in"], "tokens_out": hit["tokens_out"],
                    "reasoning_tokens": hit.get("reasoning_tokens", 0), "reasoning_chars": hit.get("reasoning_chars", 0),
-                   "latency": hit["latency"], "error": None}
+                   "latency": hit["latency"], "error": None, "truncated": False}
+            model, created = hit.get("model", self.model), hit.get("created")
         else:
             t0 = time.time()
             try:
@@ -240,24 +338,28 @@ class CachedLLM:
             except Exception as exc:
                 out = {"text": "", "cached": False, "tokens_in": 0, "tokens_out": 0, "reasoning_tokens": 0,
                        "reasoning_chars": 0, "latency": time.time() - t0,
-                       "error": f"{exc.__class__.__name__}: {str(exc)[:200]}"}
+                       "error": f"{exc.__class__.__name__}: {str(exc)[:200]}",
+                       "truncated": isinstance(exc, TruncatedError)}
                 out.update(json=None, cost=0.0, key=key, role=role)
                 self.log.append({k: v for k, v in out.items() if k not in ("json", "text")})
                 return out
             out = {"text": text, "cached": False, "tokens_in": usage["tokens_in"], "tokens_out": usage["tokens_out"],
                    "reasoning_tokens": usage.get("reasoning_tokens", 0),
-                   "reasoning_chars": usage.get("reasoning_chars", 0), "latency": time.time() - t0, "error": None}
+                   "reasoning_chars": usage.get("reasoning_chars", 0), "latency": time.time() - t0, "error": None,
+                   "truncated": False}
+            created = time.time()
             if path is not None:
+                entry = {"model": model, "temperature": self.temperature, "role": role, "system": system,
+                         "prompt": prompt, "text": text, "tokens_in": out["tokens_in"], "tokens_out": out["tokens_out"],
+                         "reasoning_tokens": out["reasoning_tokens"], "reasoning_chars": out["reasoning_chars"],
+                         "latency": out["latency"], "created": created}
+                if self.resolved_model is not None:
+                    entry.update(thinking=bool(self.thinking), requested_model=self.model)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
-                tmp.write_text(json.dumps({"model": self.model, "temperature": self.temperature, "role": role,
-                                           "system": system, "prompt": prompt, "text": text,
-                                           "tokens_in": out["tokens_in"], "tokens_out": out["tokens_out"],
-                                           "reasoning_tokens": out["reasoning_tokens"],
-                                           "reasoning_chars": out["reasoning_chars"],
-                                           "latency": out["latency"], "created": time.time()}))
+                tmp.write_text(json.dumps(entry))
                 os.replace(tmp, path)
-        out.update(json=parse_json(out["text"]), cost=cost_usd(self.model, out["tokens_in"], out["tokens_out"]),
+        out.update(json=parse_json(out["text"]), cost=cost_usd(model, out["tokens_in"], out["tokens_out"], created),
                    key=key, role=role)
         self.log.append({k: v for k, v in out.items() if k not in ("json", "text")})
         return out

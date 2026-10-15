@@ -484,7 +484,7 @@ def plain_info(prompt):
 
 def run_deepseek(ctx, impact, tag, setup, gid, at, label):
     """Replay one DeepSeek decision through the real ToolAgent / PlainLLMAgent with every LLM reply from the cache."""
-    from agents.llm_client import REASONER_MAX_TOKENS, CachedLLM
+    from agents.llm_client import LEGACY_REASONER_MAX_TOKENS as REASONER_MAX_TOKENS, CachedLLM
     from agents.tool_agent import GROUND_BAND, PlainLLMAgent, ToolAgent, validate_proposal
     from replay import Order
     meta = json.loads((LLM_RUNS / tag / setup / "meta.json").read_text())
