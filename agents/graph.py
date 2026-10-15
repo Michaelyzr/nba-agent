@@ -62,6 +62,7 @@ GATE_THRESHOLD = 0.005           # legacy: mean closing-line value must improve 
 GATE_DOLLARS = 2.0               # split gates: total CLV (or edge) dollars must improve by this much
 SELECT_DAYS = 7                  # split gates: the reviewer selects on these most recent market days
 GATE_MODES = ("split", "split-edge", "legacy")
+SHIFT_BASELINES = ("anchor", "empty")
 SIZINGS = ("flat", "kelly")
 DEFAULT_KELLY_FRACTION = 0.25
 DEFAULT_BANKROLL = 1000.0
@@ -230,6 +231,31 @@ def record_forecaster(view, game, markets: pd.DataFrame, overrides: dict) -> dic
             for m in markets.itertuples() if m.kind == "game"}
 
 
+def anchor_out(view, game) -> list:
+    """Players already known out at the anchor time (tip - ANCHOR_LEAD).
+
+    The news feed is one inactive list per game, published shortly before tip, so nothing about this game is
+    public a day ahead. What the market knows at the anchor is each team's previous inactive list: the latest
+    status per player, from news of that team's most recent game published at or before the anchor."""
+    cutoff = game.tip_time - ANCHOR_LEAD
+    news = view.news()
+    if "team_id" not in news.columns:                  # cannot tell which team a listed player belongs to
+        return []
+    games = view.games()
+    news = news[news.published_at <= cutoff]
+    out = []
+    for team_id in (game.home_team_id, game.away_team_id):
+        prev = games[((games.home_team_id == team_id) | (games.away_team_id == team_id)) & (games.tip_time <= cutoff)
+                     & (games.game_id != game.game_id)]
+        if prev.empty:
+            continue
+        last = prev.loc[prev.tip_time.idxmax(), "game_id"]
+        rows = news[(news.game_id == last) & (news.team_id == team_id)]
+        latest = rows.sort_values("published_at").groupby("player_id").tail(1)
+        out += [p for p, s in zip(latest.player_id, latest.status) if str(s).lower() in OUT_STATUSES]
+    return out
+
+
 # ---------------- gate windows and metrics ----------------
 
 GATE_METRICS = {"legacy": ("mean_clv", GATE_THRESHOLD), "split": ("clv_dollars", GATE_DOLLARS),
@@ -316,9 +342,15 @@ class MarketAgent:
                  anchor: bool = True, impact=None, min_edge: float = DEFAULT_MIN_EDGE, gate: str = "legacy",
                  sizing: str = "flat", kelly_fraction: float = DEFAULT_KELLY_FRACTION,
                  bankroll: float = DEFAULT_BANKROLL, forecast_cache: dict | None = None,
-                 adaptive_edge: bool = False, model_review: bool = False, components: Callable | None = None):
+                 adaptive_edge: bool = False, model_review: bool = False, components: Callable | None = None,
+                 shift_baseline: str = "anchor"):
         if gate not in GATE_MODES or sizing not in SIZINGS:
             raise ValueError(f"gate must be one of {GATE_MODES} and sizing one of {SIZINGS}")
+        if shift_baseline not in SHIFT_BASELINES:
+            raise ValueError(f"shift_baseline must be one of {SHIFT_BASELINES}")
+        # News shift = M4(out now) - M4(out at baseline). "anchor": absences already known at the anchor time,
+        # so only news since the anchor moves the price; "empty": no absences (the published runs).
+        self.shift_baseline = shift_baseline
         if model_review and components is None:
             raise ValueError("model_review needs a components source (forecast.blend.Components)")
         self.notebook = notebook or Notebook()
@@ -412,7 +444,8 @@ class MarketAgent:
     def forecast(self, state):
         view, game, markets = state["view"], state["game"], state["markets"]
         overrides = state["investigation"]["overrides"]
-        before = self._forecast(view, game, markets, {"out": []})
+        known = self._anchor_out(view, game) if self.shift_baseline == "anchor" else []
+        before = self._forecast(view, game, markets, {"out": known})
         after = self._forecast(view, game, markets, overrides)
         forecasts = {t: {"before": before[t], "after": after[t]} for t in after}
         shown = ", ".join(f"{t.rsplit('-', 1)[-1]} {f['before']:.2f}->{f['after']:.2f}" for t, f in forecasts.items())
@@ -471,6 +504,14 @@ class MarketAgent:
         base = anchor if params["base"] == "anchor" else mid
         return clip(base + params["w_m4"] * m4_shift + params["w_mlp"] * sign * (mlp or 0.0)
                     + params["w_m6"] * sign * (m6 or 0.0))
+
+    def _anchor_out(self, view, game):
+        if view.now < game.tip_time - ANCHOR_LEAD:      # the as-of view still hides part of the anchor-time news
+            return anchor_out(view, game)
+        key = ("anchor_out", game.game_id)
+        if key not in self.forecast_cache:
+            self.forecast_cache[key] = anchor_out(view, game)
+        return list(self.forecast_cache[key])
 
     def _forecast(self, view, game, markets, overrides):
         key = (game.game_id, pd.Timestamp(view.now).value, tuple(markets.market_ticker),
@@ -918,7 +959,8 @@ class MarketAgent:
                             min_edge=self.min_edge, gate=self.gate_mode, sizing=self.sizing,
                             kelly_fraction=self.kelly_fraction, bankroll=self.bankroll,
                             forecast_cache=self.forecast_cache, adaptive_edge=self.adaptive_edge,
-                            model_review=self.model_review, components=self.components)
+                            model_review=self.model_review, components=self.components,
+                            shift_baseline=self.shift_baseline)
         _, fills = Replay(rp.t, child.policy, risk=rp.risk, fee=rp.fee, kill_switch=getattr(rp, "kill_switch", None),
                           price_index=getattr(rp, "price_index", None)).run(start, end)
         return (fills, child) if return_agent else fills
@@ -1175,6 +1217,8 @@ def main():
     ap.add_argument("--signal", choices=["anchor", "impact"], default="anchor",
                     help="anchor + M4 news shift (default), or M6: current mid + predicted move to tip")
     ap.add_argument("--impact-model", type=Path, default=None, help="M6 pickle (default models/m6/impact.pkl)")
+    ap.add_argument("--shift-baseline", choices=SHIFT_BASELINES, default="anchor",
+                    help="news shift against absences known at the anchor (default) or none (published runs)")
     ap.add_argument("--gate", choices=GATE_MODES, default="split",
                     help="split (default): disjoint selection and test days, CLV dollars; split-edge: edge over "
                          "the mid; legacy: the published runs (overlapping windows, mean CLV)")
@@ -1209,7 +1253,8 @@ def main():
                         use_llm=args.llm, learn=not args.no_learn, plant=args.plant, impact=impact, gate=args.gate,
                         sizing=args.sizing, kelly_fraction=args.kelly_fraction, bankroll=args.bankroll,
                         min_edge=args.base_edge, adaptive_edge=args.edge_templates,
-                        model_review=args.model_review, components=components)
+                        model_review=args.model_review, components=components,
+                        shift_baseline=args.shift_baseline)
     if args.draw:
         print(agent.graph.get_graph().draw_mermaid())
         return

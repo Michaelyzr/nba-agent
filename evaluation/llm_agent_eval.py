@@ -109,14 +109,16 @@ def make_backend(kind: str, model: str | None, min_interval: float):
     return GeminiBackend(model or DEFAULT_MODEL, min_interval=min_interval)
 
 
-def make_agent(setup: str, backend, s: dict, min_edge: float = DEFAULT_MIN_EDGE):
+def make_agent(setup: str, backend, s: dict, min_edge: float = DEFAULT_MIN_EDGE, shift_baseline: str = "empty",
+               prefilter_edge: float | None = None):
     from agents.graph import MarketAgent
     from agents.llm_client import CachedLLM
     from agents.tool_agent import PlainLLMAgent, ToolAgent
     if setup == "anchor":
-        return MarketAgent(forecaster=s["forecaster"], learn=False, min_edge=min_edge)
+        return MarketAgent(forecaster=s["forecaster"], learn=False, min_edge=min_edge, shift_baseline=shift_baseline)
     llm = CachedLLM(backend)
-    kw = {"forecaster": s["forecaster"], "impact": s["impact"], "players": s["players"], "min_edge": min_edge}
+    kw = {"forecaster": s["forecaster"], "impact": s["impact"], "players": s["players"], "min_edge": min_edge,
+          "shift_baseline": shift_baseline, "prefilter_edge": prefilter_edge}
     if setup == "plain":
         return PlainLLMAgent(llm, **kw)
     return ToolAgent(llm, sceptic=setup == "tool_sceptic", anonymise=setup == "tool_anon", **kw)
@@ -126,7 +128,8 @@ def _run_chunk(job: dict) -> dict:
     from replay import Replay
     s = _shared()
     backend = None if job["setup"] == "anchor" else make_backend(job["backend"], job["model"], job["min_interval"])
-    agent = make_agent(job["setup"], backend, s, job.get("min_edge", DEFAULT_MIN_EDGE))
+    agent = make_agent(job["setup"], backend, s, job.get("min_edge", DEFAULT_MIN_EDGE),
+                       job.get("shift_baseline", "empty"), job.get("prefilter_edge"))
     t0 = time.time()
     decisions, fills = Replay(s["tables"], sampled(agent.policy, job["frac"], job["seed"])).run(job["start"], job["end"])
     for frame in (decisions, fills):
@@ -144,7 +147,8 @@ def chunks(tables, start, end, size=CHUNK_DAYS) -> list:
 def run_setup(setup, tag, start, end, args) -> Path:
     tables = _shared()["tables"] if _STATE else load_frozen()
     jobs = [{"setup": setup, "start": a, "end": b, "chunk": f"{a}", "backend": args.backend, "model": args.model,
-             "frac": args.subsample, "seed": args.seed, "min_interval": args.min_interval, "min_edge": args.min_edge}
+             "frac": args.subsample, "seed": args.seed, "min_interval": args.min_interval, "min_edge": args.min_edge,
+             "shift_baseline": args.shift_baseline, "prefilter_edge": args.prefilter_edge}
             for a, b in chunks(tables, start, end, args.chunk_days)]
     t0 = time.time()
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
@@ -160,7 +164,8 @@ def run_setup(setup, tag, start, end, args) -> Path:
     (out / "trace.jsonl").write_text("\n".join(json.dumps(t, default=str) for t in traces))
     meta = {"setup": setup, "start": start, "end": end, "backend": args.backend,
             "model": args.model or default_model(args.backend), "subsample": args.subsample,
-            "seed": args.seed, "min_edge": args.min_edge, "wall_seconds": time.time() - t0, "fills": len(fills)}
+            "seed": args.seed, "min_edge": args.min_edge, "shift_baseline": args.shift_baseline,
+            "prefilter_edge": args.prefilter_edge, "wall_seconds": time.time() - t0, "fills": len(fills)}
     (out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"  {setup}: {len(fills)} fills, {len(traces)} decision points in {(time.time() - t0) / 60:.1f} min",
           flush=True)
@@ -489,6 +494,10 @@ def main():
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--min-edge", type=float, default=DEFAULT_MIN_EDGE,
                     help="gap after fees an order must exceed (fees are always charged)")
+    ap.add_argument("--shift-baseline", choices=["empty", "anchor"], default="empty",
+                    help="M4 news shift against no absences (published runs) or those known at the anchor")
+    ap.add_argument("--prefilter-edge", type=float, default=None,
+                    help="skip the LLM when the anchor + M4 edge after fees is below this (default off)")
     ap.add_argument("--chunk-days", type=int, default=CHUNK_DAYS, help="game-days per parallel job")
     ap.add_argument("--report-only", action="store_true")
     ap.add_argument("--report", default="test,holdout", help="run folders to put in the report")

@@ -200,9 +200,13 @@ class _Base:
     setup = "base"
 
     def __init__(self, llm, forecaster=None, impact=None, players=None, min_edge=DEFAULT_MIN_EDGE,
-                 stake=DEFAULT_STAKE, anonymise=False, channel="platform"):
+                 stake=DEFAULT_STAKE, anonymise=False, channel="platform", shift_baseline="empty",
+                 prefilter_edge=None):
         self.llm, self.forecaster, self.impact, self.players = llm, forecaster, impact, players or {}
         self.min_edge, self.stake, self.anonymise, self.channel = min_edge, stake, anonymise, channel
+        self.shift_baseline = shift_baseline
+        # Skip the LLM when the deterministic anchor + M4 shift edge (after fees) is below this; None = off.
+        self.prefilter_edge = prefilter_edge
         self.notebook = Notebook()          # unused (no learning); lets graph.save_run write a run folder
         self.held = set()
         self.traces = []
@@ -212,7 +216,8 @@ class _Base:
         return f"{self.setup}@{getattr(self.llm, 'model', 'none')}"
 
     def tools(self, view, game, now) -> AsOfTools:
-        return AsOfTools(view, game, now, self.forecaster, self.impact, self.players, self.anonymise, self.min_edge)
+        return AsOfTools(view, game, now, self.forecaster, self.impact, self.players, self.anonymise, self.min_edge,
+                         self.shift_baseline)
 
     def policy(self, view, game, now) -> list:
         trace = {"setup": self.setup, "game_id": game.game_id, "as_of": str(now), "status": None, "reason": "",
@@ -243,6 +248,13 @@ class _Base:
         if not tools.fresh_teams():
             trace.update(status="idle", reason="no fresh quote")
             return None
+        if self.prefilter_edge is not None:
+            best = tools.anchor_edge(P_MIN, P_MAX)
+            trace["prefilter"] = best
+            if best is None or best["gap"] < self.prefilter_edge:
+                gap = "none" if best is None else f"{best['gap']:+.3f}"
+                trace.update(status="prefilter", reason=f"anchor + M4 edge {gap} below {self.prefilter_edge}")
+                return None
         return tools
 
     def _order(self, tools, team, p, reason, trace, now, game):

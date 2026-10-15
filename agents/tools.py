@@ -14,7 +14,7 @@ import math
 
 import pandas as pd
 
-from agents.graph import ANCHOR_LEAD, DEFAULT_MIN_EDGE, OUT_STATUSES, fee_per_contract
+from agents.graph import ANCHOR_LEAD, DEFAULT_MIN_EDGE, OUT_STATUSES, SHIFT_BASELINES, anchor_out, fee_per_contract
 from replay import MAX_QUOTE_AGE, NEWS_WINDOW
 
 MAX_HISTORY_HOURS = 24.0
@@ -71,11 +71,15 @@ def lookup(obj, path: str):
 
 class AsOfTools:
     def __init__(self, view, game, now, forecaster=None, impact=None, players=None, anonymise=False,
-                 min_edge=DEFAULT_MIN_EDGE):
+                 min_edge=DEFAULT_MIN_EDGE, shift_baseline="empty"):
         if pd.Timestamp(view.now) != pd.Timestamp(now):
             raise ValueError("tools must be built on the view for the decision time")
+        if shift_baseline not in SHIFT_BASELINES:
+            raise ValueError(f"shift_baseline must be one of {SHIFT_BASELINES}")
         self.view, self.game, self.now = view, game, pd.Timestamp(now)
         self.forecaster, self.impact, self.min_edge = forecaster, impact, min_edge
+        # "empty" keeps m4_win_prob's output, and so the prompts and cache keys of the published runs, unchanged.
+        self.shift_baseline = shift_baseline
         self.players = players or {}
         self.anonymise = anonymise
         self.labels = ({game.home_team: "TEAM_A", game.away_team: "TEAM_B"} if anonymise
@@ -239,12 +243,35 @@ class AsOfTools:
                 continue
         known = self.known_players()
         used = sorted(p for p in set(asked) if p in known)
-        before = self.forecaster.win(self.view, self.game, out=[])["p_home"]
+        baseline = sorted(int(p) for p in anchor_out(self.view, self.game)) if self.shift_baseline == "anchor" else []
+        before = self.forecaster.win(self.view, self.game, out=baseline)["p_home"]
         after = self.forecaster.win(self.view, self.game, out=used)["p_home"]
-        return {"before": {self.home: r4(before), self.away: r4(1 - before)},
-                "after": {self.home: r4(after), self.away: r4(1 - after)},
-                "shift": {self.home: r4(after - before), self.away: r4(before - after)},
-                "out_used": used, "ignored": sorted(set(asked) - set(used))}
+        res = {"before": {self.home: r4(before), self.away: r4(1 - before)},
+               "after": {self.home: r4(after), self.away: r4(1 - after)},
+               "shift": {self.home: r4(after - before), self.away: r4(before - after)},
+               "out_used": used, "ignored": sorted(set(asked) - set(used))}
+        if self.shift_baseline == "anchor":
+            res["before_out"] = baseline
+            res["note"] = "before = players already out a day before tip (each team's previous inactive list)"
+        return res
+
+    def anchor_edge(self, p_min=0.0, p_max=1.0):
+        """The deterministic anchor agent's view: best gap after fees of anchor + M4 shift (news so far), or None."""
+        if self.forecaster is None:
+            return None
+        m4 = self.m4_win_prob(self.out_from_news())
+        if "error" in m4:
+            return None
+        best = None
+        for team in self.fresh_teams():
+            a = self.get_anchor(team)
+            if a.get("anchor_mid") is None:
+                continue
+            p = min(max(a["anchor_mid"] + m4["shift"][team], p_min), p_max)
+            r = self.route(team, p)
+            if "error" not in r and (best is None or r["gap_after_fees"] > best["gap"]):
+                best = {"team": team, "p": r4(p), "gap": r["gap_after_fees"]}
+        return best
 
     def m6_predicted_move(self):
         if self.impact is None:
