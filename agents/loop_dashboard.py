@@ -105,7 +105,8 @@ def render_demo(key='news_loop_sample'):
         forecasts=st.columns(2)
         forecasts[0].metric(current['away_team']+' win chance',f'{1-win:.1%}' if win is not None else '—')
         forecasts[1].metric(current['home_team']+' win chance',f'{win:.1%}' if win is not None else '—')
-        st.caption('Our historical model and retrieved news supply these estimates. Polymarket is a price reference.')
+        model_label = current.get('model') or 'Our model'
+        st.caption(f'{model_label} and retrieved news supply these estimates. Polymarket is a price reference.')
         st.markdown('**Live odds comparison**')
         rows = [r for r in current['bets'] if kind is None or r['kind']==kind]
         for market in ('moneyline','spread','total'):

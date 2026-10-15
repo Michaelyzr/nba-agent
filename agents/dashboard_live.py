@@ -40,6 +40,19 @@ class HistoricalRecordPrior:
         return {'p_home': clip(p)}
 
 
+def resolve_win_prior(forecaster='m4'):
+    """Pregame / tip-off prior: M4 Forecaster when weights exist, else historical record."""
+    if forecaster == 'historical':
+        return HistoricalRecordPrior()
+    if forecaster != 'm4':
+        raise ValueError(f"unknown forecaster {forecaster!r}; use 'm4' or 'historical'")
+    try:
+        from forecast.api import Forecaster
+        return Forecaster.load()
+    except FileNotFoundError:
+        return HistoricalRecordPrior()
+
+
 def dashboard_provider():
     registry = NewsRegistry.load()
     return LiveInPlay(registry=registry, media_client=InPlayMedia(registry, interval_seconds=5))
@@ -78,13 +91,14 @@ def discover_games(session=None):
 class LiveDashboard:
     """One serialized refresh per match, cached for five seconds across viewers."""
     def __init__(self, source=None, model_file=None, market_reader=None, provider_factory=None,
-                 notify=False, alert_config=None, run_root=None):
+                 notify=False, alert_config=None, run_root=None, forecaster='m4', prior_model=None):
         self.source = source or (FROZEN if all((FROZEN/(n+'.parquet')).exists() for n in ('games', 'players', 'player_games')) else ROOT/'data'/'sample')
         self.tables = None
         self.players = None
         self.model_file = model_file
         self.market = market_reader or PolymarketReader()
         self.provider_factory = provider_factory or dashboard_provider
+        self.prior_model = prior_model if prior_model is not None else resolve_win_prior(forecaster)
         self.agents, self.histories, self.cache = {}, {}, {}
         self.pregame_agents, self.board_cache, self.distributions = {}, {}, {}
         self.catalog, self.catalog_at = [], float("-inf")
@@ -112,7 +126,7 @@ class LiveDashboard:
         if game.game_id not in self.agents:
             model = pickle.loads(Path(self.model_file).read_bytes()) if self.model_file else None
             self.agents[game.game_id] = InPlayAgent(self.tables, self.players, game, self.provider_factory(),
-                                                   self.run_root/game.game_id, prior_model=HistoricalRecordPrior(),
+                                                   self.run_root/game.game_id, prior_model=self.prior_model,
                                                    win_model=model, clock=lambda: pd.Timestamp.now(tz='UTC'))
             self.histories.setdefault(game.game_id, [])
         return self.agents[game.game_id]
@@ -158,7 +172,7 @@ class LiveDashboard:
             manager = AlertManager(output, config=self.alert_config, mode='live', run_id=self.run_root.name,
                                    players=self.players, background_delivery=True)
             self.pregame_agents[game.game_id] = PregameAgent(
-                self.tables, self.players, game, HistoricalRecordPrior(),
+                self.tables, self.players, game, self.prior_model,
                 LiveNews(timeout=3, report_slots=1), output,
                 clock=lambda: pd.Timestamp.now(tz='UTC'), alert_manager=manager,
                 alert_mode='live')
@@ -283,6 +297,7 @@ class LiveDashboard:
             view['pre_curve'] = [{'minute': (utc(s['as_of'])-utc(past[0]['as_of'])).total_seconds()/60, 'p': s['p_home']} for s in past] if past else []
             view.update(board, phase=phase, market_connected=any(r['reference_quote'] for r in board['bets']),
                         connection_note='; '.join(market.get('errors', [])), auto_refresh_seconds=5, tip_time=utc(game.tip_time).isoformat())
+            view['model'] = snapshot.get('model') or getattr(self.prior_model, 'name', None)
             view['alerts'] = self.alert_history(game.game_id)
             view['alert_unread_count'] = sum(not row.get('acknowledged', False) for row in view['alerts'])
             view['alert_notifications_enabled'] = self.alert_config.can_notify('live')

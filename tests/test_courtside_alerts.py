@@ -89,7 +89,7 @@ def test_live_board_records_same_quotes_once_and_retains_alerts(tmp_path, monkey
                                    'updated_at': pd.Timestamp.now(tz='UTC').isoformat()}}}], 'errors': []}
 
     reader = Reader()
-    controller = LiveDashboard(market_reader=reader, run_root=tmp_path)
+    controller = LiveDashboard(market_reader=reader, run_root=tmp_path, forecaster='historical')
     controller.tables = tables
     controller.players = pd.DataFrame({'player_id': [7], 'player_name': ['Test Player']})
     monkeypatch.setattr(controller, 'games', lambda: [game])

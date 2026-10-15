@@ -47,7 +47,9 @@ class Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path)
         try:
             if route.path == '/api/health':
-                result = {'status': 'ok', 'refresh_seconds': 5}
+                prior = self.server.controller.prior_model
+                result = {'status': 'ok', 'refresh_seconds': 5,
+                          'forecaster': getattr(prior, 'name', type(prior).__name__)}
             elif route.path == '/api/games':
                 result = {'games': self.server.controller.games()}
             elif route.path == '/api/betting':
@@ -121,14 +123,18 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8766)
+    parser.add_argument('--forecaster', choices=['m4', 'historical'], default='m4',
+                        help='Pregame win prior: M4 weights from models/ (default), or historical record')
     parser.add_argument('--model-file', type=Path, help='Trusted locally trained in-play model')
     parser.add_argument('--notify', action='store_true', help='Enable live Webhooks when ALERT_ENABLED and a URL are configured')
     parser.add_argument('--alert-config', type=Path, help='Optional alert configuration JSON')
     parser.add_argument('--run-root', type=Path, help='Reuse a run directory to retain alert history across restarts')
     args = parser.parse_args()
-    server = DashboardServer(('127.0.0.1', args.port), LiveDashboard(model_file=args.model_file,
-        notify=args.notify, alert_config=AlertConfig.from_env(args.alert_config), run_root=args.run_root))
-    print(f'Match dashboard: http://127.0.0.1:{args.port} | live polling every 5 seconds', flush=True)
+    controller = LiveDashboard(model_file=args.model_file, forecaster=args.forecaster,
+        notify=args.notify, alert_config=AlertConfig.from_env(args.alert_config), run_root=args.run_root)
+    server = DashboardServer(('127.0.0.1', args.port), controller)
+    prior = getattr(controller.prior_model, 'name', type(controller.prior_model).__name__)
+    print(f'Match dashboard: http://127.0.0.1:{args.port} | forecaster={args.forecaster} ({prior}) | live polling every 5 seconds', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -22,12 +22,20 @@ same-game outcomes as independent.
 
 ```bash
 source .venv/bin/activate
-python -m agents.dashboard_server
+# Default: M4 win model from models/m4/win.pkl (falls back to historical record if missing)
+python -m agents.dashboard_server --forecaster m4
+# Explicit historical-record prior (no M4 weights required):
+# python -m agents.dashboard_server --forecaster historical
 ```
 
 Open **http://127.0.0.1:8766**. The [portable demo website](samples/news_loop/demo.html)
 works offline too. Its **Live data** button connects to this service on port 8766;
 when using another port, open the service URL.
+
+Pregame win probabilities use `Forecaster.load()` when `--forecaster m4` (default).
+The UI labels the loaded model name (for example `win-logit+…`), not
+`historical-record-prototype`. If `models/m4/win.pkl` is absent, the server falls
+back to the historical-record prior and labels that instead.
 
 - **Demo** starts before tip-off and includes four games so users can try parlays.
   It auto-plays across tip-off and the four-quarter replay. From the start, Play, Next update
@@ -63,8 +71,10 @@ Streamlit connects directly to the Python controller. Automatic refresh requires
 read only after our prediction and never enter probability features, priors or
 news effects. Repricing a reference changes estimated value, not our forecast.
 
-The existing PregameAgent supplies a historical prior with availability/news
-updates. The independent InPlayAgent supplies score, clock and incident updates.
+PregameAgent uses the M4 win prior (`Forecaster.load()` via `--forecaster m4`)
+with availability/news updates, or the historical-record prior when requested /
+when weights are missing. The independent InPlayAgent uses the same prior at tip-off
+and then supplies score, clock and incident updates.
 `forecast/betting.py` builds an own-history final-score distribution from completed
 games before tip-off, excluding the current game's final result. It estimates
 full-game spread and total probabilities at the **same line** as the reference.

@@ -153,7 +153,8 @@
     $('awayforecastname').textContent=view.away_team;$('homeforecastname').textContent=view.home_team;
     const win=view.bets.find(r=>r.kind==='moneyline'&&r.side==='home')?.probability;
     $('homechance').textContent=pct(win);$('awaychance').textContent=pct(win==null?null:1-win);
-    $('forecastnote').textContent=phase==='pregame'?'Estimated from our historical model and retrieved pre-game news.':'Estimated from our model using the current score, time remaining and retrieved news.';
+    const modelLabel=view.model||'our model';
+    $('forecastnote').textContent=phase==='pregame'?'Estimated from '+modelLabel+' and retrieved pre-game news.':'Estimated from our model using the current score, time remaining and retrieved news.';
     if(view.quote_state==='final')$('forecastnote').textContent='Final score confirmed. Forecasts and betting recommendations are closed.';
     $('chartcard').hidden=phase==='pregame';
     $('connection').textContent=view.connection_note||(source==='demo'?'Polymarket-format prices are simulated.':'Model predictions are independent of Polymarket reference prices.');
