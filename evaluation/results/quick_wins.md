@@ -1,8 +1,8 @@
 # Quick wins (branch `chore/quick-wins`)
 
 No LLM API calls were made for any of this ($0 spend); every LLM number below is replayed from `runs/llm_cache/`.
-Full test suite on the final branch: 415 passed (404 after the merge + 1 banned-word test + 10 shift-baseline /
-pre-filter tests in `tests/test_shift_baseline.py`).
+Full test suite on the final branch: 417 passed (404 after the merge + 1 banned-word test + 12 shift-baseline /
+pre-filter / default tests in `tests/test_shift_baseline.py`).
 
 ## 1. DeepSeek migration merged
 
@@ -91,6 +91,8 @@ re-run with the fix (a single sequential replay with gate back-tests did not fin
 
 **Default reverted to `empty`.** Anchor baseline tested (121 trades, −$438, Brier 0.1690 vs 0.1663): worse, not default.
 `anchor` stays available as an opt-in (`MarketAgent(shift_baseline="anchor")`, `--shift-baseline anchor`).
+Check: setup A re-run with `MarketAgent()` built without `shift_baseline` reproduces the published anchor agent
+exactly (129 fills identical on every column to `runs/quick_wins/shift_fixed4_empty`; P&L −$247, CLV −$35).
 
 ## 4. Deterministic pre-filter before the LLM
 
