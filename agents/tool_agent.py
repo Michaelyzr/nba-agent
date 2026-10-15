@@ -74,6 +74,23 @@ plausibly survives after this scrutiny.
 Reply with exactly one JSON object: {"verdict": "approve" or "reject", "reason": one or two sentences}. \
 Do not introduce new numbers."""
 
+SCEPTIC_BALANCED_SYSTEM = """You are a balanced risk reviewer for Kalshi NBA game-winner trades. An analyst proposes \
+buying a team's contract because its probability estimate beats the all-in cost. Judge whether the trade will beat the \
+closing line (the mid at tip-off) after fees. Weigh both sides before scoring.
+
+Case FOR (the edge survives): the news is fresh and the price has not yet moved on it; the model's news shift is large \
+relative to the spread and the fee; the estimate does not double-count anything the price already reflects.
+Case AGAINST (already priced in): the price already moved toward the trade since the anchor 24 hours before tip; the \
+news is stale, so the market has had time to absorb it; the shift is small relative to the spread and the fee; the \
+estimate double-counts absences that were already known at the anchor.
+
+Many proposals deserve a score near the middle; use the extremes only when one case clearly dominates.
+Reply with exactly one JSON object: {"score": a number from 0 to 1, your probability that this trade beats the closing \
+line after fees, "for": one or two sentences, "against": one or two sentences, "reason": one sentence weighing them}. \
+Do not introduce new numbers."""
+SCEPTIC_MODES = ("verdict", "balanced")
+SCEPTIC_THRESHOLD = 0.5         # balanced mode approves iff score >= threshold
+
 PLAIN_SYSTEM = """You estimate the probability that the home team wins an NBA game, for a Kalshi game-winner market. \
 You are given the information available at this decision time. Reply with exactly one JSON object: \
 {"p_home": probability between 0 and 1, "rationale": one or two sentences}."""
@@ -92,6 +109,29 @@ def header(tools: AsOfTools, game, anonymise: bool) -> str:
 
 def dumps(obj) -> str:
     return json.dumps(obj, separators=(",", ":"), default=str)
+
+
+def sceptic_prompt(head: str, evidence: dict, mode: str = "verdict") -> str:
+    ask = "Reply with your JSON verdict." if mode == "verdict" else "Reply with your JSON score."
+    return "\n".join(["DECISION CONTEXT", head, "", "EVIDENCE", dumps(evidence), "", ask])
+
+
+def parse_balanced(reply: dict, threshold: float = SCEPTIC_THRESHOLD) -> dict:
+    """Balanced-sceptic reply -> {"verdict", "score", "reason", "for", "against"}; anything invalid scores 0."""
+    msg = reply.get("json") or {}
+    raw = msg.get("score")
+    try:
+        score = float(raw) if not isinstance(raw, bool) else math.nan
+    except (TypeError, ValueError):
+        score = math.nan
+    if reply.get("error") or not math.isfinite(score) or not 0 <= score <= 1:
+        return {"verdict": "reject", "score": 0.0, "reason": "sceptic output invalid or failed (fail closed)",
+                "invalid": True}
+    texts = {k: str(msg.get(k, ""))[:300] for k in ("reason", "for", "against")}
+    if any(BANNED.search(t) for t in texts.values()):
+        return {"verdict": "reject", "score": 0.0, "reason": "sceptic used banned wording (fail closed)",
+                "invalid": True}
+    return {"verdict": "approve" if score >= threshold else "reject", "score": score, **texts}
 
 
 # ---------------- validation (code, not the LLM) ----------------
@@ -264,11 +304,15 @@ class _Base:
 class ToolAgent(_Base):
     """Analyst LLM with as-of tools, code validation, optional priced-in sceptic."""
 
-    def __init__(self, llm, sceptic=True, max_tool_calls=MAX_TOOL_CALLS, max_turns=MAX_TURNS, **kw):
+    def __init__(self, llm, sceptic=True, max_tool_calls=MAX_TOOL_CALLS, max_turns=MAX_TURNS, sceptic_mode="verdict",
+                 sceptic_threshold=SCEPTIC_THRESHOLD, **kw):
         super().__init__(llm, **kw)
-        self.sceptic = sceptic
+        if sceptic_mode not in SCEPTIC_MODES:
+            raise ValueError(f"sceptic_mode must be one of {SCEPTIC_MODES}")
+        self.sceptic, self.sceptic_mode, self.sceptic_threshold = sceptic, sceptic_mode, sceptic_threshold
         self.max_tool_calls, self.max_turns = max_tool_calls, max_turns
-        self.setup = ("tool_sceptic" if sceptic else "tool") + ("_anon" if self.anonymise else "")
+        self.setup = (("tool_sceptic" + ("_balanced" if sceptic_mode == "balanced" else "")) if sceptic else "tool") \
+            + ("_anon" if self.anonymise else "")
         self.system = ANALYST_SYSTEM.format(tools=tool_menu(), min_edge=self.min_edge, budget=max_tool_calls)
 
     def _prompt(self, head, transcript, left, force=False):
@@ -352,9 +396,12 @@ class ToolAgent(_Base):
                     "code_computed_edge": {k: v for k, v in route.items() if k != "ticker"},
                     "anchor": tools.get_anchor(team), "price_history_6h": tools.get_price_history(team, 6),
                     "news": tools.get_news(), "analyst_tool_results": {k: v["output"] for k, v in results.items()}}
-        prompt = "\n".join(["DECISION CONTEXT", head, "", "EVIDENCE", dumps(evidence), "",
-                            "Reply with your JSON verdict."])
-        reply = self.llm.ask("sceptic", SCEPTIC_SYSTEM, prompt, {"tools": tools, "route": route, "results": results})
+        meta = {"tools": tools, "route": route, "results": results}
+        if self.sceptic_mode == "balanced":
+            reply = self.llm.ask("sceptic_balanced", SCEPTIC_BALANCED_SYSTEM,
+                                 sceptic_prompt(head, evidence, "balanced"), meta)
+            return parse_balanced(reply, self.sceptic_threshold)
+        reply = self.llm.ask("sceptic", SCEPTIC_SYSTEM, sceptic_prompt(head, evidence), meta)
         msg = reply["json"] or {}
         verdict = str(msg.get("verdict", "")).lower()
         if reply["error"] or verdict not in ("approve", "reject"):
@@ -438,6 +485,10 @@ def heuristic_reply(role, system, prompt, meta):
         if move >= 0.03:
             return {"verdict": "reject", "reason": "The price already moved toward the trade since the anchor."}
         return {"verdict": "approve", "reason": "The move since the anchor is small relative to the news shift."}
+    if role == "sceptic_balanced":
+        move = tools.get_anchor(meta["route"]["team"]).get("move_since_anchor") or 0.0
+        return {"score": 0.3 if move >= 0.03 else 0.6, "for": "The news shift is not yet in the price.",
+                "against": "The price may already reflect the news.", "reason": "Weighed the move since the anchor."}
     results, turn = meta["results"], meta["turn"]
     if turn == 0:
         calls = [{"tool": "get_news", "args": {}}]
