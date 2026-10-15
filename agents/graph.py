@@ -444,7 +444,8 @@ class MarketAgent:
     def forecast(self, state):
         view, game, markets = state["view"], state["game"], state["markets"]
         overrides = state["investigation"]["overrides"]
-        known = self._anchor_out(view, game) if self.shift_baseline == "anchor" else []
+        # Until tonight's inactive list is out, the absences known at the anchor still stand: nothing new, no shift.
+        known = self._anchor_out(view, game) if self.shift_baseline == "anchor" and len(state["news"]) else []
         before = self._forecast(view, game, markets, {"out": known})
         after = self._forecast(view, game, markets, overrides)
         forecasts = {t: {"before": before[t], "after": after[t]} for t in after}

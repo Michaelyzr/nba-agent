@@ -43,6 +43,16 @@ def test_new_absence_after_the_anchor_still_shifts():
     assert "news shift -10.2 points" in decisions.iloc[0].reason
 
 
+def test_no_shift_before_tonights_list_is_published():
+    """Player 7 was out last game and tonight's list is not out yet: that is not news that he returns."""
+    tables = with_previous_list(make_tables(with_news=False))
+    view, game, now = view_at(tables)
+    _, _, traces = run_graph(MarketAgent(shift_baseline="anchor"), tables)
+    assert forecast_pairs(traces) and all(a == b for a, b in forecast_pairs(traces))
+    m4 = AsOfTools(view, game, now, forecaster=_forecaster(), shift_baseline="anchor").m4_win_prob([])
+    assert m4["shift"]["HOM"] == 0 and m4["before_out"] == []
+
+
 def test_empty_baseline_reproduces_the_published_double_count():
     decisions, _, traces = run_graph(MarketAgent(shift_baseline="empty"), with_previous_list(make_tables()))
     assert "news shift -10.2 points" in decisions.iloc[0].reason

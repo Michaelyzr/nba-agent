@@ -243,7 +243,8 @@ class AsOfTools:
                 continue
         known = self.known_players()
         used = sorted(p for p in set(asked) if p in known)
-        baseline = sorted(int(p) for p in anchor_out(self.view, self.game)) if self.shift_baseline == "anchor" else []
+        baseline = (sorted(int(p) for p in anchor_out(self.view, self.game))
+                    if self.shift_baseline == "anchor" and len(self.news_rows()) else [])
         before = self.forecaster.win(self.view, self.game, out=baseline)["p_home"]
         after = self.forecaster.win(self.view, self.game, out=used)["p_home"]
         res = {"before": {self.home: r4(before), self.away: r4(1 - before)},
