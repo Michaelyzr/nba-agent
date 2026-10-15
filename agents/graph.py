@@ -66,7 +66,7 @@ SIZINGS = ("flat", "kelly")
 DEFAULT_KELLY_FRACTION = 0.25
 DEFAULT_BANKROLL = 1000.0
 MAX_ORDER = 50.0
-BANNED = re.compile(r"\block\b|guarantee|can'?t lose|sure thing|risk[- ]free", re.I)
+BANNED = re.compile(r"\block(?:s|ed)?\b|\block[- ]?in\b|guarantee|can'?t lose|sure thing|risk[- ]free", re.I)
 PCT = re.compile(r"(\d+)%")
 FAULTS = ("future_citation", "lock_wording", "number_mismatch")
 REVIEW_WINDOW = pd.Timedelta(days=21)

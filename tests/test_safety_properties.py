@@ -87,6 +87,15 @@ def test_banned_words_blocked_in_delivered_text():
     assert "Order blocked" in brief
 
 
+def test_banned_words_catch_lock_variants_but_not_lookalikes():
+    for text in ("a lock tonight", "two locks on the slate", "this one is LOCKED", "a lock-in at 0.55",
+                 "lock in the price", "Lock.", "lockin value"):
+        assert BANNED.search(text), text
+    for text in ("a late block decided it", "blocked shots", "padlock", "the clock ran out", "unlocked upside",
+                 "Kyle Lockett", "Locke", "lockdown defender", "blocks"):
+        assert not BANNED.search(text), text
+
+
 def test_as_of_never_exposes_future_news_or_prices():
     t = make_tables()
     r = Replay(t, lambda *a: [])
