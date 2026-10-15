@@ -1,0 +1,4 @@
+window,reviewed,approve,reject,fail: truncated,fail: API error/timeout,fail: parse error,fail: banned wording,vetoed,fail_closed
+Dec 2025 - Jan 2026,77,4,73,0,0,0,0,73,0
+Feb - Apr 2026 (test),105,4,99,2,0,0,0,101,2
+Pooled,182,8,172,2,0,0,0,174,2
