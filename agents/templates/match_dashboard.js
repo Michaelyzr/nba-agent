@@ -233,8 +233,43 @@
   $('next').onclick=()=>{stopReplay();stepIndex=Math.min(stepIndex+1,timeline.length-1);slipMessage=null;showDemo();};
   $('restart').onclick=()=>{stopReplay();stepIndex=0;slipMessage=null;showDemo();};
   $('play').onclick=()=>{if(replayTimer){stopReplay();showDemo();return;}if(stepIndex===timeline.length-1)stepIndex=0;startReplay();showDemo();};
-  $('demo').onclick=()=>{stopReplay();stepIndex=0;version++;source='demo';selected=[];slipMessage=null;included.clear();poolInitialized=false;if(refreshTimer)clearInterval(refreshTimer);refreshTimer=null;$('demo').setAttribute('aria-selected',true);$('live').setAttribute('aria-selected',false);startReplay();showDemo();};
-  $('live').onclick=async()=>{stopReplay();version++;source='live';catalogAt=0;catalog=[];selected=[];slipMessage=null;included.clear();poolInitialized=false;$('demo').setAttribute('aria-selected',false);$('live').setAttribute('aria-selected',true);$('replaycontrols').hidden=true;clearLive('Connecting to our model and live reference prices…');if(!refreshTimer)refreshTimer=setInterval(refresh,5000);await refresh();};
-  window.addEventListener('resize',draw);window.courtside={recommend,chosenRows};
+  function showMatchTab(){$('matchview').hidden=false;$('tradingtests').hidden=true;$('trading').setAttribute('aria-selected','false');}
+  function finite(value){if(value==null||(typeof value==='string'&&value.trim()===''))return null;const n=Number(value);return Number.isFinite(n)?n:null;}
+  function gapText(gap){const rounded=Math.round(gap*100)/100;return rounded===Math.trunc(rounded)?String(rounded):String(rounded);}
+  function paperDecision(p,ask,gapCents,stake){
+    const home=finite(p),price=finite(ask);
+    const blank={edge:null,edgeCents:null,stake:null,fee:null};
+    if(home==null||price==null)return {status:'PASS',reason:'Home win probability or executable price is missing.',...blank};
+    if(home<0.02||home>0.98)return {status:'PASS',reason:'Home win probability must be between 0.02 and 0.98.',...blank};
+    if(!(price>0&&price<1))return {status:'PASS',reason:'Executable price must be greater than 0 and less than 1.',...blank};
+    const gap=finite(gapCents);
+    if(gap==null)return {status:'PASS',reason:'Enter an edge gap in cents.',...blank};
+    const amount=finite(stake);
+    if(amount==null||amount<=0)return {status:'PASS',reason:'Stake must be greater than $0.',...blank};
+    const fee=0.07*price*(1-price),edge=home-price-fee,edgeCents=edge*100,fill=Math.min(amount,50);
+    const reason=`Edge ${edgeCents.toFixed(2)}¢ is ${edgeCents>gap?'above':'not above'} the ${gapText(gap)}¢ gap.`;
+    if(edgeCents>gap)return {status:'PAPER FILL',reason,edge,edgeCents,stake:fill,fee};
+    return {status:'PASS',reason,edge,edgeCents,stake:null,fee};
+  }
+  function prefillPaper(){
+    const row=current&&(current.bets||[]).find(r=>r.kind==='moneyline'&&r.side==='home');
+    const p=row&&Number(row.probability),ask=row&&row.reference_quote&&Number(row.reference_quote.ask);
+    if(Number.isFinite(p)&&Number.isFinite(ask)){
+      $('paperp').value=String(Math.round(p*10000)/10000);
+      $('paperask').value=String(Math.round(ask*10000)/10000);
+      $('papernote').textContent='Prefilled from '+current.away_team+' @ '+current.home_team+' (model home-win probability and reference ask). Edit either field before running. This uses the published edge rule, not a live sceptic call. Paper only.';
+    }else $('papernote').textContent='No selected match with both a model probability and a reference price. Enter them below, or choose a game under Demo or Live data. This uses the published edge rule, not a live sceptic call. Paper only.';
+  }
+  function runPaper(){
+    const result=paperDecision($('paperp').value,$('paperask').value,$('papergap').value,$('paperstake').value);
+    const box=$('paperresult');box.hidden=false;box.className='callout paper-result '+(result.status==='PAPER FILL'?'paper-fill':'paper-pass');
+    $('paperstatus').textContent=result.status;
+    $('paperreason').textContent=result.status==='PAPER FILL'?`Stake $${result.stake.toFixed(2)} (capped at $50). ${result.reason} Published edge rule, not a live sceptic call.`:`${result.reason} Published edge rule, not a live sceptic call.`;
+  }
+  $('paperrun').onclick=runPaper;
+  $('trading').onclick=()=>{$('matchview').hidden=true;$('tradingtests').hidden=false;$('demo').setAttribute('aria-selected','false');$('live').setAttribute('aria-selected','false');$('trading').setAttribute('aria-selected','true');prefillPaper();};
+  $('demo').onclick=()=>{showMatchTab();stopReplay();stepIndex=0;version++;source='demo';selected=[];slipMessage=null;included.clear();poolInitialized=false;if(refreshTimer)clearInterval(refreshTimer);refreshTimer=null;$('demo').setAttribute('aria-selected','true');$('live').setAttribute('aria-selected','false');startReplay();showDemo();};
+  $('live').onclick=async()=>{showMatchTab();stopReplay();version++;source='live';catalogAt=0;catalog=[];selected=[];slipMessage=null;included.clear();poolInitialized=false;$('demo').setAttribute('aria-selected','false');$('live').setAttribute('aria-selected','true');$('replaycontrols').hidden=true;clearLive('Connecting to our model and live reference prices…');if(!refreshTimer)refreshTimer=setInterval(refresh,5000);await refresh();};
+  window.addEventListener('resize',draw);window.courtside={recommend,chosenRows,paperDecision};
   if(location.protocol==='file:'){startReplay();showDemo();}else{$('live').click();}
 })();
