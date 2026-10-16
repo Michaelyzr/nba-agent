@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from agents.loop_demo import SAMPLE_OUTPUT
 from agents.betting import evaluate, recommend_single, recommend_parlay, parlay_result, hedge_bet
-from agents.paper_decision import DAY_CAP, GAME_CAP, ORDER_CAP, paper_decision
+from agents.paper_decision import DAY_CAP, GAME_CAP, ORDER_CAP, trading_agent_decision
 
 
 def _controller():
@@ -24,7 +24,11 @@ def _remember_paper_prefill(key, current):
         return
     st.session_state[key + '_paper_prefill'] = {
         'match': f"{current.get('away_team', '')} @ {current.get('home_team', '')}",
-        'p': float(probability), 'ask': float(ask)}
+        'game_id': current.get('game_id'),
+        'p': float(probability), 'ask': float(ask),
+        'anchor': current.get('anchor_mid', current.get('anchor')),
+        'm4_shift': current.get('m4_shift', current.get('news_shift')),
+        'live_ask': current.get('live_ask', current.get('kalshi_ask'))}
 
 
 def _render_trading_tests(key):
@@ -55,10 +59,12 @@ sceptic veto, and the risk caps. The result is a paper fill or a logged pass.
     cards[1].markdown('**Sceptic veto.** The edge cleared 4¢ and the checks passed. The sceptic vetoes: "already priced in." Logged pass. No fill.')
     cards[2].markdown('**No-edge pass.** Illustrative inputs: home win probability 0.55, ask 0.54. Edge about −0.74¢, below 4¢. Logged pass before the sceptic. No fill.')
     st.divider()
-    st.markdown('**Run a paper decision**')
-    st.caption('edge = p − ask − 0.07·ask·(1−ask). A fill needs that edge, in cents, to be strictly greater than the gap. '
-               f'Stake is clamped at ${ORDER_CAP:.0f} per order. ${GAME_CAP:.0f} per game and ${DAY_CAP:.0f} per day are notes only; '
-               'this decision does not track a running total. Published edge rule, not a live sceptic call.')
+    st.markdown('**Paper decision by the trading agent**')
+    st.caption('Forecast is the Kalshi mid about 24 hours before tip plus the M4 news shift when both are on the match. '
+               'Otherwise this says they are missing and uses the form. '
+               'edge = p − ask − 0.07·ask·(1−ask). A fill needs that edge, in cents, to be strictly greater than the gap. '
+               f'Stake starts at $20 and is clamped by the ${ORDER_CAP:.0f} order, ${GAME_CAP:.0f} game and ${DAY_CAP:.0f} day caps. '
+               'The result names the cap that binds. No sceptic, no LLM, and no live order.')
     pre = st.session_state.get(key + '_paper_prefill') or {}
     token = f"{pre.get('match')}|{pre.get('p')}|{pre.get('ask')}"
     if st.session_state.get(key + '_paper_token') != token:
@@ -68,7 +74,8 @@ sceptic veto, and the risk caps. The result is a paper fill or a logged pass.
         if pre.get('ask') is not None:
             st.session_state[key + '_paper_ask'] = f"{pre['ask']:.4f}"
     if pre:
-        st.caption(f"Prefilled from {pre['match']} (model home-win probability and reference ask). You can edit the fields.")
+        st.caption(f"Prefilled from {pre['match']} (model home-win probability and reference ask). "
+                   'Kalshi 24h anchor and M4 news shift are used only when this match has them. You can edit the fields.')
     else:
         st.caption('No selected match with both a model probability and a reference price. Enter them below, or open Demo or Live data first.')
     gap = st.number_input('Edge gap (cents)', min_value=0.0, value=4.0, step=0.5, key=key + '_paper_gap',
@@ -76,16 +83,26 @@ sceptic veto, and the risk caps. The result is a paper fill or a logged pass.
     stake = st.number_input('Stake (dollars)', min_value=0.0, value=20.0, step=1.0, key=key + '_paper_stake')
     p_text = st.text_input('Home win probability p (0.02–0.98)', key=key + '_paper_p')
     ask_text = st.text_input('Executable price (ask)', key=key + '_paper_ask')
-    if st.button('Run paper decision', key=key + '_paper_run'):
-        st.session_state[key + '_paper_result'] = paper_decision(
-            p_text.strip() or None, ask_text.strip() or None, gap, stake)
+    spent = st.session_state.setdefault(key + '_paper_spent', {'game': 0.0, 'day': 0.0, 'game_id': None})
+    if pre.get('game_id') != spent.get('game_id'):
+        spent['game_id'] = pre.get('game_id')
+        spent['game'] = 0.0
+    if st.button('Run paper decision by the trading agent', key=key + '_paper_run'):
+        result = trading_agent_decision(
+            p_text.strip() or None, ask_text.strip() or None, gap, stake,
+            anchor=pre.get('anchor'), m4_shift=pre.get('m4_shift'), live_ask=pre.get('live_ask'),
+            spent_game=spent['game'], spent_day=spent['day'])
+        if result['status'] == 'PAPER FILL' and result['stake']:
+            spent['game'] += result['stake']
+            spent['day'] += result['stake']
+        st.session_state[key + '_paper_result'] = result
     result = st.session_state.get(key + '_paper_result')
     if result:
+        line = f"{result['status']}. {result['reason']}"
         if result['status'] == 'PAPER FILL':
-            st.success(f"PAPER FILL · stake ${result['stake']:.2f} (capped at $50) · {result['reason']} "
-                       'Published edge rule, not a live sceptic call.')
+            st.success(line)
         else:
-            st.warning(f"PASS · {result['reason']} Published edge rule, not a live sceptic call.")
+            st.warning(line)
 
 
 def render_demo(key='news_loop_sample'):

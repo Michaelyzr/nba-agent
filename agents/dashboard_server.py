@@ -6,9 +6,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from agents.alerts import AlertConfig
 from agents.dashboard_live import LiveDashboard
 from agents.loop_demo import SAMPLE_OUTPUT
-from agents.alerts import AlertConfig
+from agents.paper_decision import trading_agent_decision
 
 
 def dashboard_html():
@@ -94,6 +95,8 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
+        if self.path == '/api/trading-paper':
+            return self._trading_paper()
         if self.path != '/api/alerts/acknowledge':
             return self._send(404, b'{"error":"Not found"}')
         # A local browser may mark alerts read; arbitrary websites may not mutate state.
@@ -118,6 +121,28 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, b'{"error":"Invalid acknowledgement request"}')
         except Exception:
             self._send(503, b'{"error":"Could not save read state; please retry"}')
+
+    def _trading_paper(self):
+        """One MarketAgent paper decision. No sceptic, no LLM, and no venue order."""
+        origin = self.headers.get('Origin')
+        if origin and origin != 'http://' + self.headers.get('Host', ''):
+            return self._send(403, b'{"error":"Use the dashboard service URL"}')
+        try:
+            size = int(self.headers.get('Content-Length', '0'))
+            if not 0 < size <= 65536 or not self.headers.get('Content-Type', '').startswith('application/json'):
+                raise ValueError('Expected a bounded JSON request')
+            body = json.loads(self.rfile.read(size))
+            if not isinstance(body, dict):
+                raise ValueError('Expected an object')
+            result = trading_agent_decision(
+                body.get('p'), body.get('ask'), body.get('gap_cents', 4), body.get('stake', 20),
+                anchor=body.get('anchor'), m4_shift=body.get('m4_shift'), live_ask=body.get('live_ask'),
+                spent_game=body.get('spent_game') or 0, spent_day=body.get('spent_day') or 0)
+            self._send(200, json.dumps(result, ensure_ascii=False, allow_nan=False).encode())
+        except (ValueError, TypeError):
+            self._send(400, b'{"error":"Invalid paper decision request"}')
+        except Exception:
+            self._send(503, b'{"error":"Trading agent paper decision is unavailable"}')
 
 
 def main():

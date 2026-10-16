@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from agents.paper_decision import FEE_RATE, ORDER_CAP, paper_decision
+from agents.paper_decision import FEE_RATE, ORDER_CAP, paper_decision, trading_agent_decision
 
 
 def _fee(price):
@@ -85,11 +85,98 @@ def test_trading_tests_tab_is_static_and_next_to_demo():
     ):
         assert phrase in html, phrase
     assert "runs/" not in html and "nba-agent-github" not in html
-    assert "kalshi.com" not in script.lower() and "/api/" not in script[script.index("function paperDecision"):]
     assert "edge = p − ask − 0.07·ask·(1−ask)" in html
-    assert "function paperDecision" in script and "PAPER FILL" in script
-    assert "route.path in ('/', '/demo.html')" in server
-    assert "dashboard_html()" in server
+    assert "function paperDecision" in script and "function tradingAgentDecision" in script
+    assert "PAPER FILL" in script and "Run paper decision by the trading agent" in html
+    tail = script[script.index("function paperDecision"):]
+    assert "kalshi.com" not in tail.lower() and "polymarket.com" not in tail.lower()
+    assert set(re.findall(r"/api/[A-Za-z0-9_/-]+", tail)) == {"/api/trading-paper"}
+    assert "llm" not in tail.lower() or "no llm" in tail.lower()
+    assert "route.path in ('/', '/demo.html')" in server and "/api/trading-paper" in server
+    assert "dashboard_html()" in server and "trading_agent_decision" in server
+
+
+def test_trading_agent_names_missing_inputs_caps_and_anchor():
+    plain = trading_agent_decision(0.62, 0.50, 4, 20)
+    assert plain["status"] == "PAPER FILL" and plain["stake"] == 20
+    assert plain["fee"] == pytest.approx(_fee(0.50))
+    assert plain["edge_cents"] == pytest.approx(10.25)
+    assert plain["forecast_source"] == "form" and plain["cap"] == "none"
+    assert plain["llm"] is False and plain["sceptic"] is False and plain["order_sent"] is False
+    for phrase in ("Kalshi 24h anchor is missing", "M4 news shift is missing", "Live quote is missing",
+                   "Fee: 1.75¢", "10.25¢", "No sceptic", "no LLM", "no live order"):
+        assert phrase in plain["reason"], phrase
+
+    clamped = trading_agent_decision(0.62, 0.50, 4, 80)
+    assert clamped["status"] == "PAPER FILL" and clamped["stake"] == ORDER_CAP
+    assert clamped["cap"] == "$50 order cap" and "$50.00" in clamped["reason"]
+
+    anchored = trading_agent_decision(0.10, 0.90, 4, 20, anchor=0.50, m4_shift=0.12, live_ask=0.50)
+    assert anchored["forecast_source"] == "anchor+m4"
+    assert anchored["p_used"] == pytest.approx(0.62) and anchored["ask_used"] == pytest.approx(0.50)
+    assert anchored["status"] == "PAPER FILL"
+    assert "M4 shift +0.1200" in anchored["reason"] and "Live quote ask 0.5000." in anchored["reason"]
+    assert "missing" not in anchored["reason"]
+
+    clipped = trading_agent_decision(None, None, 4, 20, anchor=0.99, m4_shift=0.05, live_ask=0.50)
+    assert clipped["p_used"] == pytest.approx(0.98)
+
+    only_anchor = trading_agent_decision(0.62, 0.50, 4, 20, anchor=0.40)
+    assert only_anchor["forecast_source"] == "form" and only_anchor["p_used"] == pytest.approx(0.62)
+    assert "M4 news shift is missing" in only_anchor["reason"]
+
+    blocked = trading_agent_decision(0.62, 0.50, 4, 20, spent_game=100)
+    assert blocked["status"] == "PASS" and blocked["stake"] is None
+    assert blocked["cap"] == "$100 game cap" and "leaves no stake" in blocked["reason"]
+
+    day = trading_agent_decision(0.62, 0.50, 4, 40, spent_day=280)
+    assert day["status"] == "PAPER FILL" and day["stake"] == 20 and day["cap"] == "$300 day cap"
+
+    passed = trading_agent_decision(0.55, 0.54, 4, 20)
+    assert passed["status"] == "PASS" and "not above" in passed["reason"] and passed["cap"] == "not applied"
+
+
+def test_browser_trading_agent_matches_python():
+    script = SCRIPT.read_text(encoding="utf-8")
+    start, end = script.index("function finite"), script.index("function fieldOr")
+    cases = []
+    payloads = [
+        {"p": 0.62, "ask": 0.50, "gap_cents": 4, "stake": 20},
+        {"p": 0.62, "ask": 0.50, "gap_cents": 4, "stake": 80},
+        {"p": 0.55, "ask": 0.54, "gap_cents": 4, "stake": 20},
+        {"p": 0.10, "ask": 0.90, "gap_cents": 4, "stake": 20, "anchor": 0.50, "m4_shift": 0.12, "live_ask": 0.50},
+        {"p": 0.62, "ask": 0.50, "gap_cents": 4, "stake": 20, "anchor": 0.40},
+        {"p": 0.62, "ask": 0.50, "gap_cents": 4, "stake": 20, "spent_game": 100},
+        {"p": 0.62, "ask": 0.50, "gap_cents": 4, "stake": 40, "spent_day": 280},
+        {"p": None, "ask": 0.50, "gap_cents": 4, "stake": 20},
+        {"gap_cents": 4, "stake": 20, "anchor": 0.99, "m4_shift": 0.05, "live_ask": 0.50},
+    ]
+    for body in payloads:
+        result = trading_agent_decision(
+            body.get("p"), body.get("ask"), body.get("gap_cents", 4), body.get("stake", 20),
+            anchor=body.get("anchor"), m4_shift=body.get("m4_shift"), live_ask=body.get("live_ask"),
+            spent_game=body.get("spent_game") or 0, spent_day=body.get("spent_day") or 0)
+        cases.append({"body": body, "status": result["status"], "reason": result["reason"],
+                      "stake": result["stake"], "cap": result["cap"], "edge_cents": result["edge_cents"]})
+    source = script[start:end] + """
+const cases = CASES;
+for (const row of cases) {
+  const got = tradingAgentDecision(row.body);
+  if (got.status !== row.status || got.reason !== row.reason || got.cap !== row.cap) {
+    throw new Error(JSON.stringify({row, got}));
+  }
+  const stake = got.stake == null ? null : got.stake;
+  if (stake !== row.stake) throw new Error('stake ' + stake + ' vs ' + row.stake);
+  const cents = got.edge_cents == null ? null : got.edge_cents;
+  if (cents === null ? row.edge_cents !== null : Math.abs(cents - row.edge_cents) > 1e-9) {
+    throw new Error('cents ' + cents + ' vs ' + row.edge_cents);
+  }
+}
+console.log('trading agent matched');
+""".replace("CASES", json.dumps(cases))
+    run = subprocess.run([NODE, "-e", source], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "trading agent matched" in run.stdout
 
 
 def test_browser_rule_matches_python():

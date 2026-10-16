@@ -236,6 +236,8 @@
   function showMatchTab(){$('matchview').hidden=false;$('tradingtests').hidden=true;$('trading').setAttribute('aria-selected','false');}
   function finite(value){if(value==null||(typeof value==='string'&&value.trim()===''))return null;const n=Number(value);return Number.isFinite(n)?n:null;}
   function gapText(gap){const rounded=Math.round(gap*100)/100;return rounded===Math.trunc(rounded)?String(rounded):String(rounded);}
+  let paperContext={anchor:null,m4Shift:null,liveAsk:null};
+  let paperSpent={game:0,day:0,gameId:null};
   function paperDecision(p,ask,gapCents,stake){
     const home=finite(p),price=finite(ask);
     const blank={edge:null,edgeCents:null,stake:null,fee:null};
@@ -251,25 +253,93 @@
     if(edgeCents>gap)return {status:'PAPER FILL',reason,edge,edgeCents,stake:fill,fee};
     return {status:'PASS',reason,edge,edgeCents,stake:null,fee};
   }
+  function tradingAgentDecision(body){
+    const minEdge=0.04,feeRate=0.07,tail='Trading agent paper decision. No sceptic, no LLM, and no live order.';
+    const clip=p=>Math.min(Math.max(p,0.02),0.98),feeOf=price=>feeRate*price*(1-price);
+    const opt=v=>{if(v==null||v==='')return null;const n=Number(v);return Number.isFinite(n)?n:null;};
+    const unit=v=>{const n=opt(v);return n!=null&&n>0&&n<1?n:null;};
+    const fmt4=n=>Number(n).toFixed(4);
+    const anchor=opt(body.anchor),shift=opt(body.m4_shift),quote=unit(body.live_ask),formP=opt(body.p),formAsk=unit(body.ask);
+    let spentG=opt(body.spent_game),spentD=opt(body.spent_day);
+    spentG=spentG==null||spentG<0?0:spentG;spentD=spentD==null||spentD<0?0:spentD;
+    let home,source,forecast;
+    if(anchor!=null&&shift!=null){
+      const raw=anchor+shift;home=clip(raw);source='anchor+m4';
+      forecast=`Anchor ${fmt4(anchor)} plus M4 shift ${shift>=0?'+':''}${fmt4(shift)} = ${fmt4(raw)}, clipped to ${fmt4(home)}.`;
+    }else{
+      const missing=[];
+      if(anchor==null)missing.push('Kalshi 24h anchor is missing');
+      if(shift==null)missing.push('M4 news shift is missing');
+      if(formP==null){home=null;source='form';forecast=`${missing.join('. ')}. Form home-win probability is missing.`;}
+      else{home=formP;source='form';forecast=`${missing.join('. ')}. Forecast uses the form home-win probability ${fmt4(formP)}.`;}
+    }
+    let price,quoteLine;
+    if(quote!=null){price=quote;quoteLine=`Live quote ask ${fmt4(price)}.`;}
+    else if(formAsk==null){price=null;quoteLine='Live quote is missing. Form executable price is missing.';}
+    else{price=formAsk;quoteLine=`Live quote is missing. Executable price is the form ask ${fmt4(formAsk)}.`;}
+    const base={anchor,m4_shift:shift,p_used:home,ask_used:price,forecast_source:source,llm:false,sceptic:false,order_sent:false};
+    const finish=(status,stakeOut,edge,edgeCents,fee,cap,detail)=>Object.assign({status,reason:`${forecast} ${quoteLine} ${detail} ${tail}`,stake:stakeOut,edge,edge_cents:edgeCents,fee,cap},base);
+    if(home==null||price==null)return finish('PASS',null,null,null,null,null,'Home win probability or executable price is missing.');
+    if(source==='form'&&(home<0.02||home>0.98))return finish('PASS',null,null,null,null,null,'Home win probability must be between 0.02 and 0.98.');
+    const gap=opt(body.gap_cents);
+    if(gap==null)return finish('PASS',null,null,null,null,null,'Enter an edge gap in cents.');
+    const amount=opt(body.stake);
+    if(amount==null||amount<=0)return finish('PASS',null,null,null,null,null,'Stake must be greater than $0.');
+    const fee=feeOf(price),edge=home-price-fee,edgeCents=edge*100;
+    const cleared=Math.abs(gap-(minEdge*100))<1e-9?edge>minEdge:edgeCents>gap;
+    const edgeLine=`Fee: ${(fee*100).toFixed(2)}¢. Edge ${edgeCents.toFixed(2)}¢ is ${cleared?'above':'not above'} the ${gapText(gap)}¢ gap.`;
+    if(cleared){
+      let filled=amount,cap='none';
+      if(filled>50){filled=50;cap='$50 order cap';}
+      if(filled>100-spentG){filled=100-spentG;cap='$100 game cap';}
+      if(filled>300-spentD){filled=300-spentD;cap='$300 day cap';}
+      if(filled<=0)return finish('PASS',null,edge,edgeCents,fee,cap||'$100 game cap',`${edgeLine} Cap: ${cap||'$100 game cap'} leaves no stake.`);
+      let stakeLine=`Stake $${filled.toFixed(2)}`;
+      if(cap==='$50 order cap')stakeLine+=' (capped at $50)';
+      else if(cap==='$100 game cap')stakeLine+=' (capped at $100 per game)';
+      else if(cap==='$300 day cap')stakeLine+=' (capped at $300 per day)';
+      stakeLine+='.';
+      const capLine=cap==='none'?'Cap: none ($50 order, $100 game and $300 day not binding).':`Cap: ${cap}.`;
+      return finish('PAPER FILL',filled,edge,edgeCents,fee,cap,`${edgeLine} ${stakeLine} ${capLine}`);
+    }
+    return finish('PASS',null,edge,edgeCents,fee,'not applied',`${edgeLine} Cap: not applied.`);
+  }
+  function fieldOr(obj,keys){if(!obj)return null;for(const key of keys){if(obj[key]!=null&&obj[key]!=='')return obj[key];}return null;}
   function prefillPaper(){
     const row=current&&(current.bets||[]).find(r=>r.kind==='moneyline'&&r.side==='home');
     const p=row&&Number(row.probability),ask=row&&row.reference_quote&&Number(row.reference_quote.ask);
+    paperContext={anchor:fieldOr(current,['anchor_mid','anchor']),m4Shift:fieldOr(current,['m4_shift','news_shift']),liveAsk:fieldOr(current,['live_ask','kalshi_ask'])};
+    const gameId=current&&current.game_id;
+    if(gameId!==paperSpent.gameId){paperSpent.gameId=gameId;paperSpent.game=0;}
     if(Number.isFinite(p)&&Number.isFinite(ask)){
       $('paperp').value=String(Math.round(p*10000)/10000);
       $('paperask').value=String(Math.round(ask*10000)/10000);
-      $('papernote').textContent='Prefilled from '+current.away_team+' @ '+current.home_team+' (model home-win probability and reference ask). Edit either field before running. This uses the published edge rule, not a live sceptic call. Paper only.';
-    }else $('papernote').textContent='No selected match with both a model probability and a reference price. Enter them below, or choose a game under Demo or Live data. This uses the published edge rule, not a live sceptic call. Paper only.';
+      $('papernote').textContent='Prefilled from '+current.away_team+' @ '+current.home_team+' (model home-win probability and reference ask). Kalshi 24h anchor and M4 news shift are used only when this match has them; otherwise the trading agent says they are missing and uses these form inputs. Edit either field before running. This uses the published edge rule, not a live sceptic call. Paper only.';
+    }else $('papernote').textContent='No selected match with both a model probability and a reference price. Enter them below, or choose a game under Demo or Live data. If the M4 shift or a live quote is missing, the trading agent says so and uses the form. This uses the published edge rule, not a live sceptic call. Paper only.';
   }
-  function runPaper(){
-    const result=paperDecision($('paperp').value,$('paperask').value,$('papergap').value,$('paperstake').value);
+  function showPaper(result){
     const box=$('paperresult');box.hidden=false;box.className='callout paper-result '+(result.status==='PAPER FILL'?'paper-fill':'paper-pass');
     $('paperstatus').textContent=result.status;
-    $('paperreason').textContent=result.status==='PAPER FILL'?`Stake $${result.stake.toFixed(2)} (capped at $50). ${result.reason} Published edge rule, not a live sceptic call.`:`${result.reason} Published edge rule, not a live sceptic call.`;
+    $('paperreason').textContent=result.reason;
+    const trace=$('papertrace');if(trace)trace.hidden=false;
+    const put=(id,text)=>{const el=$(id);if(el)el.textContent=text;};
+    put('paperanchor',result.anchor==null?'missing':Number(result.anchor).toFixed(4));
+    put('paperm4',result.m4_shift==null?'missing':(result.m4_shift>=0?'+':'')+Number(result.m4_shift).toFixed(4));
+    put('paperfee',result.fee==null?'missing':`${(result.fee*100).toFixed(2)}¢`);
+    put('paperedge',result.edge_cents==null?'missing':`${Number(result.edge_cents).toFixed(2)}¢`);
+    put('paperapplied',result.cap||'not applied');
+    if(result.status==='PAPER FILL'&&result.stake!=null){paperSpent.game+=result.stake;paperSpent.day+=result.stake;}
+  }
+  function paperBody(){return {p:$('paperp').value,ask:$('paperask').value,gap_cents:$('papergap').value,stake:$('paperstake').value,anchor:paperContext.anchor,m4_shift:paperContext.m4Shift,live_ask:paperContext.liveAsk,spent_game:paperSpent.game,spent_day:paperSpent.day};}
+  function runPaper(){
+    const body=paperBody();
+    if(location.protocol==='file:'){showPaper(tradingAgentDecision(body));return;}
+    fetch('/api/trading-paper',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json().then(payload=>{if(!r.ok||!payload||!payload.status)throw new Error((payload&&payload.error)||'Trading agent paper decision failed');return payload;})).then(showPaper).catch(()=>{const local=tradingAgentDecision(body);local.reason='Trading agent service did not answer. '+local.reason;showPaper(local);});
   }
   $('paperrun').onclick=runPaper;
   $('trading').onclick=()=>{$('matchview').hidden=true;$('tradingtests').hidden=false;$('demo').setAttribute('aria-selected','false');$('live').setAttribute('aria-selected','false');$('trading').setAttribute('aria-selected','true');prefillPaper();};
   $('demo').onclick=()=>{showMatchTab();stopReplay();stepIndex=0;version++;source='demo';selected=[];slipMessage=null;included.clear();poolInitialized=false;if(refreshTimer)clearInterval(refreshTimer);refreshTimer=null;$('demo').setAttribute('aria-selected','true');$('live').setAttribute('aria-selected','false');startReplay();showDemo();};
   $('live').onclick=async()=>{showMatchTab();stopReplay();version++;source='live';catalogAt=0;catalog=[];selected=[];slipMessage=null;included.clear();poolInitialized=false;$('demo').setAttribute('aria-selected','false');$('live').setAttribute('aria-selected','true');$('replaycontrols').hidden=true;clearLive('Connecting to our model and live reference prices…');if(!refreshTimer)refreshTimer=setInterval(refresh,5000);await refresh();};
-  window.addEventListener('resize',draw);window.courtside={recommend,chosenRows,paperDecision};
+  window.addEventListener('resize',draw);window.courtside={recommend,chosenRows,paperDecision,tradingAgentDecision};
   if(location.protocol==='file:'){startReplay();showDemo();}else{$('live').click();}
 })();
