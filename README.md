@@ -16,8 +16,30 @@ code-enforced guardrails tailored by user type.
 > the agent runs with offline rules; add a Gemini key and `--llm` for the LLM
 > steps.
 
+## Courtside demo (quick start)
+
+Markers and graders: this is the live customer UI. Tabs are **Demo**, **Live
+data**, and **Trading tests**. No API keys are required for the paper demo.
+
+```bash
+git clone https://github.com/Michaelyzr/nba-agent.git
+cd nba-agent
+git checkout feat/courtside-m4   # Trading tests + final report live here; main may lag
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m agents.dashboard_server --forecaster m4   # optional; m4 is the default
+```
+
+Open **http://127.0.0.1:8766**. **Trading tests** is paper-only: no Kalshi or
+Polymarket orders, and no sceptic LLM on the poll.
+
+Longer guide: [docs/sample_loop.md](docs/sample_loop.md). Final report on this
+branch: [report/nba_agent_final_report.pdf](report/nba_agent_final_report.pdf).
+
 ## Contents
 
+0. [Courtside demo (quick start)](#courtside-demo-quick-start)
 1. [Product and objectives](#1-product-and-objectives)
 2. [System design](#2-system-design)
 3. [Team, roles and work packages](#3-team-roles-and-work-packages)
